@@ -1,0 +1,14 @@
+.vscode/
+.ycm_extra_conf.py
+lkmdev-editor-setup-kit/
+
+bin/
+
+*.o.d
+*.cmd
+*.o
+*.ko
+*.mod.c
+*.mod
+Module.symvers
+modules.order
