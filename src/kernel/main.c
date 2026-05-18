@@ -1,20 +1,35 @@
-#include <linux/kernel.h>
 #include <linux/module.h>
+
+#include <hooks/hooks.h>
+#include <vmfs.h>
+#include <modname.h>
 
 MODULE_AUTHOR("Stefano Belli");
 MODULE_DESCRIPTION("Stealth code injection detector");
 MODULE_LICENSE("GPL");
 
-int module_hello(void);
-void module_byebye(void);
+int setup_module(void);
+void teardown_module(void);
 
-int module_hello(void) {
+int setup_module(void) 
+{
+	int rv;
+
+	setup_vmfs_pcp_list_heads();
+
+	if ((rv = setup_hooks())) {
+		pr_err(MODNAME ": setup_hooks failed with code %d\n", rv);
+		return -ESRCH;
+	}
+
 	return 0;
 }
 
-void module_byebye(void) {
-
+void teardown_module(void) 
+{
+	teardown_hooks();
+	teardown_vmfs_pcp_list_heads();
 }
 
-module_init(module_hello);
-module_exit(module_byebye);
+module_init(setup_module);
+module_exit(teardown_module);

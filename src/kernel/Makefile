@@ -1,7 +1,12 @@
 SHELL=/bin/bash
 modname=sci-detect
 obj-m := $(modname).o
-$(modname)-objs += main.o
+$(modname)-objs += \
+	main.o \
+	hooks/hooks.o \
+	hooks/hpf.o \
+	hooks/dap.o \
+	vmfs.o
 ccflags-y += -Wall -W -Wextra -Wshadow -I$(src)/include -Wno-shadow -O2 #careful with opt
 
 all:
