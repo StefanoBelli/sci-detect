@@ -4,8 +4,10 @@
 
 #include <vmfs.h>
 #include <logging.h>
+#include <hooks/pageutils.h>
 
 #define do_anonymous_page__symbol "do_anonymous_page"
+
 static int do_anonymous_page__ehkrphook(
 		struct kretprobe_instance *krpi, struct pt_regs *regs)
 {
@@ -69,24 +71,15 @@ static int do_anonymous_page__hkrphook(
 		goto __dap_handler_unlock;
 	}
 
-	struct page *page = pte_page(first_pte);
-	if(!page) {
-		scid_err("NULL page descriptor");
-		goto __dap_handler_unlock;
-	}
-
 	/* should not happen in any case... */
 	if(!(pte_flags(first_pte) & _PAGE_USER)) {
 		scid_err("got a kernel mapping instead of a user one");
 		goto __dap_handler_unlock;
 	}
 
-	/* every page is part of a folio */
-	struct folio *folio = page_folio(page);
-
-	/* TODO check if this makes sense */
-	if(folio_nr_pages(folio) > 1) {
-		scid_err("corresponding folio has more than 1 pages");
+	struct page *page = get_one_page_from_pte(first_pte);
+	if(!page) {
+		scid_err("unable to get page");
 		goto __dap_handler_unlock;
 	}
 

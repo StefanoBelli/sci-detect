@@ -10,21 +10,24 @@
 #include <logging.h>
 
 #define handle_pte_fault__symbol "handle_pte_fault"
+
 static int handle_pte_fault__ehkrphook(
 		struct kretprobe_instance *krpi, struct pt_regs *regs) 
 {
-	struct list_head *head;
+	struct vm_fault *vmf;
 	struct vm_fault_entry *entry;
 
-	if((entry = kzalloc(sizeof(struct vm_fault_entry), GFP_ATOMIC)) == NULL) {
-		scid_err("memory exhausted");
+	vmf = (struct vm_fault*) regs->di;
+	if(!vmf) {
+		scid_warn("vmf is NULL");
 		return 1;
 	}
 
-	entry->vmf = (struct vm_fault*) regs->di;
-	
-	head = this_cpu_ptr(&vmfs_head);
-	list_add(&entry->node, head);
+	entry = add_vmf(vmf);
+	if(!entry) {
+		scid_err("add_vmf failed");
+		return 1;
+	}
 
 	memcpy(krpi->data, &entry, sizeof(struct vm_fault_entry*));
 
@@ -38,8 +41,7 @@ static int handle_pte_fault__hkrphook(
 
 	memcpy(&entry, krpi->data, sizeof(struct vm_fault_entry*));
 
-	list_del(&entry->node);
-	kfree(entry);
+	del_vmf(entry);
 
 	return 0;
 }
