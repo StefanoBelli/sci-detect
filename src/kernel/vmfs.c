@@ -100,7 +100,7 @@ int got_this_vmf(struct vm_fault *vmf)
 		return 1;
 
 	/* Tier-3 lookup */
-	for_each_present_cpu(cpu) {
+	for_each_enabled_cpu(cpu) {
 		struct vm_fault_entry *entry;
 		struct vm_fault_list *pcp_list;
 
@@ -112,6 +112,8 @@ int got_this_vmf(struct vm_fault *vmf)
 		/* we need to migrate... */
 		__del_entry_from_pcp_list(entry);
 		__add_entry_to_pcp_list(my_list, entry);
+
+		return 1;
 	}
 
 	return 0;
