@@ -5,10 +5,18 @@
 #include <vmfs.h>
 #include <logging.h>
 
-/* TODO
- *  - implement caching mechanism
+/*
+ * why the migration mechanism is needed?
+ *  what if a thread gets suspended while in #PF handler
+ *  and gets scheduled on another CPU? the process running
+ *  in the new CPU doesn't find the corresponding vm_fault
+ *  when proceeding with the code (and encountering the hooks)
+ *
+ *  If this happens, try to look in remote CPUs and, if vm_fault
+ *  found, migrate it to your local list.
+ *
+ * should happen rarely though...
  */
-
 struct vm_fault_entry {
 	struct vm_fault *vmf;
 	rwlock_t *lock; /* needed to delete: points to pcp-list lock */
@@ -94,12 +102,10 @@ int got_this_vmf(struct vm_fault *vmf)
 	struct vm_fault_list *my_list;
 	unsigned int cpu;
 
-	/* Tier-2 lookup */
 	my_list = this_cpu_ptr(&vmfs);
 	if(__lookup_vmf_in_pcp_list(my_list, vmf))
 		return 1;
 
-	/* Tier-3 lookup */
 	for_each_enabled_cpu(cpu) {
 		struct vm_fault_entry *entry;
 		struct vm_fault_list *pcp_list;
@@ -138,6 +144,14 @@ struct vm_fault_entry *add_vmf(struct vm_fault *vmf)
 	return entry;
 }
 
+/*
+ * doesn't really matter if deleting from my
+ * own local cpu list, or another remote cpu.
+ *
+ * Taking the write lock and deleting the entry
+ * forever, won't be looked at any further,
+ * from now on.
+ */
 void del_vmf(struct vm_fault_entry *entry) 
 {
 	__del_entry_from_pcp_list(entry);
