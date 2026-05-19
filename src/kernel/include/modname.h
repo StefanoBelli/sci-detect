@@ -1,6 +1,8 @@
 #ifndef SCID_MODNAME_H
 #define SCID_MODNAME_H
 
-#define MODNAME "sci-detect"
+#include <linux/module.h>
+
+#define MODNAME module_name(THIS_MODULE)
 
 #endif

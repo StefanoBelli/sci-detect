@@ -1,8 +1,6 @@
-#include <linux/module.h>
-
 #include <hooks/hooks.h>
 #include <vmfs.h>
-#include <modname.h>
+#include <logging.h>
 
 MODULE_AUTHOR("Stefano Belli");
 MODULE_DESCRIPTION("Stealth code injection detector");
@@ -18,7 +16,7 @@ int setup_module(void)
 	setup_vmfs_pcp_list_heads();
 
 	if ((rv = setup_hooks())) {
-		pr_err(MODNAME ": setup_hooks failed with code %d\n", rv);
+		scid_errf("setup_hooks failed with rv=%d", rv);
 		return -ESRCH;
 	}
 

@@ -3,7 +3,7 @@
 #include <linux/spinlock.h>
 
 #include <vmfs.h>
-#include <modname.h>
+#include <logging.h>
 
 #define do_anonymous_page__symbol "do_anonymous_page"
 static int do_anonymous_page__ehkrphook(
@@ -21,17 +21,12 @@ static int do_anonymous_page__ehkrphook(
 
 	/* just some consistency checks */
 	if(vmf->pte) {
-		pr_err(MODNAME ": pte is not null\n");
-		return 1;
-	}
-
-	if(vmf->ptl && spin_is_locked(vmf->ptl)) {
-		pr_err(MODNAME ": spin is locked\n");
+		scid_err("pte is not NULL");
 		return 1;
 	}
 
 	if(vmf->real_address >= TASK_SIZE) {
-		pr_err(MODNAME ": very high linear address (kernel)\n");
+		scid_err("address too high (kernel), we care about user");
 		return 1;
 	}
 
@@ -55,38 +50,55 @@ static int do_anonymous_page__hkrphook(
 	memcpy(&vmf, krpi->data, sizeof(struct vm_fault*));
 
 	/* this could be possible */
-	if(!vmf->pte || !vmf->ptl)
+	if(!vmf->pte || !vmf->ptl) {
+		scid_err("pte or ptl is NULL, this is strange...");
 		return 0;
+	}
 
 	/* get the page table lock */
 	spin_lock_irqsave(vmf->ptl, cpu_flags);
 
 	pte_t *first_pte = vmf->pte;
-	if(pte_none(*first_pte))
+	if(pte_none(*first_pte)) {
+		scid_err("zeroed pte");
 		goto __dap_handler_unlock;
+	}
 
-	if(!pte_present(*first_pte))
+	if(!pte_present(*first_pte)) {
+		scid_err("not-present pte");
 		goto __dap_handler_unlock;
+	}
 
 	struct page *page = pte_page(*first_pte);
-	if(!page)
+	if(!page) {
+		scid_err("NULL page descriptor");
 		goto __dap_handler_unlock;
+	}
 
 	/* should not happen in any case... */
-	if(!(pte_flags(*first_pte) & _PAGE_USER))
+	if(!(pte_flags(*first_pte) & _PAGE_USER)) {
+		scid_err("got a kernel mapping instead of a user one");
 		goto __dap_handler_unlock;
+	}
 
 	/* every page is part of a folio */
 	struct folio *folio = page_folio(page);
 
 	/* TODO check if this makes sense */
-	if(folio_nr_pages(folio) > 1)
+	if(folio_nr_pages(folio) > 1) {
+		scid_err("corresponding folio has more than 1 pages");
 		goto __dap_handler_unlock;
+	}
 
 	int pte_has_rw = pte_write(*first_pte);
 	int pte_has_exec = pte_exec(*first_pte);
 
-	pr_info("page is rw: %d, exec: %d\n", pte_has_rw, pte_has_exec);
+	if(!pte_has_rw) {
+		scid_err("at this point, an rw mapping was expected");
+		goto __dap_handler_unlock;
+	}
+
+	//pr_info("page is rw: %d, exec: %d\n", pte_has_rw, pte_has_exec);
 
 	/* release the page table lock */
 __dap_handler_unlock:

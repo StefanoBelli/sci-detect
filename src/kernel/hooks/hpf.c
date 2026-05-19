@@ -4,8 +4,10 @@
 #include <linux/kprobes.h>
 #include <linux/percpu.h>
 #include <linux/string.h>
+#include <linux/compiler.h>
 
 #include <vmfs.h>
+#include <logging.h>
 
 #define handle_pte_fault__symbol "handle_pte_fault"
 static int handle_pte_fault__ehkrphook(
@@ -15,7 +17,7 @@ static int handle_pte_fault__ehkrphook(
 	struct vm_fault_entry *entry;
 
 	if((entry = kzalloc(sizeof(struct vm_fault_entry), GFP_ATOMIC)) == NULL) {
-		//TODO err msg
+		scid_err("memory exhausted");
 		return 1;
 	}
 
@@ -30,7 +32,7 @@ static int handle_pte_fault__ehkrphook(
 }
 
 static int handle_pte_fault__hkrphook(
-		struct kretprobe_instance *krpi, struct pt_regs *regs)
+		struct kretprobe_instance *krpi, __maybe_unused struct pt_regs *regs)
 {
 	struct vm_fault_entry *entry;
 
