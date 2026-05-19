@@ -6,6 +6,7 @@ $(modname)-objs += \
 	hooks/hooks.o \
 	hooks/hpf.o \
 	hooks/dap.o \
+	hooks/wpc.o \
 	vmfs.o
 ccflags-y += -Wall -W -Wextra -Wshadow -I$(src)/include -Wno-shadow -O2 #careful with opt
 

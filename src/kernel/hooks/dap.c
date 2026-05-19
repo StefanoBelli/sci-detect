@@ -58,25 +58,25 @@ static int do_anonymous_page__hkrphook(
 	/* get the page table lock */
 	spin_lock_irqsave(vmf->ptl, cpu_flags);
 
-	pte_t *first_pte = vmf->pte;
-	if(pte_none(*first_pte)) {
+	pte_t first_pte = ptep_get(vmf->pte);
+	if(pte_none(first_pte)) {
 		scid_err("zeroed pte");
 		goto __dap_handler_unlock;
 	}
 
-	if(!pte_present(*first_pte)) {
+	if(!pte_present(first_pte)) {
 		scid_err("not-present pte");
 		goto __dap_handler_unlock;
 	}
 
-	struct page *page = pte_page(*first_pte);
+	struct page *page = pte_page(first_pte);
 	if(!page) {
 		scid_err("NULL page descriptor");
 		goto __dap_handler_unlock;
 	}
 
 	/* should not happen in any case... */
-	if(!(pte_flags(*first_pte) & _PAGE_USER)) {
+	if(!(pte_flags(first_pte) & _PAGE_USER)) {
 		scid_err("got a kernel mapping instead of a user one");
 		goto __dap_handler_unlock;
 	}
@@ -90,8 +90,8 @@ static int do_anonymous_page__hkrphook(
 		goto __dap_handler_unlock;
 	}
 
-	int pte_has_rw = pte_write(*first_pte);
-	int pte_has_exec = pte_exec(*first_pte);
+	int pte_has_rw = pte_write(first_pte);
+	int pte_has_exec = pte_exec(first_pte);
 
 	if(!pte_has_rw) {
 		scid_err("at this point, an rw mapping was expected");
