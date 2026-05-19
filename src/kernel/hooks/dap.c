@@ -13,12 +13,12 @@ static int do_anonymous_page__ehkrphook(
 {
 	struct vm_fault *vmf = (struct vm_fault*) regs->di;
 
-	/* don't care about zero page (demand paging, first read) */
-	if(!(vmf->flags & FAULT_FLAG_WRITE))
-		return 1;
-
 	/* are we on the right kernel control path? */
 	if(!got_this_vmf(vmf))
+		return 1;
+
+	/* don't care about zero page (demand paging, first read) */
+	if(!(vmf->flags & FAULT_FLAG_WRITE))
 		return 1;
 
 	/* just some consistency checks */

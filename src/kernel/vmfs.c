@@ -6,7 +6,6 @@
 #include <logging.h>
 
 /* TODO
- *  - what if process gets moved to another cpu (unlikely, but can happen)?
  *  - implement caching mechanism
  */
 
@@ -72,6 +71,23 @@ static struct vm_fault_entry *__lookup_vmf_in_pcp_list(
 	return NULL;
 }
 
+static inline void __del_entry_from_pcp_list(struct vm_fault_entry *vmfe)
+{
+	write_lock(vmfe->lock);
+	list_del(&vmfe->node);
+	write_unlock(vmfe->lock);
+}
+
+static inline void __add_entry_to_pcp_list(
+		struct vm_fault_list *list, struct vm_fault_entry *vmfe)
+{
+	vmfe->lock = &list->lock;
+
+	write_lock(&list->lock);
+	list_add(&vmfe->node, &list->head);
+	write_unlock(&list->lock);
+}
+
 /* preemption disabled by caller */
 int got_this_vmf(struct vm_fault *vmf) 
 {
@@ -94,15 +110,8 @@ int got_this_vmf(struct vm_fault *vmf)
 			continue;
 
 		/* we need to migrate... */
-		write_lock(entry->lock);
-		list_del(&entry->node);
-		write_unlock(entry->lock);
-
-		entry->lock = &my_list->lock;
-
-		write_lock(&my_list->lock);
-		list_add(&entry->node, &my_list->head);
-		write_unlock(&my_list->lock);
+		__del_entry_from_pcp_list(entry);
+		__add_entry_to_pcp_list(my_list, entry);
 	}
 
 	return 0;
@@ -112,32 +121,25 @@ int got_this_vmf(struct vm_fault *vmf)
 struct vm_fault_entry *add_vmf(struct vm_fault *vmf) 
 {
 	struct vm_fault_entry *entry;
-	struct vm_fault_list *list;
+	struct vm_fault_list *my_list;
 
-	if((entry = kzalloc(sizeof(struct vm_fault_entry), GFP_ATOMIC)) == NULL) {
+	if((entry = kmalloc(sizeof(struct vm_fault_entry), GFP_ATOMIC)) == NULL) {
 		scid_err("memory exhausted");
 		return NULL;
 	}
 
 	entry->vmf = vmf;
 	
-	list = this_cpu_ptr(&vmfs);
-
-	entry->lock = &list->lock;
-
-	write_lock(&list->lock);
-	list_add(&entry->node, &list->head);
-	write_unlock(&list->lock);
+	my_list = this_cpu_ptr(&vmfs);
+	__add_entry_to_pcp_list(my_list, entry);
 
 	return entry;
 }
 
-void del_vmf(struct vm_fault_entry *vmfe) 
+void del_vmf(struct vm_fault_entry *entry) 
 {
-	write_lock(vmfe->lock);
-	list_del(&vmfe->node);
-	write_unlock(vmfe->lock);
+	__del_entry_from_pcp_list(entry);
 
-	kfree(vmfe);
+	kfree(entry);
 }
 
