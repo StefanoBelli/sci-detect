@@ -1,8 +1,5 @@
-#include <linux/slab.h>
-#include <linux/list.h>
 #include <linux/mm.h>
 #include <linux/kprobes.h>
-#include <linux/percpu.h>
 #include <linux/string.h>
 #include <linux/compiler.h>
 

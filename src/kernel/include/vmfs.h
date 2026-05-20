@@ -2,21 +2,39 @@
 #define SCID_VMFS_H
 
 #include <linux/mm.h>
-#include <linux/list.h>
 
-/* keep it opaque */
+/* keep it opaque. def. inside vmfs.c */
 struct vm_fault_entry;
 
 void setup_vmfs_pcp_lists(void);
 void teardown_vmfs_pcp_lists(void);
 
-/* caller must ensure preemption disabled */
+/* 
+ * Check if probes are being called from the
+ * right kernel control path
+ *
+ * Returns 1 if this is true, 0 otherwise.
+ *
+ * Caller must ensure preemption disabled */
 int got_this_vmf(struct vm_fault*);
 
-/* caller must ensure preemption disabled */
+/* 
+ * Add the vmf used to check the kcp.
+ *
+ * Returns NULL if memory exhausted, ptr to the
+ * entry otherwise.
+ *
+ * Caller must ensure preemption disabled */
 struct vm_fault_entry* add_vmf(struct vm_fault*);
 
-/* caller must ensure preemption disabled */
+
+/*
+ * Delete the vmf, this kcp is done and no more 
+ * valid
+ *
+ * Whether preemption is enabled or not, doesn't
+ * matter
+ */
 void del_vmf(struct vm_fault_entry*);
 
 #endif

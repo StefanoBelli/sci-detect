@@ -5,13 +5,13 @@
 extern struct kretprobe handle_pte_fault__krp; /* hpf.c */
 extern struct kretprobe do_anonymous_page__krp; /* dap.c */
 extern struct kretprobe wp_page_copy__krp; /* wpc.c */
-extern struct kretprobe wp_page_reuse__krp; /* wpr.c */
+extern struct kretprobe do_wp_page__krp; /* dwp.c */
 
 static struct kretprobe *krps[] = {
 	&handle_pte_fault__krp,
 	&do_anonymous_page__krp,
 	&wp_page_copy__krp,
-	&wp_page_reuse__krp,
+	&do_wp_page__krp,
 };
 
 #define ARGS(arr, type) \

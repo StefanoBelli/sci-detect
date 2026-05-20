@@ -1,5 +1,6 @@
 #include <linux/kprobes.h>
-#include <linux/mm.h>
+#include <linux/string.h>
+#include <linux/spinlock.h>
 
 #include <vmfs.h>
 #include <logging.h>

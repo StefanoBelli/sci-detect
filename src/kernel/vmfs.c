@@ -1,6 +1,8 @@
 #include <linux/percpu.h>
+#include <linux/smp.h>
 #include <linux/slab.h>
 #include <linux/rwlock.h>
+#include <linux/list.h>
 
 #include <vmfs.h>
 #include <logging.h>
@@ -109,6 +111,11 @@ int got_this_vmf(struct vm_fault *vmf)
 	for_each_enabled_cpu(cpu) {
 		struct vm_fault_entry *entry;
 		struct vm_fault_list *pcp_list;
+		unsigned int my_cpu;
+
+		my_cpu = smp_processor_id();
+		if(cpu == my_cpu)
+			continue;
 
 		pcp_list = per_cpu_ptr(&vmfs, cpu);
 		entry = __lookup_vmf_in_pcp_list(pcp_list, vmf);
