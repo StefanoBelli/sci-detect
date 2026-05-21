@@ -1,11 +1,9 @@
 #include <linux/percpu.h>
 #include <linux/smp.h>
 #include <linux/slab.h>
-#include <linux/rwlock.h>
 #include <linux/list.h>
 #include <linux/kprobes.h>
 #include <linux/compiler.h>
-#include <linux/types.h>
 #include <linux/bitmap.h>
 
 #include <vmfs.h>
@@ -26,10 +24,8 @@
  * if a termination signal is sent to the user-created thread,
  * the function is able to reach the end, so to call its kretprobe's
  * handler.
- */
-
-/*
- * why the migration mechanism is needed?
+ *
+ * NOTE2: why the migration mechanism is needed?
  *  what if a thread gets suspended while in #PF handler
  *  and gets scheduled on another CPU? the process running
  *  in the new CPU doesn't find the corresponding vm_fault
@@ -38,26 +34,12 @@
  *  If this happens, try to look in remote CPUs and, if vm_fault
  *  found, migrate it to your local list.
  *
- * should happen rarely though...
+ *  should happen rarely though...
+ *
+ * NOTE3: the rwlock is needed to let SMP systems' CPUs to
+ * access remote lists of each other, to do the migration
+ *
  */
-struct vm_fault_entry {
-	struct {
-		struct vm_fault *vmf;
-
-		/* needed to delete: points to pcp-list lock */
-		rwlock_t *list_lock; 
-
-		/* needed to determine specific caller */
-		DECLARE_BITMAP(caller_bitmap, 64);
-	} value;
-
-	struct list_head node;
-};
-
-unsigned long* get_caller_bitmap(struct vm_fault_entry* entry) 
-{
-	return entry->value.caller_bitmap;
-}
 
 struct vm_fault_list {
 	struct list_head head;

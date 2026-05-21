@@ -55,7 +55,6 @@ static int wp_page_copy__ehkrphook(
 
 	/* alright, see you on the return handler... */
 	*((struct vm_fault**)krpi->data) = vmf;
-	//memcpy(krpi->data, &vmf, sizeof(struct vm_fault*));
 	return 0;
 }
 
@@ -70,7 +69,6 @@ static int wp_page_copy__hkrphook(
 
 	/* get vmf pointer from entry handler */
 	vmf = *((struct vm_fault**)krpi->data);
-	//memcpy(&vmf, krpi->data, sizeof(struct vm_fault*));
 
 	if(!vmf->ptl || !vmf->pte) {
 		scid_err("ptl or pte is NULL on ret");

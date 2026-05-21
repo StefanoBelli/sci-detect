@@ -27,7 +27,6 @@ static int handle_pte_fault__ehkrphook(
 	}
 
 	*((struct vm_fault_entry**)krpi->data) = entry;
-	//memcpy(krpi->data, &entry, sizeof(struct vm_fault_entry*));
 
 	return 0;
 }
@@ -35,10 +34,6 @@ static int handle_pte_fault__ehkrphook(
 static int handle_pte_fault__hkrphook(
 		struct kretprobe_instance *krpi, __maybe_unused struct pt_regs *regs)
 {
-	//struct vm_fault_entry *entry;
-
-	//memcpy(&entry, krpi->data, sizeof(struct vm_fault_entry*));
-
 	del_vmf(*((struct vm_fault_entry**)krpi->data));
 
 	return 0;

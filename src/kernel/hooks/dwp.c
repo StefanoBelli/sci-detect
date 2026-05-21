@@ -21,7 +21,6 @@ static inline void __do_wp_page_reuse(struct vm_fault *vmf);
 static int do_wp_page__ehkrphook(
 		struct kretprobe_instance *krpi, struct pt_regs *regs) 
 {
-
 	struct vm_fault *vmf = (struct vm_fault*) regs->di;
 
 	/* are we on the right kernel control path? */
@@ -30,7 +29,6 @@ static int do_wp_page__ehkrphook(
 
 	/* almost a noop, just copy params for handler */
 	*((struct vm_fault**)krpi->data) = vmf;
-	//memcpy(krpi->data, &vmf, sizeof(struct vm_fault*));
 	return 0;
 }
 
@@ -38,14 +36,12 @@ static int do_wp_page__ehkrphook(
 static int do_wp_page__hkrphook(
 		struct kretprobe_instance *krpi, struct pt_regs *regs) 
 {
-
 	struct vm_fault *vmf;
 
 	if(regs_return_value(regs) != 0)
 		return 0;
 
 	vmf = *((struct vm_fault**)krpi->data);
-	//memcpy(&vmf, krpi->data, sizeof(struct vm_fault*));
 
 	/* this is the alternative to hooking into inlined wp_page_reuse:
 	 * we try to reconstruct the flow logic that made do_wp_page to

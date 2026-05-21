@@ -34,7 +34,6 @@ static int do_anonymous_page__ehkrphook(
 
 	/* ok then, pass vmf ptr to the handler */
 	*((struct vm_fault**)krpi->data) = vmf;
-	//memcpy(krpi->data, &vmf, sizeof(struct vm_fault*));
 
 	return 0;
 }
@@ -51,8 +50,7 @@ static int do_anonymous_page__hkrphook(
 
 	/* copy vmf ptr from entry handler */
 	vmf = *((struct vm_fault**)krpi->data);
-	//memcpy(&vmf, krpi->data, sizeof(struct vm_fault*));
-	
+
 	/* this could be possible */
 	if(!vmf->pte || !vmf->ptl) {
 		scid_err("pte or ptl is NULL, this is strange...");
