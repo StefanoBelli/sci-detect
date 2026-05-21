@@ -3,12 +3,28 @@
 #include <linux/slab.h>
 #include <linux/rwlock.h>
 #include <linux/list.h>
-//#include <linux/sched.h>
 #include <linux/kprobes.h>
 #include <linux/compiler.h>
 
 #include <vmfs.h>
 #include <logging.h>
+
+/*
+ * NOTE: that if kretprobe's entry_handler is called, then
+ * the handler of that kretprobe is ALWAYS called (unless
+ * kernel oops/bugs).
+ *
+ * That is, if handle_pte_fault's entry_handler is called and
+ * add_vmf (see below) is called, then the matching handler
+ * that calls del_vmf (see below) is also called, so all memory
+ * gets freed.
+ *
+ * Signals delivered to a thread are processed on the return
+ * path to userspace. In any case, in the midst of handle_pte_fault,
+ * if a termination signal is sent to the user-created thread,
+ * the function is able to reach the end, so to call its kretprobe's
+ * handler.
+ */
 
 /*
  * why the migration mechanism is needed?
@@ -29,10 +45,6 @@ struct vm_fault_entry {
 		/* needed to delete: points to pcp-list lock */
 		rwlock_t *list_lock; 
 
-		/* needed to avoid missed kfrees, see the do_exit kprobe 
-		struct task_struct *tsk; 
-		*/
-
 		/* needed to determine specific caller */
 		u64 caller_bitmap; 
 	} value;
@@ -50,9 +62,6 @@ struct vm_fault_list {
 	rwlock_t lock;
 };
 
-static void __register_do_exit_kprobe(void);
-static void __unregister_do_exit_kprobe(void);
-
 static DEFINE_PER_CPU(struct vm_fault_list, vmfs);
 
 void setup_vmfs_pcp_lists(void) 
@@ -65,16 +74,12 @@ void setup_vmfs_pcp_lists(void)
 		INIT_LIST_HEAD(&l->head);
 		rwlock_init(&l->lock);
 	}
-
-	//return __register_do_exit_kprobe();
 }
 
 /* this must be called *AFTER* unregister_k(ret)probes did its job */
 void teardown_vmfs_pcp_lists(void) 
 {
 	unsigned int cpu;
-
-	//__unregister_do_exit_kprobe();
 
 	for_each_possible_cpu(cpu) {
 		struct vm_fault_list *l = per_cpu_ptr(&vmfs, cpu);
@@ -122,19 +127,6 @@ static inline struct vm_fault_entry *lookup_in_pcp_list_by_vmf(
 {
 	return __lookup_in_pcp_list(list, vmf, __lookup_compare_by_vmfptr);
 }
-
-/* lookup by task 
-static int __lookup_compare_by_tskptr(void *tsk, struct vm_fault_entry *entry)
-{
-	return (struct task_struct*) tsk == entry->value.tsk;
-}
-
-static inline struct vm_fault_entry *lookup_in_pcp_list_by_tsk(
-		struct vm_fault_list *list, struct task_struct *tsk) 
-{
-	return __lookup_in_pcp_list(list, tsk, __lookup_compare_by_tskptr);
-}
-*/
 
 static inline void __del_entry_from_pcp_list(struct vm_fault_entry *vmfe)
 {
@@ -201,7 +193,6 @@ struct vm_fault_entry *add_vmf(struct vm_fault *vmf)
 	}
 
 	entry->value.vmf = vmf;
-	//entry->value.tsk = get_current();
 	entry->value.caller_bitmap = 0;
 	
 	my_list = this_cpu_ptr(&vmfs);
@@ -224,79 +215,3 @@ void del_vmf(struct vm_fault_entry *entry)
 
 	kfree(entry);
 }
-
-/* 
- * -----------------------------------------------
- * THIS SHOULD NEVER HAPPEN (SIGNALS "EXECUTED"
- * WHEN RETURNING TO USERSPACE)
- * -----------------------------------------------
- *
- * when this hook is hit, it ensures that
- * thread didn't get killed in the midst of
- * handle_pte_fault function.
- *
- * If this is the case (by receiving a
- * termination signal), then without this hook
- * the kmalloc'd memory by the entry handler of
- * handle_pte_fault (using add_vmf, see above)
- * would never get freed, because the handler
- * of handle_pte_fault will never get called,
- * so no del_vmf gets called, to free memory.
- *
- *  - Reschedule interrupts
-#define do_exit__symbol "do_exit"
-
-static int do_exit__pkphook(
-		__maybe_unused struct kprobe *kp, 
-		__maybe_unused struct pt_regs *regs)
-{
-	struct vm_fault_list *my_list;
-	struct vm_fault_entry *found_entry;
-	struct task_struct *tsk;
-	unsigned int cpu;
-	unsigned int my_cpu;
-
-	my_list = this_cpu_ptr(&vmfs);
-
-	tsk = get_current();
-
-	found_entry = lookup_in_pcp_list_by_tsk(my_list, tsk);
-	if(found_entry)
-		goto __finish_do_exit_delete;
-
-	my_cpu = smp_processor_id();
-
-	for_each_enabled_cpu(cpu) {
-		struct vm_fault_list *pcp_list;
-
-		if(cpu == my_cpu)
-			continue;
-
-		pcp_list = per_cpu_ptr(&vmfs, cpu);
-		found_entry = lookup_in_pcp_list_by_tsk(pcp_list, tsk);
-		if(found_entry)
-			goto __finish_do_exit_delete;
-	}
-
-	goto __finish_do_exit_return;
-
-__finish_do_exit_delete:
-	del_vmf(found_entry);
-__finish_do_exit_return:
-	return 0;
-}
-
-static struct kprobe do_exit__kp = {
-	.symbol_name = do_exit__symbol,
-	.pre_handler = do_exit__pkphook,
-};
-
-static int __register_do_exit_kprobe(void) 
-{
-	return register_kprobe(&do_exit__kp);
-}
-
-static void __unregister_do_exit_kprobe(void)
-{
-	unregister_kprobe(&do_exit__kp);
-}*/

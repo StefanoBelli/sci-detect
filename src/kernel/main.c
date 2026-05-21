@@ -13,12 +13,7 @@ int setup_module(void)
 {
 	int rv;
 
-	/*rv = */ setup_vmfs_pcp_lists();
-	/*
-	if (rv) {
-		scid_errf("setup_vmfs_pcp_lists failed with rv=%d", rv);
-		return -ESRCH;
-	}*/
+	setup_vmfs_pcp_lists();
 
 	rv = setup_hooks();
 	if (rv) {
