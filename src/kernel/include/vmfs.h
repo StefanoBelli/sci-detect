@@ -6,7 +6,7 @@
 /* keep it opaque. def. inside vmfs.c */
 struct vm_fault_entry;
 
-void setup_vmfs_pcp_lists(void);
+int setup_vmfs_pcp_lists(void);
 void teardown_vmfs_pcp_lists(void);
 
 /* 
@@ -16,7 +16,7 @@ void teardown_vmfs_pcp_lists(void);
  * Returns 1 if this is true, 0 otherwise.
  *
  * Caller must ensure preemption disabled */
-int got_this_vmf(struct vm_fault*);
+struct vm_fault_entry* got_this_vmf(struct vm_fault*);
 
 /* 
  * Add the vmf used to check the kcp.
@@ -36,5 +36,13 @@ struct vm_fault_entry* add_vmf(struct vm_fault*);
  * matter
  */
 void del_vmf(struct vm_fault_entry*);
+
+enum caller_enum {
+	CALLER_FINISH_FAULT = (1 << 0),
+};
+
+int is_caller_vmfe(struct vm_fault_entry *, enum caller_enum);
+void set_caller_vmfe(struct vm_fault_entry *, enum caller_enum);
+void unset_caller_vmfe(struct vm_fault_entry *, enum caller_enum);
 
 #endif

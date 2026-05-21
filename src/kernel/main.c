@@ -13,9 +13,15 @@ int setup_module(void)
 {
 	int rv;
 
-	setup_vmfs_pcp_lists();
+	rv = setup_vmfs_pcp_lists();
+	if (rv) {
+		scid_errf("setup_vmfs_pcp_lists failed with rv=%d", rv);
+		return -ESRCH;
+	}
 
-	if ((rv = setup_hooks())) {
+	rv = setup_hooks();
+	if (rv) {
+		teardown_vmfs_pcp_lists();
 		scid_errf("setup_hooks failed with rv=%d", rv);
 		return -ESRCH;
 	}
