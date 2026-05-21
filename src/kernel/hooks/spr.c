@@ -1,8 +1,10 @@
 #include <linux/kprobes.h>
+#include <linux/spinlock.h>
 #include <linux/bitops.h>
 #include <linux/compiler.h>
 
 #include <vmfs.h>
+#include <logging.h>
 
 #define CALLER_DO_FAULT_BITNR 0
 #define CALLER_FINISH_FAULT_BITNR 1
@@ -101,16 +103,16 @@ struct set_pte_range_args {
 	struct vm_fault *vmf;
 
 	/* the folio that contains page */
-	struct folio *folio;
+	//struct folio *folio;
 
 	/* the first page to create a PTE for */
-	struct page *page;
+	//struct page *page;
 
 	/* the number of PTEs to create */
 	unsigned int nr;
 
 	/* starting linear address */
-	unsigned long addr;
+	//unsigned long addr;
 };
 
 static int set_pte_range__ehkrphook(
@@ -130,10 +132,10 @@ static int set_pte_range__ehkrphook(
 
 	struct set_pte_range_args args = {
 		.vmf = vmf,
-		.folio = (struct folio*) regs->si,
-		.page = (struct page*) regs->dx,
+		//.folio = (struct folio*) regs->si,
+		//.page = (struct page*) regs->dx,
 		.nr = (unsigned int) regs->cx,
-		.addr = (unsigned long) regs->r8
+		//.addr = (unsigned long) regs->r8
 	};
 
 	memcpy(krpi->data, &args, sizeof(struct set_pte_range_args));
@@ -150,7 +152,27 @@ static int set_pte_range__hkrphook(
 
 	args = (struct set_pte_range_args*) krpi->data;
 
-	//pr_info("args: nr=%d, addr=%px\n", args->nr, (void*)args->addr);
+	/* no need to take the page table lock as it is already held
+	 * by the outer finish_fault function.
+	 */
+	if(!spin_is_locked(args->vmf->ptl)) {
+		scid_err("this is strange... ptl should be taken :/");
+		return 0;
+	}
+
+	/* sets contiguous pages to continuous linear addrs */
+	unsigned int nr_pages = args->nr;
+	pte_t *cur_ptep = args->vmf->pte;
+
+	while(nr_pages-- >= 1) {
+		pte_t cur_pte = ptep_get(cur_ptep);
+		//pr_info("CPU: %d - nr_pages =%d, pte pres=%d\n", smp_processor_id(), nr_pages, pte_present(cur_pte));
+		cur_ptep++;
+	}
+
+	//pr_info("args: nr=%d, addr=%px, pte page=%px, page=%px\n", 
+	//  args->nr, (void*)args->addr, (void*)page_to_pfn((struct page*)pte_page(ptep_get(args->vmf->pte))), (void*)page_to_pfn(args->page));
+	
 	return 0;
 }
 

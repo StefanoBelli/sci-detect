@@ -1,6 +1,7 @@
 #include <linux/percpu.h>
 #include <linux/smp.h>
 #include <linux/slab.h>
+#include <linux/hashtable.h>
 #include <linux/list.h>
 #include <linux/kprobes.h>
 #include <linux/compiler.h>
@@ -41,8 +42,10 @@
  *
  */
 
+#define HT_BITS 4
+
 struct vm_fault_list {
-	struct list_head head;
+	DECLARE_HASHTABLE(ht, HT_BITS);
 	rwlock_t lock;
 };
 
@@ -55,7 +58,7 @@ void setup_vmfs_pcp_lists(void)
 	for_each_possible_cpu(cpu) {
 		struct vm_fault_list *l = per_cpu_ptr(&vmfs, cpu);
 
-		INIT_LIST_HEAD(&l->head);
+		hash_init(l->ht);
 		rwlock_init(&l->lock);
 	}
 }
@@ -69,28 +72,30 @@ void teardown_vmfs_pcp_lists(void)
 		struct vm_fault_list *l = per_cpu_ptr(&vmfs, cpu);
 
 		struct vm_fault_entry *entry;
-		struct vm_fault_entry *tmp;
+		struct hlist_node *tmp;
+		int bucket_idx;
 
-		list_for_each_entry_safe(entry, tmp, &l->head, node) {
+		hash_for_each_safe(l->ht, bucket_idx, tmp, entry, node) {
+			hlist_del(&entry->node);
 			kfree(entry);
 		}
 	}
 }
 
-/* callback for __lookup_vmf_in_pcp_list */
-typedef int (*__lookup_comparator)(void *arg, struct vm_fault_entry *entry);
+#define __my_hash_for_each_possible(name, obj, member, key) \
+	hlist_for_each_entry(obj, &name[hash_long(key, HASH_BITS(name))], member)
 
 /* just tell me if vmf is in the per-CPU list */
-static struct vm_fault_entry *__lookup_in_pcp_list(
-		struct vm_fault_list *list, void *arg, __lookup_comparator cmp) 
+static struct vm_fault_entry *__lookup_in_pcp_list_by_vmf(
+		struct vm_fault_list *list, struct vm_fault *vmf) 
 {
 	unsigned long cpu_flags;
 	struct vm_fault_entry *entry;
 
 	read_lock_irqsave(&list->lock, cpu_flags);
 
-	list_for_each_entry(entry, &list->head, node) {
-		if(cmp(arg, entry)) {
+	__my_hash_for_each_possible(list->ht, entry, node, (u64) vmf) {
+		if(vmf == entry->value.vmf) {
 			read_unlock_irqrestore(&list->lock, cpu_flags);
 			return entry;
 		}
@@ -100,24 +105,17 @@ static struct vm_fault_entry *__lookup_in_pcp_list(
 	return NULL;
 }
 
-/* lookup by vmf */
-static int __lookup_compare_by_vmfptr(void *vmf, struct vm_fault_entry *entry)
-{
-	return (struct vm_fault*) vmf == entry->value.vmf;
-}
-
-static inline struct vm_fault_entry *lookup_in_pcp_list_by_vmf(
-		struct vm_fault_list *list, struct vm_fault *vmf) 
-{
-	return __lookup_in_pcp_list(list, vmf, __lookup_compare_by_vmfptr);
-}
+#undef __my_hash_for_each_possible
 
 static inline void __del_entry_from_pcp_list(struct vm_fault_entry *vmfe)
 {
 	write_lock(vmfe->value.list_lock);
-	list_del(&vmfe->node);
+	hlist_del(&vmfe->node);
 	write_unlock(vmfe->value.list_lock);
 }
+
+#define __my_hash_add(hashtable, node, key) \
+	hlist_add_head(node, &hashtable[hash_long(key, HASH_BITS(hashtable))])
 
 static inline void __add_entry_to_pcp_list(
 		struct vm_fault_list *list, struct vm_fault_entry *vmfe)
@@ -125,9 +123,11 @@ static inline void __add_entry_to_pcp_list(
 	vmfe->value.list_lock = &list->lock;
 
 	write_lock(&list->lock);
-	list_add(&vmfe->node, &list->head);
+	__my_hash_add(list->ht, &vmfe->node, (u64) vmfe->value.vmf);
 	write_unlock(&list->lock);
 }
+
+#undef __my_hash_add
 
 /* preemption disabled by caller */
 struct vm_fault_entry* got_this_vmf(struct vm_fault *vmf) 
@@ -138,7 +138,7 @@ struct vm_fault_entry* got_this_vmf(struct vm_fault *vmf)
 	unsigned int my_cpu;
 
 	my_list = this_cpu_ptr(&vmfs);
-	found_entry = lookup_in_pcp_list_by_vmf(my_list, vmf);
+	found_entry = __lookup_in_pcp_list_by_vmf(my_list, vmf);
 	if(found_entry)
 		return found_entry;
 
@@ -151,7 +151,7 @@ struct vm_fault_entry* got_this_vmf(struct vm_fault *vmf)
 			continue;
 
 		pcp_list = per_cpu_ptr(&vmfs, cpu);
-		found_entry = lookup_in_pcp_list_by_vmf(pcp_list, vmf);
+		found_entry = __lookup_in_pcp_list_by_vmf(pcp_list, vmf);
 		if(!found_entry)
 			continue;
 

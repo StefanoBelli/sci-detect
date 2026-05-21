@@ -20,7 +20,7 @@ struct vm_fault_entry {
 		DECLARE_BITMAP(caller_bitmap, 64);
 	} value;
 
-	struct list_head node;
+	struct hlist_node node;
 };
 
 /* !! then use kernel-offered bitops !! */
