@@ -29,7 +29,8 @@ static int do_wp_page__ehkrphook(
 		return 1;
 
 	/* almost a noop, just copy params for handler */
-	memcpy(krpi->data, &vmf, sizeof(struct vm_fault*));
+	*((struct vm_fault**)krpi->data) = vmf;
+	//memcpy(krpi->data, &vmf, sizeof(struct vm_fault*));
 	return 0;
 }
 
@@ -43,7 +44,8 @@ static int do_wp_page__hkrphook(
 	if(regs_return_value(regs) != 0)
 		return 0;
 
-	memcpy(&vmf, krpi->data, sizeof(struct vm_fault*));
+	vmf = *((struct vm_fault**)krpi->data);
+	//memcpy(&vmf, krpi->data, sizeof(struct vm_fault*));
 
 	/* this is the alternative to hooking into inlined wp_page_reuse:
 	 * we try to reconstruct the flow logic that made do_wp_page to

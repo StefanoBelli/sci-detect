@@ -22,7 +22,9 @@ static int do_fault__ehkrphook(
 
 	__set_bit(CALLER_DO_FAULT_BITNR, get_caller_bitmap(entry));
 
-	memcpy(krpi->data, &entry, sizeof(struct vm_fault_entry*));
+	*((struct vm_fault_entry**)krpi->data) = entry;
+	//memcpy(krpi->data, &entry, sizeof(struct vm_fault_entry*));
+
 	return 0;
 }
 
@@ -30,11 +32,14 @@ static int do_fault__hkrphook(
 		struct kretprobe_instance *krpi, 
 		__maybe_unused struct pt_regs *regs)
 {
-	struct vm_fault_entry *entry;
+	//struct vm_fault_entry *entry;
 
-	memcpy(&entry, krpi->data, sizeof(struct vm_fault_entry*));
+	//memcpy(&entry, krpi->data, sizeof(struct vm_fault_entry*));
 
-	__clear_bit(CALLER_DO_FAULT_BITNR, get_caller_bitmap(entry));
+	unsigned long *caller_bm = 
+		get_caller_bitmap(*(struct vm_fault_entry**)krpi->data);
+
+	__clear_bit(CALLER_DO_FAULT_BITNR, caller_bm);
 	return 0;
 }
 
@@ -59,7 +64,9 @@ static int finish_fault__ehkrphook(
 
 	__set_bit(CALLER_FINISH_FAULT_BITNR, get_caller_bitmap(entry));
 
-	memcpy(krpi->data, &entry, sizeof(struct vm_fault_entry*));
+	*((struct vm_fault_entry**)krpi->data) = entry;
+	//memcpy(krpi->data, &entry, sizeof(struct vm_fault_entry*));
+
 	return 0;
 }
 
@@ -67,11 +74,14 @@ static int finish_fault__hkrphook(
 		struct kretprobe_instance *krpi, 
 		__maybe_unused struct pt_regs *regs)
 {
-	struct vm_fault_entry *entry;
+	//struct vm_fault_entry *entry;
 
-	memcpy(&entry, krpi->data, sizeof(struct vm_fault_entry*));
+	//memcpy(&entry, krpi->data, sizeof(struct vm_fault_entry*));
+	
+	unsigned long *caller_bm = 
+		get_caller_bitmap(*(struct vm_fault_entry**)krpi->data);
 
-	__clear_bit(CALLER_FINISH_FAULT_BITNR, get_caller_bitmap(entry));
+	__clear_bit(CALLER_FINISH_FAULT_BITNR, caller_bm);
 	return 0;
 }
 
@@ -144,11 +154,13 @@ static int set_pte_range__ehkrphook(
 static int set_pte_range__hkrphook(
 		struct kretprobe_instance *krpi, struct pt_regs *regs)
 {
-	struct set_pte_range_args args;
+	struct set_pte_range_args *args;
 
-	memcpy(&args, krpi->data, sizeof(struct set_pte_range_args));
+	args = (struct set_pte_range_args*) krpi->data;
 
-	pr_info("args: nr=%d, addr=%px\n", args.nr, (void*)args.addr);
+	//memcpy(&args, krpi->data, sizeof(struct set_pte_range_args));
+
+	//pr_info("args: nr=%d, addr=%px\n", args->nr, (void*)args->addr);
 	return 0;
 }
 
