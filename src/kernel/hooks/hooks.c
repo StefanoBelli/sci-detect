@@ -6,12 +6,18 @@ extern struct kretprobe handle_pte_fault__krp; /* hpf.c */
 extern struct kretprobe do_anonymous_page__krp; /* dap.c */
 extern struct kretprobe wp_page_copy__krp; /* wpc.c */
 extern struct kretprobe do_wp_page__krp; /* dwp.c */
+extern struct kretprobe set_pte_range__krp; /* spr.c */
+extern struct kretprobe do_fault__krp; /* spr.c */
+extern struct kretprobe finish_fault__krp; /* spr.c */
 
 static struct kretprobe *krps[] = {
 	&handle_pte_fault__krp,
 	&do_anonymous_page__krp,
 	&wp_page_copy__krp,
 	&do_wp_page__krp,
+	&do_fault__krp,
+	&finish_fault__krp,
+	&set_pte_range__krp,
 };
 
 #define ARGS(arr, type) \

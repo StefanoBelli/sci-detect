@@ -5,6 +5,8 @@
 #include <linux/list.h>
 #include <linux/kprobes.h>
 #include <linux/compiler.h>
+#include <linux/types.h>
+#include <linux/bitmap.h>
 
 #include <vmfs.h>
 #include <logging.h>
@@ -46,15 +48,15 @@ struct vm_fault_entry {
 		rwlock_t *list_lock; 
 
 		/* needed to determine specific caller */
-		u64 caller_bitmap; 
+		DECLARE_BITMAP(caller_bitmap, 64);
 	} value;
 
 	struct list_head node;
 };
 
-u64* get_caller_bitmap(struct vm_fault_entry* entry) 
+unsigned long* get_caller_bitmap(struct vm_fault_entry* entry) 
 {
-	return &entry->value.caller_bitmap;
+	return entry->value.caller_bitmap;
 }
 
 struct vm_fault_list {
@@ -193,8 +195,8 @@ struct vm_fault_entry *add_vmf(struct vm_fault *vmf)
 	}
 
 	entry->value.vmf = vmf;
-	entry->value.caller_bitmap = 0;
-	
+	bitmap_zero(entry->value.caller_bitmap, 64);
+
 	my_list = this_cpu_ptr(&vmfs);
 	__add_entry_to_pcp_list(my_list, entry);
 
