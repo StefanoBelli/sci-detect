@@ -2,11 +2,15 @@
 #define SCID_VMFS_H
 
 #include <linux/mm.h>
+#include <linux/types.h>
 
 /* keep it opaque. def. inside vmfs.c */
 struct vm_fault_entry;
 
-int setup_vmfs_pcp_lists(void);
+/* use kernel-offered bitops */
+u64* get_caller_bitmap(struct vm_fault_entry*);
+
+void setup_vmfs_pcp_lists(void);
 void teardown_vmfs_pcp_lists(void);
 
 /* 
@@ -37,12 +41,5 @@ struct vm_fault_entry* add_vmf(struct vm_fault*);
  */
 void del_vmf(struct vm_fault_entry*);
 
-enum caller_enum {
-	CALLER_FINISH_FAULT = (1 << 0),
-};
-
-int is_caller_vmfe(struct vm_fault_entry *, enum caller_enum);
-void set_caller_vmfe(struct vm_fault_entry *, enum caller_enum);
-void unset_caller_vmfe(struct vm_fault_entry *, enum caller_enum);
 
 #endif

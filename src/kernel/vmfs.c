@@ -3,8 +3,7 @@
 #include <linux/slab.h>
 #include <linux/rwlock.h>
 #include <linux/list.h>
-#include <linux/sched.h>
-#include <linux/types.h>
+//#include <linux/sched.h>
 #include <linux/kprobes.h>
 #include <linux/compiler.h>
 
@@ -30,27 +29,33 @@ struct vm_fault_entry {
 		/* needed to delete: points to pcp-list lock */
 		rwlock_t *list_lock; 
 
-		/* needed to avoid missed kfrees, see the do_exit kprobe */
+		/* needed to avoid missed kfrees, see the do_exit kprobe 
 		struct task_struct *tsk; 
+		*/
 
 		/* needed to determine specific caller */
-		u64 caller; 
+		u64 caller_bitmap; 
 	} value;
 
 	struct list_head node;
 };
+
+u64* get_caller_bitmap(struct vm_fault_entry* entry) 
+{
+	return &entry->value.caller_bitmap;
+}
 
 struct vm_fault_list {
 	struct list_head head;
 	rwlock_t lock;
 };
 
-static int __register_do_exit_kprobe(void);
+static void __register_do_exit_kprobe(void);
 static void __unregister_do_exit_kprobe(void);
 
 static DEFINE_PER_CPU(struct vm_fault_list, vmfs);
 
-int setup_vmfs_pcp_lists(void) 
+void setup_vmfs_pcp_lists(void) 
 {
 	unsigned int cpu;
 
@@ -61,7 +66,7 @@ int setup_vmfs_pcp_lists(void)
 		rwlock_init(&l->lock);
 	}
 
-	return __register_do_exit_kprobe();
+	//return __register_do_exit_kprobe();
 }
 
 /* this must be called *AFTER* unregister_k(ret)probes did its job */
@@ -69,7 +74,7 @@ void teardown_vmfs_pcp_lists(void)
 {
 	unsigned int cpu;
 
-	__unregister_do_exit_kprobe();
+	//__unregister_do_exit_kprobe();
 
 	for_each_possible_cpu(cpu) {
 		struct vm_fault_list *l = per_cpu_ptr(&vmfs, cpu);
@@ -118,7 +123,7 @@ static inline struct vm_fault_entry *lookup_in_pcp_list_by_vmf(
 	return __lookup_in_pcp_list(list, vmf, __lookup_compare_by_vmfptr);
 }
 
-/* lookup by task */
+/* lookup by task 
 static int __lookup_compare_by_tskptr(void *tsk, struct vm_fault_entry *entry)
 {
 	return (struct task_struct*) tsk == entry->value.tsk;
@@ -129,6 +134,7 @@ static inline struct vm_fault_entry *lookup_in_pcp_list_by_tsk(
 {
 	return __lookup_in_pcp_list(list, tsk, __lookup_compare_by_tskptr);
 }
+*/
 
 static inline void __del_entry_from_pcp_list(struct vm_fault_entry *vmfe)
 {
@@ -195,8 +201,8 @@ struct vm_fault_entry *add_vmf(struct vm_fault *vmf)
 	}
 
 	entry->value.vmf = vmf;
-	entry->value.tsk = get_current();
-	entry->value.caller = 0;
+	//entry->value.tsk = get_current();
+	entry->value.caller_bitmap = 0;
 	
 	my_list = this_cpu_ptr(&vmfs);
 	__add_entry_to_pcp_list(my_list, entry);
@@ -219,24 +225,25 @@ void del_vmf(struct vm_fault_entry *entry)
 	kfree(entry);
 }
 
-int is_caller_vmfe(
-		struct vm_fault_entry* vmfe, enum caller_enum caller) 
-{
-	return vmfe->value.caller & caller;
-}
-
-void set_caller_vmfe(
-		struct vm_fault_entry *vmfe, enum caller_enum caller)
-{
-	vmfe->value.caller |= caller;
-}
-
-void unset_caller_vmfe(
-		struct vm_fault_entry *vmfe, enum caller_enum caller)
-{
-	vmfe->value.caller ^= caller;
-}
-
+/* 
+ * -----------------------------------------------
+ * THIS SHOULD NEVER HAPPEN (SIGNALS "EXECUTED"
+ * WHEN RETURNING TO USERSPACE)
+ * -----------------------------------------------
+ *
+ * when this hook is hit, it ensures that
+ * thread didn't get killed in the midst of
+ * handle_pte_fault function.
+ *
+ * If this is the case (by receiving a
+ * termination signal), then without this hook
+ * the kmalloc'd memory by the entry handler of
+ * handle_pte_fault (using add_vmf, see above)
+ * would never get freed, because the handler
+ * of handle_pte_fault will never get called,
+ * so no del_vmf gets called, to free memory.
+ *
+ *  - Reschedule interrupts
 #define do_exit__symbol "do_exit"
 
 static int do_exit__pkphook(
@@ -251,7 +258,6 @@ static int do_exit__pkphook(
 
 	my_list = this_cpu_ptr(&vmfs);
 
-	/* no need to get refcnt for task_struct here */
 	tsk = get_current();
 
 	found_entry = lookup_in_pcp_list_by_tsk(my_list, tsk);
@@ -260,7 +266,6 @@ static int do_exit__pkphook(
 
 	my_cpu = smp_processor_id();
 
-	/* unfortunately, we have to do this... */
 	for_each_enabled_cpu(cpu) {
 		struct vm_fault_list *pcp_list;
 
@@ -294,4 +299,4 @@ static int __register_do_exit_kprobe(void)
 static void __unregister_do_exit_kprobe(void)
 {
 	unregister_kprobe(&do_exit__kp);
-}
+}*/
