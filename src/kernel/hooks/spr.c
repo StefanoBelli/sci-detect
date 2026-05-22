@@ -145,14 +145,47 @@ static int set_pte_range__ehkrphook(
 
 #undef REQUIRED_CALLER_BITS
 
+static __always_inline void __scan_one_pte(pte_t pte) {
+	if(pte_none(pte)) {
+		scid_warn("ignoring none pte");
+		return;
+	}
+
+	if(!pte_present(pte)) {
+		scid_warn("ignoring non-present pte");
+		return;
+	}
+
+	if(!(pte_flags(pte) & _PAGE_USER)) {
+		scid_warn("ignoring kernel mapping instead of a user one");
+		return;
+	}
+
+	struct page *page = pte_page(pte);
+	if(!page) {
+		scid_warn("ignoring pte (not able to get the page descriptor from it)");
+		return;
+	}
+
+	int pte_has_rw = pte_write(pte);
+	int pte_has_exec = pte_exec(pte);
+}
+
 static int set_pte_range__hkrphook(
-		struct kretprobe_instance *krpi, struct pt_regs *regs)
+		struct kretprobe_instance *krpi, 
+		__maybe_unused struct pt_regs *regs)
 {
 	struct set_pte_range_args *args;
 
 	args = (struct set_pte_range_args*) krpi->data;
 
-	/* no need to take the page table lock as it is already held
+	if(!args->vmf->ptl || !args->vmf->pte || !args->nr) {
+		scid_err("invalid arguments");
+		return 0;
+	}
+
+	/* 
+	 * no need to take the page table lock as it is already held
 	 * by the outer finish_fault function.
 	 */
 	if(!spin_is_locked(args->vmf->ptl)) {
@@ -164,15 +197,12 @@ static int set_pte_range__hkrphook(
 	unsigned int nr_pages = args->nr;
 	pte_t *cur_ptep = args->vmf->pte;
 
-	while(nr_pages-- >= 1) {
+	do {
 		pte_t cur_pte = ptep_get(cur_ptep);
-		//pr_info("CPU: %d - nr_pages =%d, pte pres=%d\n", smp_processor_id(), nr_pages, pte_present(cur_pte));
+		__scan_one_pte(cur_pte);
 		cur_ptep++;
-	}
+	} while(--nr_pages);
 
-	//pr_info("args: nr=%d, addr=%px, pte page=%px, page=%px\n", 
-	//  args->nr, (void*)args->addr, (void*)page_to_pfn((struct page*)pte_page(ptep_get(args->vmf->pte))), (void*)page_to_pfn(args->page));
-	
 	return 0;
 }
 
