@@ -3,9 +3,9 @@
 #include <linux/slab.h>
 #include <linux/hashtable.h>
 #include <linux/list.h>
+#include <linux/bitmap.h>
 #include <linux/kprobes.h>
 #include <linux/compiler.h>
-#include <linux/bitmap.h>
 
 #include <vmfs.h>
 #include <logging.h>
@@ -177,7 +177,7 @@ struct vm_fault_entry *add_vmf(struct vm_fault *vmf)
 	}
 
 	entry->value.vmf = vmf;
-	bitmap_zero(entry->value.caller_bitmap, 64);
+	bitmap_zero(caller_bitmap(entry), 64);
 
 	my_list = this_cpu_ptr(&vmfs);
 	__add_entry_to_pcp_list(my_list, entry);

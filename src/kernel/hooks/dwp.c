@@ -24,52 +24,75 @@ static int do_wp_page__ehkrphook(
 	struct vm_fault *vmf = (struct vm_fault*) regs->di;
 
 	/* are we on the right kernel control path? */
-	if(!got_this_vmf(vmf))
+	struct vm_fault_entry *entry = got_this_vmf(vmf);
+	if(!entry)
 		return 1;
 
 	/* almost a noop, just copy params for handler */
-	*((struct vm_fault**)krpi->data) = vmf;
+	*((struct vm_fault_entry**)krpi->data) = entry;
 	return 0;
 }
 
+/* this is the alternative to hooking into inlined wp_page_reuse:
+ * we try to reconstruct the flow logic that made do_wp_page to
+ * call wp_page_reuse 
+ */
 
 static int do_wp_page__hkrphook(
 		struct kretprobe_instance *krpi, struct pt_regs *regs) 
 {
-	struct vm_fault *vmf;
+	struct vm_fault_entry *entry;
 
 	if(regs_return_value(regs) != 0)
 		return 0;
 
-	vmf = *((struct vm_fault**)krpi->data);
+	entry = *((struct vm_fault_entry**)krpi->data);
 
-	/* this is the alternative to hooking into inlined wp_page_reuse:
-	 * we try to reconstruct the flow logic that made do_wp_page to
-	 * call wp_page_reuse */
+	if(wpc(entry) == 1)
+		return 0;
+
+	struct vm_fault *vmf = entry->value.vmf;
+
 	struct vm_area_struct *vma = vmf->vma;
-	if(vma->vm_flags & (VM_SHARED | VM_MAYSHARE))
-		return 0;
-
+	bool shared = vma->vm_flags & (VM_SHARED | VM_MAYSHARE);
 	struct page *page = vmf->page;
-	if(!page)
-		return 0;
 
-	struct folio *folio = page_folio(page);
-	if(!folio)
-		return 0;
+	if(shared) {
+		if(!page || is_fsdax_page(page)) {
+			/* wp_pfn_shared being called... */
+			if(!vma->vm_ops || !vma->vm_ops->pfn_mkwrite)
+				goto __do_wpr;
+		} else {
+			/* wp_page_shared being called... */
+			if(!vma->vm_ops || !vma->vm_ops->page_mkwrite)
+				goto __do_wpr;
+		}
+	} else {
+		if(!page)
+			return 0;
 
-	/* idk if this is *really* needed */
-	if(!folio_try_get(folio))
-		return 0;
+		struct folio *folio = page_folio(page);
+		if(!folio)
+			return 0;
 
-	/* PageAnonExclusive is set anyway if branch is taken
-	 * (see https://elixir.bootlin.com/linux/v7.0.9/source/mm/memory.c#L4235) */
-	if(folio_test_anon(folio) && PageAnonExclusive(page)) {
-		if(!(vmf->flags & FAULT_FLAG_UNSHARE))
-			__do_wp_page_reuse(vmf);
+		if(!folio_try_get(folio)) {
+			scid_err("unable to get folio");
+			return 0;
+		}
+
+		bool folio_anon = folio_test_anon(folio);
+		folio_put(folio);
+		bool unshare = vmf->flags & FAULT_FLAG_UNSHARE;
+		bool page_anon_excl = PageAnonExclusive(page);
+
+		if(folio_anon && page_anon_excl && !unshare)
+			goto __do_wpr;
 	}
+	
+	return 0;
 
-	folio_put(folio);
+__do_wpr:
+	__do_wp_page_reuse(vmf);
 	return 0;
 }
 
@@ -77,7 +100,7 @@ struct kretprobe do_wp_page__krp = {
 	.entry_handler = do_wp_page__ehkrphook,
 	.handler = do_wp_page__hkrphook,
 	.kp.symbol_name = do_wp_page__symbol,
-	.data_size = sizeof(struct vm_fault*),
+	.data_size = sizeof(struct vm_fault_entry*),
 };
 
 static int ____do_wpr_prior_checks(struct vm_fault *vmf)

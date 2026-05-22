@@ -16,15 +16,21 @@ struct vm_fault_entry {
 		/* needed to delete: points to pcp-list lock */
 		rwlock_t *list_lock; 
 
-		/* needed to determine specific caller */
-		DECLARE_BITMAP(caller_bitmap, 64);
+		/* shouldn't be an issue */
+		union {
+			/* needed to determine specific caller */
+			DECLARE_BITMAP(caller_bitmap, 64);
+
+			/* needed for do_wp_page */
+			unsigned long wpc;
+		};
 	} value;
 
 	struct hlist_node node;
 };
 
-/* !! then use kernel-offered bitops !! */
 #define caller_bitmap(entry) ((entry)->value.caller_bitmap)
+#define wpc(entry) ((entry)->value.wpc)
 
 void setup_vmfs_pcp_lists(void);
 void teardown_vmfs_pcp_lists(void);

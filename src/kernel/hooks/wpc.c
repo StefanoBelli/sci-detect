@@ -14,8 +14,12 @@ static int wp_page_copy__ehkrphook(
 	struct vm_fault *vmf = (struct vm_fault*) regs->di;
 
 	/* are we on the right kernel control path? */
-	if(!got_this_vmf(vmf))
+	struct vm_fault_entry *entry = got_this_vmf(vmf);
+	if(!entry)
 		return 1;
+
+	/* flag that wp_page_copy is being run... used later by do_wp_page hook */
+	wpc(entry) = 1;
 
 	/* consistency checks */
 	if(!(vmf->flags & FAULT_FLAG_WRITE)) {
