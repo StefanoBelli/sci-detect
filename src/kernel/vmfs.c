@@ -3,7 +3,6 @@
 #include <linux/slab.h>
 #include <linux/hashtable.h>
 #include <linux/list.h>
-#include <linux/bitmap.h>
 #include <linux/kprobes.h>
 #include <linux/compiler.h>
 
@@ -95,7 +94,7 @@ static struct vm_fault_entry *__lookup_in_pcp_list_by_vmf(
 	read_lock_irqsave(&list->lock, cpu_flags);
 
 	__my_hash_for_each_possible(list->ht, entry, node, (u64) vmf) {
-		if(vmf == entry->value.vmf) {
+		if(vmf == vmf(entry)) {
 			read_unlock_irqrestore(&list->lock, cpu_flags);
 			return entry;
 		}
@@ -123,7 +122,7 @@ static inline void __add_entry_to_pcp_list(
 	vmfe->value.list_lock = &list->lock;
 
 	write_lock(&list->lock);
-	__my_hash_add(list->ht, &vmfe->node, (u64) vmfe->value.vmf);
+	__my_hash_add(list->ht, &vmfe->node, (u64) vmf(vmfe));
 	write_unlock(&list->lock);
 }
 
@@ -176,8 +175,9 @@ struct vm_fault_entry *add_vmf(struct vm_fault *vmf)
 		return NULL;
 	}
 
-	entry->value.vmf = vmf;
-	bitmap_zero(caller_bitmap(entry), 64);
+	vmf(entry) = vmf;
+	private(entry) = NULL;
+	entry->value.list_lock = NULL;
 
 	my_list = this_cpu_ptr(&vmfs);
 	__add_entry_to_pcp_list(my_list, entry);

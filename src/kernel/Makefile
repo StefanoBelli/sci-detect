@@ -3,7 +3,7 @@ modname=sci-detect
 obj-m := $(modname).o
 $(modname)-objs += \
 	main.o \
-	hooks/hooks.o \
+	hooks.o \
 	hooks/hpf.o \
 	hooks/dap.o \
 	hooks/wpc.o \

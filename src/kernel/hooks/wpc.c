@@ -19,7 +19,7 @@ static int wp_page_copy__ehkrphook(
 		return 1;
 
 	/* flag that wp_page_copy is being run... used later by do_wp_page hook */
-	wpc(entry) = 1;
+	private(entry) = (void*) 1;
 
 	/* consistency checks */
 	if(!(vmf->flags & FAULT_FLAG_WRITE)) {

@@ -48,7 +48,7 @@ static int do_wp_page__hkrphook(
 
 	entry = *((struct vm_fault_entry**)krpi->data);
 
-	if(wpc(entry) == 1)
+	if(private(entry) == (void*) 1)
 		return 0;
 
 	struct vm_fault *vmf = entry->value.vmf;

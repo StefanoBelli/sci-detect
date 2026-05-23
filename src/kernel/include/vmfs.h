@@ -2,35 +2,28 @@
 #define SCID_VMFS_H
 
 #include <linux/mm.h>
-#include <linux/types.h>
 #include <linux/rwlock.h>
 
-/* exposed to avoid function call overhead due to
- * the bitmap. Use caller_bitmap(entry) macro to retrieve 
- * it and do not touch the struct
- */
+/* exposed, not opaque, to avoid function call overhead */
 struct vm_fault_entry {
 	struct {
+		/* "key" of the main kernel control path */
 		struct vm_fault *vmf;
 
-		/* needed to delete: points to pcp-list lock */
+		/* don't touch: needed to del_vmf - points to pcp-list lock */
 		rwlock_t *list_lock; 
 
-		/* shouldn't be an issue */
-		union {
-			/* needed to determine specific caller */
-			DECLARE_BITMAP(caller_bitmap, 64);
-
-			/* needed for do_wp_page */
-			unsigned long wpc;
-		};
+		/* private hooks data, depends on kernel control path */
+		void *private;
 	} value;
 
+	/* don't touch */
 	struct hlist_node node;
 };
 
-#define caller_bitmap(entry) ((entry)->value.caller_bitmap)
-#define wpc(entry) ((entry)->value.wpc)
+/* you may access these fields */
+#define vmf(entry) ((entry)->value.vmf)
+#define private(entry) ((entry)->value.private)
 
 void setup_vmfs_pcp_lists(void);
 void teardown_vmfs_pcp_lists(void);
