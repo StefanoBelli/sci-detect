@@ -2,11 +2,21 @@
 #include <linux/spinlock.h>
 #include <linux/bitops.h>
 #include <linux/compiler.h>
+#include <asm-generic/bitsperlong.h>
 
 #include <vmfs.h>
 #include <logging.h>
 
-enum caller_kcp_bitnr : unsigned long {
+typedef unsigned long __ckb_type;
+
+/* ensure enough space for a 64 bit-sized (long) bitmap, 
+ * useful if "private" field of struct vm_fault_entry gets changed
+ * and I forget about this */
+static_assert(
+		(sizeof(__ckb_type) * 8) == BITS_PER_LONG && 
+		(sizeof(private((struct vm_fault_entry*)0)) * 8) == BITS_PER_LONG);
+
+enum caller_kcp_bitnr : __ckb_type {
 	CALLER_DO_FAULT_BITNR = 0,
 	CALLER_FINISH_FAULT_BITNR = 1,
 	CALLER_FILEMAP_MAP_PAGES_BITNR = 2,

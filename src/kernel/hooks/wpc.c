@@ -6,6 +6,12 @@
 #include <logging.h>
 #include <hooks/pageutils.h>
 
+/* since private may be changed frequently... */
+static_assert(
+		__builtin_types_compatible_p(
+			typeof(private((struct vm_fault_entry*)0)), 
+			typeof(void*)));
+
 #define wp_page_copy__symbol "wp_page_copy"
 
 static int wp_page_copy__ehkrphook(
