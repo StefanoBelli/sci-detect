@@ -1,6 +1,7 @@
 #include <hooks/setuputils.h>
 #include <logging.h>
 
+/* types */
 typedef void (*unregister_probes_cb)(void*, int);
 
 typedef int (*register_probes_cb)(void*, int);
@@ -16,6 +17,10 @@ struct __register_probes_args {
 	int nr;
 };
 
+/*
+ * this cannot fail in anyway,
+ * @unregargs: unregistration arguments to check and pass to the unreg callback
+ */
 static void __unregister_probes(struct __register_probes_args *unregargs)
 {
 	if(unregargs->arr && unregargs->nr > 0) {
@@ -27,9 +32,13 @@ static void __unregister_probes(struct __register_probes_args *unregargs)
 		scid_infof("there are no %s to unregister :/ (they're 0)", unregargs->probes_type);
 }
 
-static int __register_probes(
-		struct __register_probes_args *regargs, 
-		struct __register_probes_args *onerror)
+/*
+ * this may fail if registration fails
+ * @regargs: registration arguments to check and pass to the reg callback
+ *
+ * Returns: 0 if everything ok, not 0 otherwise
+ */
+static int __register_probes(struct __register_probes_args *regargs)
 {
 	if(regargs->arr && regargs->nr > 0) {
 		scid_infof("registering %d %s", regargs->nr, regargs->probes_type);
@@ -37,12 +46,6 @@ static int __register_probes(
 		int rv = regargs->reg_cb(regargs->arr, regargs->nr);
 		if(rv) {
 			scid_errf("unable to register %d %s", regargs->nr, regargs->probes_type);
-
-			if(onerror) {
-				scid_errf("unregistering already-registered %d %s", onerror->nr, onerror->probes_type);
-				__unregister_probes(onerror);
-			}
-
 			return rv;
 		}
 	} else if(!regargs->arr)
@@ -85,26 +88,43 @@ static int __register_probes(
 		.nr = (_nr_kps_), \
 	}
 
+/*
+ * if failure in registering any type of probes, ensures that any previously
+ * setup probes is unregistered before returning to caller
+ *
+ * @args: all probes to setup
+ *
+ * Returns: 0 if successful, not 0 otherwise
+ */
 int __base_setup_hooks(struct __base_setup_hooks_args *args) 
 {
 	int rv = 0;
 
 	DEFINE_REGISTER_KRETPROBES_ARGS(regi_krps, args->krps, args->nr_krps);
 	
-	rv = __register_probes(&regi_krps, NULL);
+	rv = __register_probes(&regi_krps);
 	if(rv)
 		return rv;
 
 	DEFINE_REGISTER_KPROBES_ARGS(regi_kps, args->kps, args->nr_kps);
-	DEFINE_UNREGISTER_KRETPROBES_ARGS(unregi_krps_onerror, args->krps, args->nr_krps);
-
-	rv = __register_probes(&regi_kps, &unregi_krps_onerror);
-	if(rv)
+	
+	rv = __register_probes(&regi_kps);
+	if(rv) {
+		regi_krps.unreg_cb = (unregister_probes_cb) unregister_kretprobes;
+		scid_errf("unregistering already-registered %d %s", 
+				regi_krps.nr, regi_krps.probes_type);
+		__unregister_probes(&regi_krps);
 		return rv;
+	}
 
 	return rv;
 }
 
+/*
+ * Unregister probes, this cannot fail
+ *
+ * @args: all probes to teardown
+ */
 void __base_teardown_hooks(struct __base_setup_hooks_args *args) 
 {
 	DEFINE_UNREGISTER_KPROBES_ARGS(unregi_kps, args->kps, args->nr_kps);

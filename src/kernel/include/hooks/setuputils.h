@@ -8,10 +8,10 @@
 
 struct __base_setup_hooks_args {
 	struct kretprobe **krps;
-	size_t nr_krps;
+	int nr_krps;
 
 	struct kprobe **kps;
-	size_t nr_kps;
+	int nr_kps;
 };
 
 #define __DEFINE_BASE_SETUP_HOOKS_ARGS(_name_, _kps_, _krps_) \
@@ -25,5 +25,20 @@ struct __base_setup_hooks_args {
 
 int __base_setup_hooks(struct __base_setup_hooks_args*);
 void __base_teardown_hooks(struct __base_setup_hooks_args*);
+
+#define DEFINE_SETUP_AND_TEARDOWN_CODE(_hookgroup_, _kps_, _krps_) \
+	int __setup_##_hookgroup_##_hooks(void); \
+	void __teardown_##_hookgroup_##_hooks(void); \
+	\
+	__DEFINE_BASE_SETUP_HOOKS_ARGS(bsha, kps, krps); \
+	\
+	int __setup_##_hookgroup_##_hooks(void) \
+	{ \
+		return __base_setup_hooks(&bsha); \
+	} \
+	void __teardown_##_hookgroup_##_hooks(void) \
+	{ \
+		__base_teardown_hooks(&bsha); \
+	}
 
 #endif
