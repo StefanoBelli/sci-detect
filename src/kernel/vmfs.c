@@ -41,17 +41,27 @@
  *
  */
 
-#define HT_BITS 4
+#define HT_BITS 5
 
 struct vm_fault_list {
 	DECLARE_HASHTABLE(ht, HT_BITS);
+
+#ifdef CONFIG_SMP
 	rwlock_t lock;
+#endif
+
 };
 
+#ifdef CONFIG_SMP
 static DEFINE_PER_CPU(struct vm_fault_list, vmfs);
+#else
+static struct vm_fault_list vmfs;
+#endif 
 
 void setup_vmfs_pcp_lists(void) 
 {
+
+#ifdef CONFIG_SMP
 	unsigned int cpu;
 
 	for_each_possible_cpu(cpu) {
@@ -60,25 +70,37 @@ void setup_vmfs_pcp_lists(void)
 		hash_init(l->ht);
 		rwlock_init(&l->lock);
 	}
+#else
+	hash_init(vmfs.ht);
+#endif
+
+}
+
+static inline void __ht_destroy_all(struct vm_fault_list *l) 
+{
+	struct vm_fault_entry *entry;
+	struct hlist_node *tmp;
+	unsigned int bucket_idx;
+
+	hash_for_each_safe(l->ht, bucket_idx, tmp, entry, node) {
+		hlist_del(&entry->node);
+		kfree(entry);
+	}
 }
 
 /* this must be called *AFTER* unregister_k(ret)probes did its job */
 void teardown_vmfs_pcp_lists(void) 
 {
+
+#ifdef CONFIG_SMP
 	unsigned int cpu;
 
-	for_each_possible_cpu(cpu) {
-		struct vm_fault_list *l = per_cpu_ptr(&vmfs, cpu);
+	for_each_possible_cpu(cpu)
+		__ht_destroy_all(per_cpu_ptr(&vmfs, cpu));
+#else
+	__ht_destroy_all(&vmfs);
+#endif
 
-		struct vm_fault_entry *entry;
-		struct hlist_node *tmp;
-		int bucket_idx;
-
-		hash_for_each_safe(l->ht, bucket_idx, tmp, entry, node) {
-			hlist_del(&entry->node);
-			kfree(entry);
-		}
-	}
 }
 
 #define __my_hash_for_each_possible(name, obj, member, key) \
@@ -88,29 +110,47 @@ void teardown_vmfs_pcp_lists(void)
 static struct vm_fault_entry *__lookup_in_pcp_list_by_vmf(
 		struct vm_fault_list *list, struct vm_fault *vmf) 
 {
-	unsigned long cpu_flags;
 	struct vm_fault_entry *entry;
 
+#ifdef CONFIG_SMP
+	unsigned long cpu_flags;
 	read_lock_irqsave(&list->lock, cpu_flags);
+#endif
 
 	__my_hash_for_each_possible(list->ht, entry, node, (u64) vmf) {
 		if(vmf == vmf(entry)) {
+
+#ifdef CONFIG_SMP
 			read_unlock_irqrestore(&list->lock, cpu_flags);
+#endif
+
 			return entry;
 		}
 	}
 
+#ifdef CONFIG_SMP
 	read_unlock_irqrestore(&list->lock, cpu_flags);
+#endif
+
 	return NULL;
 }
 
 #undef __my_hash_for_each_possible
 
 static inline void __del_entry_from_pcp_list(struct vm_fault_entry *vmfe)
+
 {
+
+#ifdef CONFIG_SMP
 	write_lock(vmfe->value.list_lock);
+#endif
+
 	hlist_del(&vmfe->node);
+
+#ifdef CONFIG_SMP
 	write_unlock(vmfe->value.list_lock);
+#endif
+
 }
 
 #define __my_hash_add(hashtable, node, key) \
@@ -119,11 +159,19 @@ static inline void __del_entry_from_pcp_list(struct vm_fault_entry *vmfe)
 static inline void __add_entry_to_pcp_list(
 		struct vm_fault_list *list, struct vm_fault_entry *vmfe)
 {
+
+#ifdef CONFIG_SMP
 	vmfe->value.list_lock = &list->lock;
 
 	write_lock(&list->lock);
+#endif
+
 	__my_hash_add(list->ht, &vmfe->node, (u64) vmf(vmfe));
+
+#ifdef CONFIG_SMP
 	write_unlock(&list->lock);
+#endif
+
 }
 
 #undef __my_hash_add
@@ -133,17 +181,24 @@ struct vm_fault_entry* got_this_vmf(struct vm_fault *vmf)
 {
 	struct vm_fault_entry *found_entry;
 	struct vm_fault_list *my_list;
+
+#ifdef CONFIG_SMP
 	unsigned int cpu;
 	unsigned int my_cpu;
 
 	my_list = this_cpu_ptr(&vmfs);
+#else
+	my_list = &vmfs;
+#endif
+
 	found_entry = __lookup_in_pcp_list_by_vmf(my_list, vmf);
 	if(found_entry)
 		return found_entry;
 
+#ifdef CONFIG_SMP
 	my_cpu = smp_processor_id();
 
-	for_each_enabled_cpu(cpu) {
+	for_each_possible_cpu(cpu) {
 		struct vm_fault_list *pcp_list;
 
 		if(cpu == my_cpu)
@@ -160,6 +215,7 @@ struct vm_fault_entry* got_this_vmf(struct vm_fault *vmf)
 
 		return found_entry;
 	}
+#endif
 
 	return NULL;
 }
@@ -176,10 +232,17 @@ struct vm_fault_entry *add_vmf(struct vm_fault *vmf)
 	}
 
 	vmf(entry) = vmf;
+
 	private(entry) = NULL;
+
+#ifdef CONFIG_SMP
 	entry->value.list_lock = NULL;
 
 	my_list = this_cpu_ptr(&vmfs);
+#else
+	my_list = &vmfs;
+#endif
+
 	__add_entry_to_pcp_list(my_list, entry);
 
 	return entry;

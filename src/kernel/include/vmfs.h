@@ -10,8 +10,10 @@ struct vm_fault_entry {
 		/* "key" of the main kernel control path */
 		struct vm_fault *vmf;
 
+#ifdef CONFIG_SMP
 		/* don't touch: needed to del_vmf - points to pcp-list lock */
 		rwlock_t *list_lock; 
+#endif
 
 		/* private hooks data, depends on kernel control path */
 		void *private;

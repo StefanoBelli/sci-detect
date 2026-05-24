@@ -3,14 +3,24 @@ modname=sci-detect
 obj-m := $(modname).o
 $(modname)-objs += \
 	main.o \
+	vmfs.o \
 	hooks.o \
-	hooks/hpf.o \
-	hooks/dap.o \
-	hooks/wpc.o \
-	hooks/dwp.o \
-	hooks/spr.o \
-	hooks/pageutils.o \
-	vmfs.o
+	\
+		hooks/pageutils.o \
+		hooks/setuputils.o \
+		\
+			hooks/add/hookssetup.o \
+			hooks/add/hpf.o \
+			hooks/add/dap.o \
+			hooks/add/wpc.o \
+			hooks/add/dwp.o \
+			hooks/add/spr.o \
+		\
+			hooks/chg/hookssetup.o \
+		\
+			hooks/del/hookssetup.o \
+		\
+
 ccflags-y += -Wall -W -Wextra -Wshadow -I$(src)/include -Wno-shadow -O2 #careful with opt
 
 all:
@@ -31,7 +41,9 @@ clean:
 	make -C /lib/modules/$(shell uname -r)/build M=$(CURDIR) clean
 
 mount:
-	@insmod $(modname).ko
+	insmod $(modname).ko
 
 umount:
 	rmmod $(modname)
+
+remount: umount mount

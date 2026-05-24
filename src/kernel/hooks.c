@@ -1,75 +1,73 @@
-#include <linux/kprobes.h>
-
 #include <hooks.h>
 #include <logging.h>
 
-/* all mentioned source files in hooks/ subdir */
+extern int __setup_add_hooks(void);
+extern int __setup_chg_hooks(void);
+extern int __setup_del_hooks(void);
 
-/* hpr.c */
-extern struct kretprobe handle_pte_fault__krp;
+extern void __teardown_add_hooks(void);
+extern void __teardown_chg_hooks(void);
+extern void __teardown_del_hooks(void);
 
-/* dap.c */
-extern struct kretprobe do_anonymous_page__krp;
-
-/* wpc.c */
-extern struct kretprobe wp_page_copy__krp;
-
-/* dwp.c */
-extern struct kretprobe do_wp_page__krp;
-
-/* spr.c */
-extern struct kretprobe set_pte_range__krp;
-extern struct kprobe do_fault__kp;
-extern struct kprobe finish_fault__kp;
-extern struct kprobe filemap_map_pages__kp;
-
-static struct kretprobe *krps[] = {
-	&handle_pte_fault__krp,
-	&do_anonymous_page__krp,
-	&wp_page_copy__krp,
-	&do_wp_page__krp,
-	&set_pte_range__krp,
+struct hooks_group_desc {
+	const char *name;
+	const char *brief;
+	int (*setup)(void);
+	void (*teardown)(void);
 };
 
-static struct kprobe *kps[] = {
-	&do_fault__kp,
-	&finish_fault__kp,
-	&filemap_map_pages__kp,
+static struct hooks_group_desc hooksgroups[] = {
+	{
+		.name = "add",
+		.brief = "hooks that cause the start of page-state tracking",
+		.setup = __setup_add_hooks,
+		.teardown = __teardown_add_hooks,
+	},
+	
+	{
+		.name = "chg",
+		.brief = "hooks that cause the change of state for the tracked page",
+		.setup = __setup_chg_hooks,
+		.teardown = __teardown_chg_hooks,
+	},
+
+	{
+		.name = "del",
+		.brief = "hooks that cause the untracking of page-state",
+		.setup = __setup_del_hooks,
+		.teardown = __teardown_del_hooks,
+	},
 };
 
-#define __static_array_size(a) \
-	(sizeof(a) / sizeof(typeof(a)*))
+#define NR_HOOKSGROUPS \
+	(sizeof(hooksgroups) / sizeof(struct hooks_group_desc))
 
-#define ARGS(arr) \
-	arr, __static_array_size(arr)
+static void __teardown_first(unsigned long nr_hooks)
+{
+	for(unsigned long i = 0; i < nr_hooks; i++) {
+		scid_infof("teardown hooks group: %s", hooksgroups[i].name);
+		hooksgroups[i].teardown();
+	}
+}
 
 int setup_hooks(void) 
 {
-	int rv;
+	for(unsigned long i = 0; i < NR_HOOKSGROUPS; i++) {
+		scid_infof("setting up hooks group: %s", hooksgroups[i].name);
 
-	scid_infof("registering %ld kretprobes", __static_array_size(krps));
-	rv = register_kretprobes(ARGS(krps));
-	if(rv) {
-		scid_err("unable to register kretprobes");
-		return rv;
-	}
+		int setup_rv = hooksgroups[i].setup();
+		if(setup_rv) {
+			scid_errf("unable to setup hooks group %s", hooksgroups[i].name);
+			__teardown_first(i);
 
-	scid_infof("registering %ld kprobes", __static_array_size(kps));
-	rv = register_kprobes(ARGS(kps));
-	if(rv) {
-		scid_err("unable to register kprobes");
-		unregister_kretprobes(ARGS(krps));
-		return rv;
+			return setup_rv;
+		}
 	}
 
 	return 0;
 }
 
-void teardown_hooks(void) 
+void teardown_hooks(void)
 {
-	unregister_kprobes(ARGS(kps));
-	unregister_kretprobes(ARGS(krps));
+	__teardown_first(NR_HOOKSGROUPS);
 }
-
-#undef ARGS
-#undef __static_array_size

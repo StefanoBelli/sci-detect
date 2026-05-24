@@ -19,3 +19,6 @@ module-mount:
 
 module-umount:
 	make -C src/kernel umount
+
+module-remount:
+	make -C src/kernel remount

@@ -1,0 +1,120 @@
+#include <hooks/setuputils.h>
+#include <logging.h>
+
+typedef void (*unregister_probes_cb)(void*, int);
+
+typedef int (*register_probes_cb)(void*, int);
+
+struct __register_probes_args {
+	union {
+		unregister_probes_cb unreg_cb;
+		register_probes_cb reg_cb;
+	};
+
+	const char* probes_type;
+	void* arr;
+	int nr;
+};
+
+static void __unregister_probes(struct __register_probes_args *unregargs)
+{
+	if(unregargs->arr && unregargs->nr > 0) {
+		scid_infof("unregistering %d %s", unregargs->nr, unregargs->probes_type);
+		unregargs->unreg_cb(unregargs->arr, unregargs->nr);
+	} else if(!unregargs->arr)
+		scid_warnf("%s's array is NULL", unregargs->probes_type);
+	else
+		scid_infof("there are no %s to unregister :/ (they're 0)", unregargs->probes_type);
+}
+
+static int __register_probes(
+		struct __register_probes_args *regargs, 
+		struct __register_probes_args *onerror)
+{
+	if(regargs->arr && regargs->nr > 0) {
+		scid_infof("registering %d %s", regargs->nr, regargs->probes_type);
+
+		int rv = regargs->reg_cb(regargs->arr, regargs->nr);
+		if(rv) {
+			scid_errf("unable to register %d %s", regargs->nr, regargs->probes_type);
+
+			if(onerror) {
+				scid_errf("unregistering already-registered %d %s", onerror->nr, onerror->probes_type);
+				__unregister_probes(onerror);
+			}
+
+			return rv;
+		}
+	} else if(!regargs->arr)
+		scid_warnf("%s's array is NULL", regargs->probes_type);
+	else
+		scid_infof("there are no %s to register :/ (they're 0)", regargs->probes_type);
+
+	return 0;
+}
+
+#define DEFINE_REGISTER_KRETPROBES_ARGS(_name_, _krps_, _nr_krps_) \
+	struct __register_probes_args _name_ = { \
+		.reg_cb = (register_probes_cb) register_kretprobes, \
+		.probes_type = "kretprobes", \
+		.arr = (_krps_), \
+		.nr = (_nr_krps_), \
+	}
+
+#define DEFINE_REGISTER_KPROBES_ARGS(_name_, _kps_, _nr_kps_) \
+	struct __register_probes_args _name_ = { \
+		.reg_cb = (register_probes_cb) register_kprobes, \
+		.probes_type = "kprobes", \
+		.arr = (_kps_), \
+		.nr = (_nr_kps_), \
+	}
+
+#define DEFINE_UNREGISTER_KRETPROBES_ARGS(_name_, _krps_, _nr_krps_) \
+	struct __register_probes_args _name_ = { \
+		.unreg_cb = (unregister_probes_cb) unregister_kretprobes, \
+		.probes_type = "kretprobes", \
+		.arr = (_krps_), \
+		.nr = (_nr_krps_), \
+	}
+
+#define DEFINE_UNREGISTER_KPROBES_ARGS(_name_, _kps_, _nr_kps_) \
+	struct __register_probes_args _name_ = { \
+		.unreg_cb = (unregister_probes_cb) unregister_kprobes, \
+		.probes_type = "kprobes", \
+		.arr = (_kps_), \
+		.nr = (_nr_kps_), \
+	}
+
+int __base_setup_hooks(struct __base_setup_hooks_args *args) 
+{
+	int rv = 0;
+
+	DEFINE_REGISTER_KRETPROBES_ARGS(regi_krps, args->krps, args->nr_krps);
+	
+	rv = __register_probes(&regi_krps, NULL);
+	if(rv)
+		return rv;
+
+	DEFINE_REGISTER_KPROBES_ARGS(regi_kps, args->kps, args->nr_kps);
+	DEFINE_UNREGISTER_KRETPROBES_ARGS(unregi_krps_onerror, args->krps, args->nr_krps);
+
+	rv = __register_probes(&regi_kps, &unregi_krps_onerror);
+	if(rv)
+		return rv;
+
+	return rv;
+}
+
+void __base_teardown_hooks(struct __base_setup_hooks_args *args) 
+{
+	DEFINE_UNREGISTER_KPROBES_ARGS(unregi_kps, args->kps, args->nr_kps);
+	DEFINE_UNREGISTER_KRETPROBES_ARGS(unregi_krps, args->krps, args->nr_krps);
+
+	__unregister_probes(&unregi_kps);
+	__unregister_probes(&unregi_krps);
+}
+
+#undef DEFINE_REGISTER_KRETPROBES_ARGS
+#undef DEFINE_REGISTER_KPROBES_ARGS
+#undef DEFINE_UNREGISTER_KRETPROBES_ARGS
+#undef DEFINE_UNREGISTER_KPROBES_ARGS

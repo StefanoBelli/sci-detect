@@ -96,6 +96,25 @@ struct kprobe finish_fault__kp = {
 
 #define set_pte_range__symbol "set_pte_range"
 
+/*
+ * args that are passed to set_pte_args,
+ * forwarded from the entry_handler to the
+ * handler, in order to scan affected PTEs
+ * post-action. Only meaningful args are left.
+ */
+struct set_pte_range_args {
+	/* the vm_fault descriptor */
+	struct vm_fault *vmf;
+
+	/* the number of PTEs to create */
+	unsigned int nr;
+};
+
+/* 
+ * - kernel control path ("kcp") made of multiple callers obv.
+ * - optimizing compiler should be able to reduce bitwise ops a lot,
+ * reducing work at runtime
+ */
 #define REGULAR_SPT_KCP_BITS \
 	((1 << CALLER_FINISH_FAULT_BITNR) | (1 << CALLER_DO_FAULT_BITNR))
 
@@ -110,20 +129,6 @@ struct kprobe finish_fault__kp = {
 
 #define is_legit_kcp(bm) \
 	(is_regular_kcp(bm) || is_fault_around_kcp(bm))
-
-/*
- * args that are passed to set_pte_args,
- * forwarded from the entry_handler to the
- * handler, in order to scan affected PTEs
- * post-action. Only meaningful args are left.
- */
-struct set_pte_range_args {
-	/* the vm_fault descriptor */
-	struct vm_fault *vmf;
-
-	/* the number of PTEs to create */
-	unsigned int nr;
-};
 
 static int set_pte_range__ehkrphook(
 		struct kretprobe_instance *krpi, struct pt_regs *regs)
@@ -148,8 +153,6 @@ static int set_pte_range__ehkrphook(
 
 	return 0;
 }
-
-#undef REQUIRED_CALLER_BITS
 
 static __always_inline void __scan_one_pte(pte_t pte) {
 	if(pte_none(pte)) {
@@ -211,6 +214,12 @@ static int set_pte_range__hkrphook(
 
 	return 0;
 }
+
+#undef is_regular_kcp
+#undef is_fault_around_kcp
+#undef is_legit_kcp
+#undef REGULAR_SPT_KCP_BITS
+#undef FAULT_AROUND_SPT_KCP_BITS
 
 struct kretprobe set_pte_range__krp = {
 	.entry_handler = set_pte_range__ehkrphook,
