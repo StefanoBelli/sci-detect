@@ -26,7 +26,7 @@ struct __base_setup_hooks_args {
 int __base_setup_hooks(struct __base_setup_hooks_args*);
 void __base_teardown_hooks(struct __base_setup_hooks_args*);
 
-#define DEFINE_SETUP_AND_TEARDOWN_CODE(_hookgroup_, _kps_, _krps_) \
+#define GENERATE_SETUP_AND_TEARDOWN_CODE(_hookgroup_, _kps_, _krps_) \
 	int __setup_##_hookgroup_##_hooks(void); \
 	void __teardown_##_hookgroup_##_hooks(void); \
 	\

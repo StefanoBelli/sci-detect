@@ -33,4 +33,4 @@ static struct kprobe *kps[] = {
 };
 
 /* don't touch */
-DEFINE_SETUP_AND_TEARDOWN_CODE(add, kps, krps);
+GENERATE_SETUP_AND_TEARDOWN_CODE(add, kps, krps);
