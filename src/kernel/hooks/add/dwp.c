@@ -1,13 +1,37 @@
 #include <linux/spinlock.h>
 #include <linux/kprobes.h>
-#include <linux/mm.h>
 #include <linux/pgtable.h>
+#include <linux/compiler.h>
 
 #include <vmfs.h>
 #include <logging.h>
 
-/* see below. this is the core fn's prototype */
-static inline void __do_wp_page_reuse(struct vm_fault *vmf); 
+/* since private may be changed frequently... */
+static_assert(
+		__builtin_types_compatible_p(
+			typeof(private((struct vm_fault_entry*)0)),
+			typeof(void*)));
+
+#define finish_mkwrite_fault__symbol "finish_mkwrite_fault"
+
+static int finish_mkwrite_fault__phkphook(
+		__maybe_unused struct kprobe *kp, 
+		struct pt_regs *regs)
+{
+	struct vm_fault *vmf = (struct vm_fault*) regs->di;
+
+	struct vm_fault_entry *entry = got_this_vmf(vmf);
+	if(!entry)
+		return 0;
+
+	private(entry) = (void*) 2;
+	return 0;
+}
+
+struct kprobe finish_mkwrite_fault__kp = {
+	.pre_handler = finish_mkwrite_fault__phkphook,
+	.symbol_name = finish_mkwrite_fault__symbol,
+};
 
 /*
  * this was wp_page_reuse, which I didn't see
@@ -33,6 +57,9 @@ static int do_wp_page__ehkrphook(
 	return 0;
 }
 
+/* see below. this is the core fn's prototype */
+static inline void __do_wp_page_reuse(struct vm_fault *vmf); 
+
 /* this is the alternative to hooking into inlined wp_page_reuse:
  * we try to reconstruct the flow logic that made do_wp_page to
  * call wp_page_reuse 
@@ -48,8 +75,16 @@ static int do_wp_page__hkrphook(
 
 	entry = *((struct vm_fault_entry**)krpi->data);
 
+	/* if wp_page_copy got executed, situation got handled in wpc.c */
 	if(private(entry) == (void*) 1)
 		return 0;
+
+	/* 
+	 * if finish_mkwrite_fault got executed and retval = 0, wp_page_reuse 
+	 * got called 
+	 */
+	if(private(entry) == (void*) 2)
+		goto __do_wpr;
 
 	struct vm_fault *vmf = entry->value.vmf;
 
@@ -57,17 +92,17 @@ static int do_wp_page__hkrphook(
 	bool shared = vma->vm_flags & (VM_SHARED | VM_MAYSHARE);
 	struct page *page = vmf->page;
 
-	if(shared) {
-		if(!page || is_fsdax_page(page)) {
-			/* wp_pfn_shared being called... */
-			if(!vma->vm_ops || !vma->vm_ops->pfn_mkwrite)
-				goto __do_wpr;
-		} else {
-			/* wp_page_shared being called... */
-			if(!vma->vm_ops || !vma->vm_ops->page_mkwrite)
-				goto __do_wpr;
-		}
-	} else {
+	/* here, the following expression:
+	 * expr = !vma->vm_ops || !vma->vm_ops->pfn_mkwrite (or ->page_mkwrite)
+	 * always returns true, because the situation was already
+	 * handled by finish_mkwrite_fault (the !expr). 
+	 * If we got here, then for sure finish_mkwrite_fault didn't get called 
+	 * and expr is always true. Therefore, superfluous checks got removed.
+	 * (see wp_pfn_shared, wp_page_shared and how they get called in do_wp_page)
+	 */
+	if(shared)
+		goto __do_wpr;
+	else {
 		if(!page)
 			return 0;
 

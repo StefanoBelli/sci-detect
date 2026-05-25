@@ -11,6 +11,7 @@ extern struct kretprobe wp_page_copy__krp;
 
 /* dwp.c */
 extern struct kretprobe do_wp_page__krp;
+extern struct kprobe finish_mkwrite_fault__kp;
 
 /* spr.c */
 extern struct kretprobe set_pte_range__krp;
@@ -30,6 +31,7 @@ static struct kprobe *kps[] = {
 	&do_fault__kp,
 	&finish_fault__kp,
 	&filemap_map_pages__kp,
+	&finish_mkwrite_fault__kp,
 };
 
 /* don't touch */
