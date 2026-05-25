@@ -69,6 +69,7 @@ static int do_wp_page__hkrphook(
 		struct kretprobe_instance *krpi, struct pt_regs *regs) 
 {
 	struct vm_fault_entry *entry = *((struct vm_fault_entry**)krpi->data);
+	struct vm_fault *vmf;
 
 	/* if wp_page_copy got executed, situation got handled in hooks in wpc.c.
 	 * Nothing to do here. */
@@ -84,8 +85,10 @@ static int do_wp_page__hkrphook(
 		 *  - wp_pfn_shared: finsih_mkwrite_fault successful if rv = 0 */
 		if(
 				(!rrv || (rrv & VM_FAULT_COMPLETED)) && 
-				!(rrv & (VM_FAULT_ERROR | VM_FAULT_NOPAGE)))
+				!(rrv & (VM_FAULT_ERROR | VM_FAULT_NOPAGE))) {
+			vmf = vmf(entry);
 			goto __do_wpr;
+		}
 
 		return 0;
 	}
@@ -94,8 +97,8 @@ static int do_wp_page__hkrphook(
 	 * it is enough to just check if rrv != 0 */
 	if(rrv)
 		return 0;
-	
-	struct vm_fault *vmf = entry->value.vmf;
+
+	vmf = vmf(entry);
 
 	struct vm_area_struct *vma = vmf->vma;
 	bool shared = vma->vm_flags & (VM_SHARED | VM_MAYSHARE);
