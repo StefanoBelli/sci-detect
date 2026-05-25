@@ -44,7 +44,12 @@ static int do_anonymous_page__hkrphook(
 	struct vm_fault *vmf;
 	unsigned long cpu_flags;
 
-	/* worth any further check? */
+	/* worth any further check? 
+	 * In this case, it is enough to check for retval != 0.
+	 * Any other vm_fault_reason is either an error (e.g. OOM), 
+	 * something related to debugging (HWPOISON) or ->fault related
+	 * (DONE_COW)
+	 */
 	if(regs_return_value(regs) != 0)
 		return 0;
 
@@ -90,8 +95,6 @@ static int do_anonymous_page__hkrphook(
 		scid_err("at this point, an rw mapping was expected");
 		goto __dap_handler_unlock;
 	}
-
-	//pr_info("page is rw: %d, exec: %d\n", pte_has_rw, pte_has_exec);
 
 	/* release the page table lock */
 __dap_handler_unlock:

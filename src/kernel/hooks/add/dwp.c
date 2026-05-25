@@ -70,21 +70,32 @@ static int do_wp_page__hkrphook(
 {
 	struct vm_fault_entry *entry;
 
-	if(regs_return_value(regs) != 0)
-		return 0;
-
-	entry = *((struct vm_fault_entry**)krpi->data);
-
-	/* if wp_page_copy got executed, situation got handled in wpc.c */
+	/* if wp_page_copy got executed, situation got handled in hooks in wpc.c.
+	 * Nothing to do here. */
 	if(private(entry) == (void*) 1)
 		return 0;
 
-	/* 
-	 * if finish_mkwrite_fault got executed and retval = 0, wp_page_reuse 
-	 * got called 
-	 */
-	if(private(entry) == (void*) 2)
-		goto __do_wpr;
+	unsigned long rrv = regs_return_value(regs);
+
+	/* if finish_mkwrite_fault got executed and its rv = 0, wp_page_reuse got called */
+	if(private(entry) == (void*) 2) {
+		/* but here we check for outer do_wp_page rv, and the following can happen:
+		 *  - wp_page_shared: finish_mkwrite_fault successful if rv = 0 or rv = VM_FAULT_COMPLETED 
+		 *  - wp_pfn_shared: finsih_mkwrite_fault successful if rv = 0 */
+		if(
+				(!rrv || (rrv & VM_FAULT_COMPLETED)) && 
+				!(rrv & (VM_FAULT_ERROR | VM_FAULT_NOPAGE)))
+			goto __do_wpr;
+
+		return 0;
+	}
+
+	/* for the remaining situations,
+	 * it is enough to just check if rrv != 0 */
+	if(rrv)
+		return 0;
+
+	entry = *((struct vm_fault_entry**)krpi->data);
 
 	struct vm_fault *vmf = entry->value.vmf;
 

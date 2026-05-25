@@ -24,7 +24,9 @@ static int wp_page_copy__ehkrphook(
 	if(!entry)
 		return 1;
 
-	/* flag that wp_page_copy is being run... used later by do_wp_page hook */
+	/* flag that wp_page_copy is being run... 
+	 * used later by do_wp_page hook to avoid 
+	 * doing more useless checks */
 	private(entry) = (void*) 1;
 
 	/* consistency checks */
@@ -74,6 +76,10 @@ static int wp_page_copy__hkrphook(
 	struct vm_fault *vmf;
 	unsigned long cpu_flags;
 
+	/* should be enough: in the end, wp_page_copy's job is to
+	 * allocate new page, copy content and setup PTE and every
+	 * failure condition is due to OOM or some issues with 
+	 * vmf_anon_prepare (or, HWPOISON) */
 	if(regs_return_value(regs) != 0)
 		return 0;
 

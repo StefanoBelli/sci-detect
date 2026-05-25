@@ -14,6 +14,8 @@ struct page *get_one_page_from_pte(pte_t pte) {
 
 	/* every page is part of a folio */
 	struct folio *folio = page_folio(page);
+	if(!folio)
+		return NULL;
 
 	if(!folio_try_get(folio)) {
 		scid_err("unable to get a folio reference");

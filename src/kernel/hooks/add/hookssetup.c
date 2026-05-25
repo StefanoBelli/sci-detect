@@ -1,4 +1,13 @@
+#include <linux/version.h>
+
 #include <hooks/setuputils.h>
+
+/* actually it is something like 6.13.x+ */
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6,14,0)
+#error not supported 
+#endif
+
 
 /* hpr.c */
 extern struct kretprobe handle_pte_fault__krp;
