@@ -68,7 +68,7 @@ static inline void __do_wp_page_reuse(struct vm_fault *vmf);
 static int do_wp_page__hkrphook(
 		struct kretprobe_instance *krpi, struct pt_regs *regs) 
 {
-	struct vm_fault_entry *entry;
+	struct vm_fault_entry *entry = *((struct vm_fault_entry**)krpi->data);
 
 	/* if wp_page_copy got executed, situation got handled in hooks in wpc.c.
 	 * Nothing to do here. */
@@ -94,9 +94,7 @@ static int do_wp_page__hkrphook(
 	 * it is enough to just check if rrv != 0 */
 	if(rrv)
 		return 0;
-
-	entry = *((struct vm_fault_entry**)krpi->data);
-
+	
 	struct vm_fault *vmf = entry->value.vmf;
 
 	struct vm_area_struct *vma = vmf->vma;
@@ -151,8 +149,8 @@ struct kretprobe do_wp_page__krp = {
 
 static int ____do_wpr_prior_checks(struct vm_fault *vmf)
 {
-	if(!(vmf->flags & FAULT_FLAG_WRITE)) {
-		scid_err("expecting write fault");
+	if(!(vmf->flags & FAULT_FLAG_WRITE) && !(vmf->flags & FAULT_FLAG_MKWRITE)) {
+		scid_err("expecting write or mkwrite fault");
 		return 0;
 	}
 
