@@ -6,6 +6,7 @@
 
 #include <vmfs.h>
 #include <logging.h>
+#include <hooks/add/utils.h>
 
 typedef unsigned long __ckb_type;
 
@@ -154,30 +155,16 @@ static int set_pte_range__ehkrphook(
 	return 0;
 }
 
-static __always_inline void __scan_one_pte(pte_t pte) {
-	if(pte_none(pte)) {
-		scid_warn("ignoring none pte");
-		return;
-	}
-
-	if(!pte_present(pte)) {
-		scid_warn("ignoring non-present pte");
-		return;
-	}
-
+static bool spr_further_pte_checks(
+		pte_t pte, __maybe_unused int rw, 
+		__maybe_unused int exec, __maybe_unused void* args)
+{
 	if(!(pte_flags(pte) & _PAGE_USER)) {
 		scid_warn("ignoring kernel mapping instead of a user one");
-		return;
+		return false;
 	}
 
-	struct page *page = pte_page(pte);
-	if(!page) {
-		scid_warn("ignoring pte (not able to get the page descriptor from it)");
-		return;
-	}
-
-	int pte_has_rw = pte_write(pte);
-	int pte_has_exec = pte_exec(pte);
+	return true;
 }
 
 static int set_pte_range__hkrphook(
@@ -203,14 +190,8 @@ static int set_pte_range__hkrphook(
 	}
 
 	/* sets contiguous pages to continuous linear addrs */
-	unsigned int nr_pages = args->nr;
-	pte_t *cur_ptep = args->vmf->pte;
-
-	do {
-		pte_t cur_pte = ptep_get(cur_ptep);
-		__scan_one_pte(cur_pte);
-		cur_ptep++;
-	} while(--nr_pages);
+	if(!add_pages_bynr(args->vmf->pte, spr_further_pte_checks, NULL, args->nr))
+		scid_err("unable to add pages");
 
 	return 0;
 }

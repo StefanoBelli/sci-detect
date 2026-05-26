@@ -1,10 +1,11 @@
 #include <linux/kprobes.h>
 #include <linux/spinlock.h>
 #include <linux/string.h>
+#include <linux/compiler.h>
 
 #include <vmfs.h>
 #include <logging.h>
-#include <hooks/pageutils.h>
+#include <hooks/add/utils.h>
 
 #define do_anonymous_page__symbol "do_anonymous_page"
 
@@ -38,6 +39,23 @@ static int do_anonymous_page__ehkrphook(
 	return 0;
 }
 
+static bool dap_further_pte_checks(
+		pte_t pte, int rw, __maybe_unused int exec,
+		__maybe_unused void *args)
+{
+	if(!(pte_flags(pte) & _PAGE_USER)) {
+		scid_err("got a kernel mapping instead of a user one");
+		return false;
+	}
+
+	if(!rw) {
+		scid_err("at this point, an rw mapping was expected");
+		return false;
+	}
+
+	return true;
+}
+
 static int do_anonymous_page__hkrphook(
 		struct kretprobe_instance *krpi, struct pt_regs *regs)
 {
@@ -65,39 +83,10 @@ static int do_anonymous_page__hkrphook(
 	/* get the page table lock */
 	spin_lock_irqsave(vmf->ptl, cpu_flags);
 
-	pte_t first_pte = ptep_get(vmf->pte);
-	if(pte_none(first_pte)) {
-		scid_err("zeroed pte");
-		goto __dap_handler_unlock;
-	}
-
-	if(!pte_present(first_pte)) {
-		scid_err("not-present pte");
-		goto __dap_handler_unlock;
-	}
-
-	/* should not happen in any case... */
-	if(!(pte_flags(first_pte) & _PAGE_USER)) {
-		scid_err("got a kernel mapping instead of a user one");
-		goto __dap_handler_unlock;
-	}
-
-	struct page *page = get_one_page_from_pte(first_pte);
-	if(!page) {
-		scid_err("unable to get page");
-		goto __dap_handler_unlock;
-	}
-
-	int pte_has_rw = pte_write(first_pte);
-	int pte_has_exec = pte_exec(first_pte);
-
-	if(!pte_has_rw) {
-		scid_err("at this point, an rw mapping was expected");
-		goto __dap_handler_unlock;
-	}
+	if(!add_pages_byfolio(vmf->pte, dap_further_pte_checks, NULL, true, NULL))
+		scid_err("unable to add pages");
 
 	/* release the page table lock */
-__dap_handler_unlock:
 	spin_unlock_irqrestore(vmf->ptl, cpu_flags);
 
 	return 0;

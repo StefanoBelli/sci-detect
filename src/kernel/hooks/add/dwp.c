@@ -5,6 +5,7 @@
 
 #include <vmfs.h>
 #include <logging.h>
+#include <hooks/add/utils.h>
 
 /* since private may be changed frequently... */
 static_assert(
@@ -190,6 +191,33 @@ static int ____do_wpr_prior_checks(struct vm_fault *vmf)
 	(flags & _PAGE_DIRTY) && \
 	(flags & _PAGE_SOFT_DIRTY))
 
+static bool dwp_further_pte_checks(
+		pte_t pte, int rw, 
+		__maybe_unused int exec, void* args)
+{
+	struct vm_area_struct *vma = (struct vm_area_struct*) args;
+
+	if(!(vma->vm_flags & VM_WRITE)) {
+		scid_warn("vma without VM_WRITE ???");
+		return false;
+	}
+
+	unsigned long flags = pte_flags(pte);
+	if(!new_pte_from_wpr(flags)) {
+		scid_err("not a new pte from wp_page_reuse");
+		return false;
+	}
+
+	if(!rw) {
+		scid_err("expecting a write-enabled pte");
+		return false;
+	}
+
+	return true;
+}
+
+#undef new_pte_from_wpr
+
 static void ____do_wpr_inspect_pte_after(struct vm_fault *vmf)
 {
 	unsigned long cpu_flags;
@@ -203,43 +231,12 @@ static void ____do_wpr_inspect_pte_after(struct vm_fault *vmf)
 	/* get the page table lock */
 	spin_lock_irqsave(vmf->ptl, cpu_flags);
 
-	pte_t pte = ptep_get(vmf->pte);
-
-	if(pte_none(pte)) {
-		scid_err("none pte in vmf");
-		goto _____wpr_handler_unlock;
-	}
-
-	if(!pte_present(pte)) {
-		scid_err("non present pte in vmf");
-		goto _____wpr_handler_unlock;
-	}
-
-	if(!(vmf->vma->vm_flags & VM_WRITE)) {
-		scid_warn("vma without VM_WRITE ???");
-		goto _____wpr_handler_unlock;
-	}
-
-	unsigned long flags = pte_flags(pte);
-	if(!new_pte_from_wpr(flags)) {
-		scid_err("not a new pte from wp_page_reuse");
-		goto _____wpr_handler_unlock;
-	}
-
-	int pte_has_write = pte_write(pte);
-	int pte_has_exec = pte_exec(pte);
-
-	if(!pte_has_write) {
-		scid_err("expecting a write-enabled pte");
-		goto _____wpr_handler_unlock;
-	}
+	if(!add_one_page(vmf->pte, dwp_further_pte_checks, vmf->vma, NULL))
+		scid_err("unable to add page");
 
 	/* release the page table lock */
-_____wpr_handler_unlock:
 	spin_unlock_irqrestore(vmf->ptl, cpu_flags);
 }
-
-#undef new_pte_from_wpr
 
 static inline void __do_wp_page_reuse(struct vm_fault *vmf)
 {

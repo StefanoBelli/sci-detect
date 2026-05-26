@@ -6,9 +6,9 @@ $(modname)-objs += \
 	vmfs.o \
 	hooks.o \
 	\
-		hooks/pageutils.o \
 		hooks/setuputils.o \
 		\
+			hooks/add/utils.o \
 			hooks/add/hookssetup.o \
 			hooks/add/hpf.o \
 			hooks/add/dap.o \
