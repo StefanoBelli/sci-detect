@@ -208,6 +208,11 @@ static bool dwp_further_pte_checks(
 		return false;
 	}
 
+	if(!(flags & _PAGE_USER)) {
+		scid_err("not a user page?");
+		return false;
+	}
+
 	if(!rw) {
 		scid_err("expecting a write-enabled pte");
 		return false;

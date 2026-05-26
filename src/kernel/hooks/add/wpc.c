@@ -75,6 +75,11 @@ static bool wpc_further_pte_checks(
 		pte_t pte, int rw, __maybe_unused int exec, 
 		void* args) 
 {
+	if(!(pte_flags(pte) & _PAGE_USER)) {
+		scid_err("got a kernel mapping instead of a user one");
+		return false;
+	}
+
 	if(!rw) {
 		scid_warn("COW failed, kernel will retry");
 		return false;
