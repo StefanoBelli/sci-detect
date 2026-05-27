@@ -87,6 +87,9 @@ Viene chiamata quando la PTE è missing: demand paging.
  Negli hooks viene determinato se ```vmf->pte == NULL```, il resto non dovrebbe
  essere un problema
 
+ **Mi aspetto che una e una sola pagina/PTE sia coinvolta**, perchè il fault avviene su quella specifica pagina, e non è un file (anonima).
+ Il nuovo folio della nuova pagina è tale che folio_nr_pages = 1, viene controllato attivamente.
+
 ## ```do_wp_page```
 
 Viene chiamato quando si verifica un write fault su una PTE esistente in read-only
@@ -114,6 +117,12 @@ Mentre ```wp_page_copy``` è gestito da un hook apposito, per ```wp_page_reuse``
 il percorso effettuato da quest'ultima (nell'handler di ritorno).
 
 Oltrettuto, ```wp_page_reuse``` è chiamata da anche da ```finish_mkwrite_fault```, che a sua volta è chiamata da ```wp_pfn_shared``` e ```wp_page_shared``` quando ```vma->vm_ops != NULL e vma->vm_ops->pfn_mkwrite (->page_mkwrite) != NULL```.
+
+**Con ```wp_page_reuse``` mi aspetto che la pagina/PTE coinvolta sia una soltanto**, NON CONTROLLO IL FOLIO.
+
+Nell'hook, in wpr.c, utilizzo ```add_one_page``` e non controllo il folio perchè ```wp_page_reuse``` riutilizza la pagina esistente modificando la PTE (es. aggiunge perm. write),
+ovvero, il folio è già esistente e non so se la pagina coinvolta fa parte di un folio con nr_pages > 1 o no, ma controllare folio_nr_pages > 1 potrebbe dare problemi quando non ce ne sono.
+Non è detto che tutte le pagine (contigue a livello fisico) in un folio siano mappate sulla stessa PTE (contigue a livello virtuale).
 
 Dato che ```finish_mkwrite_fault``` è (indirettamente) chiamata da ```do_wp_page```, nell'hook (in particolare, nell'handler di ritorno di ```do_wp_page```) se ne tiene conto: viene guardato il campo entry->private:
  * se è 1 allora è stata eseguita ```wp_page_copy```, il return handler di
@@ -166,11 +175,15 @@ il valore di ```vmf->pte``` letta dopo l'acquisizione del ptl è uguale ancora a
 
 Nel codice si controlla che la ```vmf->pte``` al ritorno (return handler di wpc) sia diversa da ```vmf->orig_pte``` e che abbia effettivamente il write flag abilitato.
 
+**Mi aspetto che la pagina coinvolta sia una soltanto**, il kernel non ha motivo di copiare altre pagine se non strettamente necessario.
+
+Viene creato un nuovo folio e quindi controllo che il nuovo folio abbia nr_pages = 1.
+
 ## ```do_fault```
 
 Ritornando indietro, questa è l'alternativa a ```do_anonymous_page``` quando la pte non esiste, solo che viene chiamata quando le vmops sono presenti.
 
-Essenzialmente hooked con una kprobe e viene utilizzata per indicare che è stato preso un certo kcp, tramite una bitmap
+Essenzialmente hooked con una kprobe e viene utilizzata per indicare che è stato preso un certo kcp, per tracciare ```set_pte_range``` tramite una bitmap
 
  * **Controlla che il metodo ```->fault()```** delle vm_ops associate alla vma sia presente
 
@@ -216,3 +229,8 @@ che lei stessa chiama (e.g. ```wp_page_copy```) e **non da cui** è chiamata.
 In ogni caso, se il return handler può essere chiamato, gli vengono inoltrati
 i parametri di ingresso di ```set_pte_range```: ```struct vm_fault *vmf``` e 
 ```unsigned long nr```, usati per iterare, al ritorno di ```set_pte_range``` sulle PTEs settate da questa.
+
+In questo caso, **mi aspetto che il numero di pagine coinvolte possa essere > 1**, in generale per via del meccanismo di fault-around, memoria non anonima (file), readahead, ...
+
+Prendo il numero di PT entries da controllare dal parametro "nr" di ```set_pte_range```, niente folio coinvolti. La funzione non restituisce nulla, quindi controllo
+un range di ptes da ptep fino a ptep + nr.
