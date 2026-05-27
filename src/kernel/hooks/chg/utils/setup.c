@@ -3,7 +3,7 @@
 #include "../hooks.h"
 
 static struct kretprobe *krps[] = {
-
+	&change_pte_range__krp,
 };
 
 static struct kprobe *kps[] = {

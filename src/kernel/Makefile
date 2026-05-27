@@ -18,6 +18,7 @@ $(modname)-objs += \
 				hooks/add/utils/setup.o \
 			\
 		\
+			hooks/chg/cpr.o \
 			\
 				hooks/chg/utils/setup.o \
 			\
