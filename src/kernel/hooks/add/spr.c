@@ -6,7 +6,7 @@
 
 #include <vmfs.h>
 #include <logging.h>
-#include <hooks/add/utils.h>
+#include <hooks/add/utils/addpages.h>
 
 typedef unsigned long __ckb_type;
 

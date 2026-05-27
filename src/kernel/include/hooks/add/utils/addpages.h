@@ -1,5 +1,5 @@
-#ifndef SCID_HOOK_ADD_UTILS_H
-#define SCID_HOOK_ADD_UTILS_H
+#ifndef SCID_HOOK_ADD_UTILS_ADDPAGES_H
+#define SCID_HOOK_ADD_UTILS_ADDPAGES_H
 
 #include <linux/mm.h>
 #include <linux/pgtable.h>

@@ -1,5 +1,5 @@
 #include <logging.h>
-#include <hooks/add/utils.h>
+#include <hooks/add/utils/addpages.h>
 
 bool add_one_page(
 		pte_t* ptep, more_checks_pte_fp checks, 

@@ -8,17 +8,23 @@ $(modname)-objs += \
 	\
 		hooks/setuputils.o \
 		\
-			hooks/add/utils.o \
-			hooks/add/hookssetup.o \
 			hooks/add/hpf.o \
 			hooks/add/dap.o \
 			hooks/add/wpc.o \
 			hooks/add/dwp.o \
 			hooks/add/spr.o \
+			\
+				hooks/add/utils/addpages.o \
+				hooks/add/utils/setup.o \
+			\
 		\
-			hooks/chg/hookssetup.o \
+			\
+				hooks/chg/utils/setup.o \
+			\
 		\
-			hooks/del/hookssetup.o \
+			\
+				hooks/del/utils/setup.o \
+			\
 		\
 
 ccflags-y += -Wall -W -Wextra -Wshadow -I$(src)/include -Wno-shadow -O2 #careful with opt

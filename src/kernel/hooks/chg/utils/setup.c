@@ -1,5 +1,7 @@
 #include <hooks/setuputils.h>
 
+#include "../hooks.h"
+
 static struct kretprobe *krps[] = {
 
 };

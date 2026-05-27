@@ -5,7 +5,7 @@
 
 #include <vmfs.h>
 #include <logging.h>
-#include <hooks/add/utils.h>
+#include <hooks/add/utils/addpages.h>
 
 /* since private may be changed frequently... */
 static_assert(

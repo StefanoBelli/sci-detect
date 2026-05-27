@@ -1,13 +1,10 @@
 #include <linux/version.h>
 
-#include <hooks/setuputils.h>
-
 /* actually it is something like 6.13.x+ */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6,14,0)
 #error not supported 
 #endif
-
 
 /* hpr.c */
 extern struct kretprobe handle_pte_fault__krp;
@@ -28,20 +25,4 @@ extern struct kprobe do_fault__kp;
 extern struct kprobe finish_fault__kp;
 extern struct kprobe filemap_map_pages__kp;
 
-static struct kretprobe *krps[] = {
-	&handle_pte_fault__krp,
-	&do_anonymous_page__krp,
-	&wp_page_copy__krp,
-	&do_wp_page__krp,
-	&set_pte_range__krp,
-};
 
-static struct kprobe *kps[] = {
-	&do_fault__kp,
-	&finish_fault__kp,
-	&filemap_map_pages__kp,
-	&finish_mkwrite_fault__kp,
-};
-
-/* don't touch */
-GENERATE_SETUP_AND_TEARDOWN_CODE(add, kps, krps);
