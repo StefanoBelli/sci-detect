@@ -93,6 +93,8 @@ Viene chiamata quando la PTE è missing: demand paging.
  ... quindi se ret = 0, generalmente questo indica successo è perchè per la funzione hooked interessata, ```->fault``` non viene utilizzato,
  quindi o ret != 0 e quindi è errore o ret = 0 e quindi tutto ok. 
 
+ Quanto scritto vale per ogni hook.
+
  Dal kernel Linux 7.0.10, *include/linux/mm_types.h*, *L1593*
 
 ```c
