@@ -2,6 +2,8 @@
 #include <vmfs.h>
 #include <logging.h>
 
+#include <testing.h>
+
 MODULE_AUTHOR("Stefano Belli");
 MODULE_DESCRIPTION("Stealth code injection detector");
 MODULE_LICENSE("GPL");
@@ -13,13 +15,20 @@ int setup_module(void)
 {
 	int rv;
 
+	rv = setup_testing();
+	if(rv) {
+		scid_errf("setup_testing failed with rv=%d", rv);
+		return rv;
+	}
+
 	setup_vmfs_pcp_lists();
 
 	rv = setup_hooks();
 	if (rv) {
 		teardown_vmfs_pcp_lists();
+		teardown_testing();
 		scid_errf("setup_hooks failed with rv=%d", rv);
-		return -ESRCH;
+		return rv;
 	}
 
 	return 0;
@@ -29,6 +38,7 @@ void teardown_module(void)
 {
 	teardown_hooks();
 	teardown_vmfs_pcp_lists();
+	teardown_testing();
 }
 
 module_init(setup_module);

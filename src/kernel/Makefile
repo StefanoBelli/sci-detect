@@ -5,6 +5,7 @@ $(modname)-objs += \
 	main.o \
 	vmfs.o \
 	hooks.o \
+	testing.o \
 	\
 		hooks/setuputils.o \
 		\
@@ -28,7 +29,7 @@ $(modname)-objs += \
 			\
 		\
 
-ccflags-y += -Wall -W -Wextra -Wshadow -I$(src)/include -Wno-shadow -O2 #careful with opt
+ccflags-y += -Wall -W -Wextra -Wshadow -I$(src)/include -Wno-shadow -O2 -DSCID_CONFIG_TESTING
 
 all:
 	make -C /lib/modules/$(shell uname -r)/build M=$(CURDIR) modules

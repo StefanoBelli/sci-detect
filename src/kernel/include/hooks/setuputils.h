@@ -3,8 +3,10 @@
 
 #include <linux/kprobes.h>
 
-#define __static_array_size(a) \
-	(sizeof(a) / sizeof(typeof(a)*))
+#define __static_array_size(a, x, y) \
+	(sizeof(a) / sizeof(typeof(a x)y))
+
+#define __size_type typeof(sizeof(0))
 
 struct __base_setup_hooks_args {
 	struct kretprobe **krps;
@@ -17,16 +19,58 @@ struct __base_setup_hooks_args {
 #define __DEFINE_BASE_SETUP_HOOKS_ARGS(_name_, _kps_, _krps_) \
 	static struct __base_setup_hooks_args _name_ = { \
 		.kps = (_kps_), \
-		.nr_kps = __static_array_size((_kps_)), \
+		.nr_kps = __static_array_size((_kps_), ,*), \
 		\
 		.krps = (_krps_), \
-		.nr_krps = __static_array_size((_krps_)), \
+		.nr_krps = __static_array_size((_krps_), ,*), \
 	}
 
 int __base_setup_hooks(struct __base_setup_hooks_args*);
 void __base_teardown_hooks(struct __base_setup_hooks_args*);
 
-#define GENERATE_SETUP_AND_TEARDOWN_CODE(_hookgroup_, _kps_, _krps_) \
+#ifdef SCID_CONFIG_TESTING
+
+#include <testing.h>
+#include <logging.h>
+
+#define GENERATE_SETUP_AND_TEARDOWN_CODE(_hookgroup_, _kps_, _krps_, _tests_arr_) \
+	static inline int __hookgroup_test_regi( \
+		struct subsys_regi_args *tests, \
+		__size_type tests_len, \
+		const char* hookgroup) \
+	{ \
+		if(!tests_len) { \
+			scid_infof("no tests were found for hookgroup %s (they're %ld)", hookgroup, tests_len); \
+			return 0; \
+		} \
+		\
+		for(__size_type i = 0; i < tests_len; i++) { \
+			scid_infof("registering %s/%s for testing...", hookgroup, tests[i].name); \
+			if(!testing_register_subsys(&tests[i])) \
+				return -1; \
+		} \
+		\
+		return 0; \
+	} \
+	\
+	int __setup_##_hookgroup_##_hooks(void); \
+	void __teardown_##_hookgroup_##_hooks(void); \
+	\
+	__DEFINE_BASE_SETUP_HOOKS_ARGS(bsha, kps, krps); \
+	\
+	int __setup_##_hookgroup_##_hooks(void) \
+	{ \
+		__size_type nr_tests = __static_array_size((_tests_arr_),[0],); \
+		if(__hookgroup_test_regi((_tests_arr_), nr_tests, #_hookgroup_)) \
+			return -1; \
+		return __base_setup_hooks(&bsha); \
+	} \
+	void __teardown_##_hookgroup_##_hooks(void) \
+	{ \
+		__base_teardown_hooks(&bsha); \
+	}
+#else
+#define GENERATE_SETUP_AND_TEARDOWN_CODE(_hookgroup_, _kps_, _krps_, __unused) \
 	int __setup_##_hookgroup_##_hooks(void); \
 	void __teardown_##_hookgroup_##_hooks(void); \
 	\
@@ -40,5 +84,7 @@ void __base_teardown_hooks(struct __base_setup_hooks_args*);
 	{ \
 		__base_teardown_hooks(&bsha); \
 	}
+#endif
+
 
 #endif
