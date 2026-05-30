@@ -4,13 +4,13 @@
 
 #include <linux/list.h>
 #include <linux/spinlock.h>
-#include <linux/rcupdate.h>
 
 #ifdef CONFIG_SYSFS
 #include <linux/module.h>
 #include <linux/kobject.h>
 #include <linux/sysfs.h>
 #include <linux/kstrtox.h>
+#include <linux/compiler.h>
 #endif
 
 #include <logging.h>
@@ -52,9 +52,6 @@ struct subsys_testing_instance {
 
 	/* keyvalue pairs for this subsys */
 	struct list_head kv_pairs;
-
-	/* rcu */
-	struct rcu_head rcu;
 };
 
 struct subsys_under_test {
@@ -73,18 +70,21 @@ struct subsys_under_test {
 	/* list for each registered subsys */
 	struct list_head other_subsyses; 
 
-	/* list for each enabled testing inst */
+	/* this lock protects the testing_inst list */
 	spinlock_t tilock; 
 	struct list_head testing_inst;
 };
 
 static struct list_head sut_head;
 
-/* TODO may be renamed/reused ??? */
-static void __do_enable_failed_cleanup(struct subsys_testing_instance *sti)
+/* WARNING: this does not eliminate @sti from the containing list */
+static void __subsys_testing_instance_free(struct subsys_testing_instance *sti)
 {
 	struct subsys_kvpair *kvp;
 	struct subsys_kvpair *tmp;
+
+	if(!sti)
+		return;
 
 	list_for_each_entry_safe(kvp, tmp, &sti->kv_pairs, kvp_head) {
 		if(kvp->value)
@@ -99,39 +99,81 @@ static void __do_enable_failed_cleanup(struct subsys_testing_instance *sti)
 	kfree(sti);
 }
 
+/* helpers to avoid deadlocks */
+
+struct sti_eliminate_lock_control {
+	bool lock_before;
+	bool unlock_after;
+};
+
+#define __selc_init(lb, ua) \
+	(struct sti_eliminate_lock_control) { \
+		.lock_before = (lb), \
+		.unlock_after = (ua) \
+	}
+
+#define LOCK_AND_UNLOCK __selc_init(true, true)
+#define ONLY_UNLOCK __selc_init(false, true)
+#define NO_LOCKING_AT_ALL __selc_init(false, false)
+
+static void __subsys_testing_instance_eliminate(
+		struct subsys_testing_instance *sti, 
+		struct subsys_under_test *sut,
+		struct sti_eliminate_lock_control lock_control)
+{
+	if(lock_control.lock_before)
+		spin_lock(&sut->tilock);
+
+	list_del(&sti->other_testing_insts);
+
+	if(lock_control.unlock_after)
+		spin_unlock(&sut->tilock);
+
+	__subsys_testing_instance_free(sti);
+}
+
+/* YOU must get the lock first */
+static struct subsys_testing_instance *__subsys_testing_instance_search(pid_t vpid, struct list_head *lh)
+{
+	struct subsys_testing_instance *iter_sti;
+
+	list_for_each_entry(iter_sti, lh, other_testing_insts) {
+		if(iter_sti->vpid == vpid)
+			return iter_sti;
+	}
+
+	return NULL;
+}
+
 static struct subsys_testing_instance* __do_enable_subsys(struct subsys_under_test *my_sut, pid_t vpid)
 {
-	struct subsys_testing_instance *sti;
-
 	spin_lock(&my_sut->tilock);
-	list_for_each_entry(sti, &my_sut->testing_inst, other_testing_insts) {
-		if(sti->vpid == vpid) {
-			spin_unlock(&my_sut->tilock);
-			return NULL;
-		}
+
+	if(__subsys_testing_instance_search(vpid, &my_sut->testing_inst)) {
+		spin_unlock(&my_sut->tilock);
+		return NULL;
 	}
-	spin_unlock(&my_sut->tilock);
 
 	struct subsys_testing_instance *new_sti =
 		(struct subsys_testing_instance *)
-			kmalloc(sizeof(struct subsys_testing_instance), GFP_KERNEL);
-
+		kmalloc(sizeof(struct subsys_testing_instance), GFP_KERNEL);
 	if(!new_sti)
-		return NULL;
+		goto __unlock_cleanup0;
 
 	new_sti->vpid = vpid;
 	INIT_LIST_HEAD(&new_sti->kv_pairs);
+
 	for(unsigned long i = 0; i < my_sut->kvt_len; i++) {
 		struct subsys_kv_template *my_kvt = &my_sut->kvt[i];
 
 		struct subsys_kvpair *kvp = (struct subsys_kvpair*)
 			kmalloc(sizeof(struct subsys_kvpair), GFP_KERNEL);
 		if(!kvp)
-			goto __cleanup0;
+			goto __unlock_cleanup0;
 
 		kvp->value = kmalloc(my_kvt->value_size, GFP_KERNEL);
 		if(!kvp->value)
-			goto __cleanup0;
+			goto __unlock_cleanup0;
 
 		kvp->key = my_kvt->key;
 		kvp->started = false;
@@ -141,14 +183,18 @@ static struct subsys_testing_instance* __do_enable_subsys(struct subsys_under_te
 		list_add(&kvp->kvp_head, &new_sti->kv_pairs);
 	}
 
-	spin_lock(&my_sut->tilock);
+	/* now visible to everyone */
 	list_add(&new_sti->other_testing_insts, &my_sut->testing_inst);
-	spin_unlock(&my_sut->tilock);
 
+	spin_unlock(&my_sut->tilock);
 	return new_sti;
 
-__cleanup0:
-	__do_enable_failed_cleanup(new_sti);
+__unlock_cleanup0:
+	spin_unlock(&my_sut->tilock);
+
+	/* we don't need to hold the lock here */
+	__subsys_testing_instance_free(new_sti);
+
 	return NULL;
 }
 
@@ -162,14 +208,15 @@ static const struct kobj_type default_kot = {
 
 static struct kobject testing_mod_kobj;
 
-#	define __scidtest_kobject_init_and_add_fmt(kobj_target, kobj_parent, fmt, ...) \
-		({ \
-			kobject_init((kobj_target), &default_kot); \
-			kobject_add((kobj_target), (kobj_parent), fmt, __VA_ARGS__); \
-		})
+#define __scidtest_kobject_init_and_add_fmt(kobj_target, kobj_parent, fmt, ...) \
+	kobject_init_and_add((kobj_target), &default_kot, (kobj_parent), fmt, __VA_ARGS__)
 
-#	define __scidtest_kobject_init_and_add(kobj_target, kobj_parent, name) \
-		__scidtest_kobject_init_and_add_fmt(kobj_target, kobj_parent, "%s", name)
+#define __scidtest_kobject_init_and_add(kobj_target, kobj_parent, name) \
+	__scidtest_kobject_init_and_add_fmt(kobj_target, kobj_parent, "%s", name)
+
+#define __scidtest_kobject_del_and_put(kobj) \
+	kobject_del((kobj)); \
+	kobject_put((kobj))
 
 /* provides the /sys/module/sci_detect/testing/<subsys>/<pid>/<key>/query pseudofile impl */
 static ssize_t query_key_show(struct kobject *kobj, struct kobj_attribute *kobj_attr, char* s)
@@ -177,8 +224,7 @@ static ssize_t query_key_show(struct kobject *kobj, struct kobj_attribute *kobj_
 	return 0;
 }
 
-static const struct kobj_attribute query_key_kobj_attr =
-	__ATTR(query, 0400, query_key_show, NULL);
+static const struct kobj_attribute query_key_kobj_attr = __ATTR(query, 0400, query_key_show, NULL);
 
 /* provides the /sys/module/sci_detect/testing/<subsys>/<pid>/<key>/start pseudofile impl */
 static ssize_t start_store(struct kobject *kobj, struct kobj_attribute *kobj_attr, const char* s, size_t len)
@@ -186,8 +232,7 @@ static ssize_t start_store(struct kobject *kobj, struct kobj_attribute *kobj_att
 	return 0;
 }
 
-static const struct kobj_attribute start_kobj_attr =
-	__ATTR(start, 0200, NULL, start_store);
+static const struct kobj_attribute start_kobj_attr = __ATTR(start, 0200, NULL, start_store);
 
 /* provides the /sys/module/sci_detect/testing/<subsys>/<pid>/<key>/stop pseudofile impl */
 static ssize_t stop_store(struct kobject *kobj, struct kobj_attribute *kobj_attr, const char* s, size_t len)
@@ -195,8 +240,7 @@ static ssize_t stop_store(struct kobject *kobj, struct kobj_attribute *kobj_attr
 	return 0;
 }
 
-static const struct kobj_attribute stop_kobj_attr =
-	__ATTR(stop, 0200, NULL, stop_store);
+static const struct kobj_attribute stop_kobj_attr = __ATTR(stop, 0200, NULL, stop_store);
 
 /* provides the /sys/module/sci_detect/testing/<subsys>/<pid>/<key>/reset pseudofile impl */
 static ssize_t reset_store(struct kobject *kobj, struct kobj_attribute *kobj_attr, const char* s, size_t len)
@@ -204,20 +248,42 @@ static ssize_t reset_store(struct kobject *kobj, struct kobj_attribute *kobj_att
 	return 0;
 }
 
-static const struct kobj_attribute reset_kobj_attr =
-	__ATTR(reset, 0200, NULL, reset_store);
+static const struct kobj_attribute reset_kobj_attr = __ATTR(reset, 0200, NULL, reset_store);
 
-/* provides the /sys/module/sci_detect/testing/<subsys>/<pid>/disable pseudofile impl */
-static ssize_t disable_store(struct kobject *kobj, struct kobj_attribute *kobj_attr, const char* s, size_t len)
+/* provides the /sys/module/sci_detect/testing/<subsys>/disable pseudofile impl */
+static ssize_t disable_store(
+		struct kobject *kobj, 
+		__maybe_unused struct kobj_attribute *kobj_attr, 
+		__always_unused const char* s, size_t len)
 {
-	return 0;
+	int rv;
+	struct subsys_under_test *sut = container_of(kobj, struct subsys_under_test, kobj);
+	pid_t pid_res;
+
+	rv = kstrtoint(s, 10, &pid_res);
+	if(rv)
+		return rv;
+
+	spin_lock(&sut->tilock);
+	struct subsys_testing_instance *sti = __subsys_testing_instance_search(pid_res, &sut->testing_inst);
+	if(!sti) {
+		spin_unlock(&sut->tilock);
+		return -ESRCH;
+	}
+
+	__scidtest_kobject_del_and_put(&sti->kobj);
+	__subsys_testing_instance_eliminate(sti, sut, ONLY_UNLOCK);
+
+	return len;
 }
 
-static const struct kobj_attribute disable_kobj_attr =
-	__ATTR(disable, 0200, NULL, disable_store);
+static const struct kobj_attribute disable_kobj_attr = __ATTR(disable, 0200, NULL, disable_store);
 
 /* provides the /sys/module/sci_detect/testing/<subsys>/enable pseudofile impl */
-static ssize_t enable_store(struct kobject *kobj, struct kobj_attribute *kobj_attr, const char* s, size_t len)
+static ssize_t enable_store(
+		struct kobject *kobj, 
+		__maybe_unused struct kobj_attribute *kobj_attr, 
+		const char* s, size_t len)
 {
 	int rv;
 	struct subsys_under_test *sut = container_of(kobj, struct subsys_under_test, kobj);
@@ -231,12 +297,9 @@ static ssize_t enable_store(struct kobject *kobj, struct kobj_attribute *kobj_at
 	if(!sti)
 		return -EBUSY;
 
+	/* the /<pid>/ subdir */
 	if(__scidtest_kobject_init_and_add_fmt(&sti->kobj, kobj, "%d", pid_res))
 		goto __cleanup1;
-
-	/* the /<pid>/disable file */
-	if(sysfs_create_file(&sti->kobj, &disable_kobj_attr.attr))
-		goto __kobj_del_cleanup1;
 
 	struct subsys_kvpair *pos;
 
@@ -266,42 +329,91 @@ static ssize_t enable_store(struct kobject *kobj, struct kobj_attribute *kobj_at
 	return len;
 
 __kobj_del_cleanup1:
-	kobject_del(&sti->kobj);
+	__scidtest_kobject_del_and_put(&sti->kobj);
 __cleanup1:
-	__do_enable_failed_cleanup(sti);
+	__subsys_testing_instance_eliminate(sti, sut, LOCK_AND_UNLOCK);
 	return -ENOENT;
 }
 
-static const struct kobj_attribute enable_kobj_attr =
-	__ATTR(enable, 0200, NULL, enable_store);
+static const struct kobj_attribute enable_kobj_attr = __ATTR(enable, 0200, NULL, enable_store);
 
 #endif //CONFIG_SYSFS
-#endif //SCID_CONFIG_TESTING
 
-int setup_testing(void)
+static inline bool __testing_root_expose(void)
 {
 
-#ifdef SCID_CONFIG_TESTING
-	int rv;
-
-	INIT_LIST_HEAD(&sut_head);
-
 #ifdef CONFIG_SYSFS
-	struct kobject mod_kobj = THIS_MODULE->mkobj.kobj;
+	struct kobject *mod_kobj = &THIS_MODULE->mkobj.kobj;
 
-	rv = __scidtest_kobject_init_and_add(&testing_mod_kobj, &mod_kobj, "testing");
+	int rv = __scidtest_kobject_init_and_add(&testing_mod_kobj, mod_kobj, "testing");
 	if(rv) {
-		scid_errf("unable to create testing kobj :( ;;; rv=%d", rv);
-		return rv;
+		scid_errf("unable to create testing kobj :(, rv = %d", rv);
+		return false;
 	}
-#endif 
 
-	return 0;
+	return true;
 #else
-	return 0;
+	return false;
 #endif
 
 }
+
+static inline void __testing_root_hide(void)
+{
+
+#ifdef CONFIG_SYSFS
+	__scidtest_kobject_del_and_put(&testing_mod_kobj);
+#endif
+
+}
+
+static inline bool __registered_subsys_expose(struct subsys_under_test *sut)
+{
+
+#ifdef CONFIG_SYSFS
+	if(__scidtest_kobject_init_and_add(
+				&sut->kobj, &testing_mod_kobj, sut->name)) {
+
+		scid_err("unable to create subsys kobj");
+		return false;
+	}
+
+	if(sysfs_create_file(&sut->kobj, &enable_kobj_attr.attr) || 
+			sysfs_create_file(&sut->kobj, &disable_kobj_attr.attr)) {
+
+		__scidtest_kobject_del_and_put(&sut->kobj);
+		scid_err("unable to create enable/disable file for kobj");
+		return false;
+	}
+
+	return true;
+#else
+	return false;
+#endif
+
+}
+
+static inline void __registered_subsys_hide(struct subsys_under_test *sut)
+{
+
+#ifdef CONFIG_SYSFS
+	__scidtest_kobject_del_and_put(&sut->kobj);
+#endif
+
+}
+
+static inline void __enabled_stinstance_hide(struct subsys_testing_instance *sti)
+{
+
+#ifdef CONFIG_SYSFS
+	__scidtest_kobject_del_and_put(&sti->kobj);
+#endif
+
+}
+
+#endif //SCID_CONFIG_TESTING
+
+/* extern linkage */
 
 bool testing_register_subsys(struct subsys_regi_args *args)
 {
@@ -315,8 +427,6 @@ bool testing_register_subsys(struct subsys_regi_args *args)
 		scid_err("memory exhausted");
 		return false;
 	}
-	
-	int rv;
 
 	sut->name = args->name;
 	sut->kvt = &args->kvt;
@@ -324,23 +434,10 @@ bool testing_register_subsys(struct subsys_regi_args *args)
 	spin_lock_init(&sut->tilock);
 	INIT_LIST_HEAD(&sut->testing_inst);
 
-#ifdef CONFIG_SYSFS
-	rv = __scidtest_kobject_init_and_add(
-				&sut->kobj, &testing_mod_kobj, sut->name);
-	if(rv) {
+	if(!__registered_subsys_expose(sut)) {
 		kfree(sut);
-		scid_err("unable to create subsys kobj");
 		return false;
 	}
-
-	rv = sysfs_create_file(&sut->kobj, &enable_kobj_attr.attr);
-	if(rv) {
-		kobject_del(&sut->kobj);
-		kfree(sut);
-		scid_err("unable to create enable file for kobj");
-		return false;
-	}
-#endif
 
 	/* warning: no lock needed for the main "subsys" list */
 	list_add(&sut->other_subsyses, &sut_head);
@@ -348,6 +445,22 @@ bool testing_register_subsys(struct subsys_regi_args *args)
 	return true;
 #else
 	return true;
+#endif
+
+}
+
+int setup_testing(void)
+{
+
+#ifdef SCID_CONFIG_TESTING
+	INIT_LIST_HEAD(&sut_head);
+
+	if(!__testing_root_expose())
+		return -1;
+
+	return 0;
+#else
+	return 0;
 #endif
 
 }
@@ -360,10 +473,26 @@ void teardown_testing(void)
 	struct subsys_under_test *tmp;
 
 	list_for_each_entry_safe(pos, tmp, &sut_head, other_subsyses) {
+		scid_infof("unregistering testing subsystem %s", pos->name);
+
+		struct subsys_testing_instance *sti;
+		struct subsys_testing_instance *sti_tmp;
+
+		spin_lock(&pos->tilock);
+		list_for_each_entry_safe(sti, sti_tmp, &pos->testing_inst, other_testing_insts) {
+			scid_infof(" --> eliminating testing instance for pid=%d", sti->vpid);
+
+			__enabled_stinstance_hide(sti);
+			__subsys_testing_instance_eliminate(sti, pos, NO_LOCKING_AT_ALL);
+		}
+		spin_unlock(&pos->tilock);
+
+		__registered_subsys_hide(pos);
 		list_del(&pos->other_subsyses);
 		kfree(pos);
 	}
 
+	__testing_root_hide();
 #endif
 
 }
