@@ -6,6 +6,7 @@
 #include <vmfs.h>
 #include <logging.h>
 #include <hooks/add/utils/addpages.h>
+#include <testing/testing.h>
 
 #define do_anonymous_page__symbol "do_anonymous_page"
 
@@ -85,6 +86,8 @@ static int do_anonymous_page__hkrphook(
 
 	if(!add_pages_byfolio(vmf->pte, dap_further_pte_checks, NULL, true, NULL))
 		scid_err("unable to add pages");
+
+	testing_setval("add-dap-hook", "success", NULL);
 
 	/* release the page table lock */
 	spin_unlock_irqrestore(vmf->ptl, cpu_flags);

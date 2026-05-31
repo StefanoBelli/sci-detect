@@ -4,8 +4,11 @@ obj-m := $(modname).o
 $(modname)-objs += \
 	main.o \
 	vmfs.o \
+	\
+		testing/testing.o \
+		testing/default-kvops.o \
+	\
 	hooks.o \
-	testing.o \
 	\
 		hooks/setuputils.o \
 		\

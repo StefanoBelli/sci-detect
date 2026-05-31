@@ -18,32 +18,26 @@ static struct kprobe *kps[] = {
 };
 
 #ifdef SCID_CONFIG_TESTING
+
+#include <testing/default-kvops.h>
+
 static struct subsys_regi_args add_tests[] = {
 	{
-		.name = "key",
+		.name = "add-dap-hook",
 		.kvt_len = 1,
 		.kvt = {
-			.key = "real-key",
+			.key = "success",
 			.value_size = sizeof(int),
 			.kv_ops = {
-				.uquery_value = NULL,
-				.set_value = NULL
-			}
-		}
-	},
-	{
-		.name = "key1",
-		.kvt_len = 1,
-		.kvt = {
-			.key = "real-key",
-			.value_size = sizeof(int),
-			.kv_ops = {
-				.uquery_value = NULL,
-				.set_value = NULL
+				.init_value = atomic_inc_init_kvop,
+				.set_value = atomic_inc_set_kvop,
+				.reset_value = atomic_inc_reset_kvop,
+				.uquery_value = atomic_inc_uquery_kvop
 			}
 		}
 	},
 };
+
 #endif 
 
 /* don't touch */

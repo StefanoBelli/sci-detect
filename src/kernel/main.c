@@ -2,7 +2,7 @@
 #include <vmfs.h>
 #include <logging.h>
 
-#include <testing.h>
+#include <testing/testing.h>
 
 MODULE_AUTHOR("Stefano Belli");
 MODULE_DESCRIPTION("Stealth code injection detector");

@@ -6,8 +6,6 @@
 #define __static_array_size(a, x, y) \
 	(sizeof(a) / sizeof(typeof(a x)y))
 
-#define __size_type typeof(sizeof(0))
-
 struct __base_setup_hooks_args {
 	struct kretprobe **krps;
 	int nr_krps;
@@ -19,10 +17,10 @@ struct __base_setup_hooks_args {
 #define __DEFINE_BASE_SETUP_HOOKS_ARGS(_name_, _kps_, _krps_) \
 	static struct __base_setup_hooks_args _name_ = { \
 		.kps = (_kps_), \
-		.nr_kps = __static_array_size((_kps_), ,*), \
+		.nr_kps = __static_array_size((_kps_),,*), \
 		\
 		.krps = (_krps_), \
-		.nr_krps = __static_array_size((_krps_), ,*), \
+		.nr_krps = __static_array_size((_krps_),,*), \
 	}
 
 int __base_setup_hooks(struct __base_setup_hooks_args*);
@@ -30,10 +28,17 @@ void __base_teardown_hooks(struct __base_setup_hooks_args*);
 
 #ifdef SCID_CONFIG_TESTING
 
-#include <testing.h>
+#include <testing/testing.h>
 #include <logging.h>
 
+#define __size_type typeof(sizeof(0))
+
 #define GENERATE_SETUP_AND_TEARDOWN_CODE(_hookgroup_, _kps_, _krps_, _tests_arr_) \
+	static_assert( \
+			__builtin_types_compatible_p( \
+				typeof((_tests_arr_)), \
+				typeof(struct subsys_regi_args[]))); \
+	\
 	static inline int __hookgroup_test_regi( \
 		struct subsys_regi_args *tests, \
 		__size_type tests_len, \
@@ -85,6 +90,5 @@ void __base_teardown_hooks(struct __base_setup_hooks_args*);
 		__base_teardown_hooks(&bsha); \
 	}
 #endif
-
 
 #endif
