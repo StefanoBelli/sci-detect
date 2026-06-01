@@ -5,9 +5,6 @@ therefore reducing costly page table walks by the MMU.
 
 This is done transparently*
 
-Khugepaged directly affected, no need to change anything in 
-```/sys/kernel/mm/transparent_hugepage/khugepaged/``` subdir
-
 ## Turn-off completely
 
 Kernel will never attempt to transparently "merge" PTEs transparently or other stuff...
@@ -23,6 +20,9 @@ echo never > /sys/kernel/mm/transparent_hugepage/hugepages-*kB/shmem_enabled
 echo inherit > /sys/kernel/mm/transparent_hugepage/hugepages-2048kB/enabled
 echo inherit > /sys/kernel/mm/transparent_hugepage/hugepages-2048kB/shmem_enabled
 ```
+
+**IMPORTANT NOTE**: *khugepaged directly affected, no need to change anything in 
+```/sys/kernel/mm/transparent_hugepage/khugepaged/``` subdir*
 
 ## Leaving the possibility to the apps of madvising the kernel for THP
 
@@ -40,6 +40,9 @@ echo inherit > /sys/kernel/mm/transparent_hugepage/hugepages-2048kB/enabled
 echo inherit > /sys/kernel/mm/transparent_hugepage/hugepages-2048kB/shmem_enabled
 ```
 
+**NOTE**: *this appears to be the default config on Gentoo and Fedora, while Arch seems to
+"always" allow THP*
+
 # Disabling explicit hugepages 
 
 This is the situation where a user may explicitly request a 2MB (even 1GB?? not sure...) huge page to themselves.
@@ -53,12 +56,15 @@ However, the sysadmin may choose to allow them up to a certain number.
 ### 3 ways to check
 
 * Via ```/proc/meminfo```
+
 ```grep -i HugePages_Total /proc/meminfo```
 
 * Via ```/proc/sys/vm/nr_hugepages```
+
 ```cat /proc/sys/vm/nr_hugepages```
 
 * Via sysctl options
+
 ```sysctl vm.nr_hugepages```
 
 #### Sources

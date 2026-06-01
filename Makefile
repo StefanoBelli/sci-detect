@@ -22,3 +22,6 @@ module-umount:
 
 module-remount:
 	make -C src/kernel remount
+
+run-tests:
+	make -C test run-tests
