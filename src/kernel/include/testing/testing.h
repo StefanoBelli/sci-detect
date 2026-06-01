@@ -47,10 +47,20 @@ struct subsys_kv_template {
 	struct kv_ops kv_ops;
 };
 
+#define MAX_KVS 16
+
+#define END_OF_KVS (struct subsys_kv_template) { .key = NULL }
+
+#define __base_kv(_key, _value_size, _kv_ops) \
+	(struct subsys_kv_template) { \
+		.key = (_key), \
+		.value_size = (_value_size), \
+		.kv_ops = _kv_ops \
+	}
+
 struct subsys_regi_args {
 	const char* name;
-	unsigned long kvt_len;
-	struct subsys_kv_template kvt;
+	struct subsys_kv_template kvt[MAX_KVS + 1];
 };
 
 #else
@@ -69,7 +79,7 @@ struct subsys_regi_args;
  *
  * Returns: true if everything ok, false otherwise
  */
-bool testing_register_subsys(struct subsys_regi_args *args);
+bool testing_register_subsys(const struct subsys_regi_args *args);
 
 #ifdef SCID_CONFIG_TESTING
 

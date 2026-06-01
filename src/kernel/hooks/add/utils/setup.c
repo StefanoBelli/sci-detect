@@ -21,19 +21,12 @@ static struct kprobe *kps[] = {
 
 #include <testing/default-kvops.h>
 
-static struct subsys_regi_args add_tests[] = {
+static const struct subsys_regi_args add_tests[] = {
 	{
 		.name = "add-dap-hook",
-		.kvt_len = 1,
 		.kvt = {
-			.key = "success",
-			.value_size = sizeof(int),
-			.kv_ops = {
-				.init_value = atomic_inc_init_kvop,
-				.set_value = atomic_inc_set_kvop,
-				.reset_value = atomic_inc_reset_kvop,
-				.uquery_value = atomic_inc_uquery_kvop
-			}
+			ATOMICALLY_INCREMENTED_KEY("success"),
+			END_OF_KVS
 		}
 	},
 };

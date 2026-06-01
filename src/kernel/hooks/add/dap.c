@@ -14,6 +14,7 @@ static int do_anonymous_page__ehkrphook(
 		struct kretprobe_instance *krpi, struct pt_regs *regs)
 {
 	struct vm_fault *vmf = (struct vm_fault*) regs->di;
+	testing_setval("add-dap-hook", "success", NULL);
 
 	/* are we on the right kernel control path? */
 	if(!got_this_vmf(vmf))
@@ -87,7 +88,6 @@ static int do_anonymous_page__hkrphook(
 	if(!add_pages_byfolio(vmf->pte, dap_further_pte_checks, NULL, true, NULL))
 		scid_err("unable to add pages");
 
-	testing_setval("add-dap-hook", "success", NULL);
 
 	/* release the page table lock */
 	spin_unlock_irqrestore(vmf->ptl, cpu_flags);

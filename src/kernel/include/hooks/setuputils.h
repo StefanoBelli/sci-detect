@@ -40,7 +40,7 @@ void __base_teardown_hooks(struct __base_setup_hooks_args*);
 				typeof(struct subsys_regi_args[]))); \
 	\
 	static inline int __hookgroup_test_regi( \
-		struct subsys_regi_args *tests, \
+		const struct subsys_regi_args *tests, \
 		__size_type tests_len, \
 		const char* hookgroup) \
 	{ \

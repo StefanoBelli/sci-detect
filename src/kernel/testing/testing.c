@@ -31,7 +31,7 @@ struct subsys_kvpair {
 	unsigned long value_size;
 
 	/* kvops */
-	struct kv_ops *kv_ops;
+	const struct kv_ops *kv_ops;
 
 	/* whether I should collect data or not? */
 	bool started;
@@ -70,8 +70,7 @@ struct subsys_under_test {
 	const char* name;
 
 	/* kvt array, "replicated" on each instance */
-	struct subsys_kv_template* kvt;
-	unsigned long kvt_len;
+	const struct subsys_kv_template* kvt;
 
 #ifdef CONFIG_SYSFS
 	/* the kobject */
@@ -180,8 +179,11 @@ static struct subsys_testing_instance* __do_enable_subsys(
 	new_sti->vpid = vpid;
 	INIT_LIST_HEAD(&new_sti->kv_pairs);
 
-	for(unsigned long i = 0; i < my_sut->kvt_len; i++) {
-		struct subsys_kv_template *my_kvt = &my_sut->kvt[i];
+	for(unsigned long i = 0; i < MAX_KVS; i++) {
+		const struct subsys_kv_template *my_kvt = &my_sut->kvt[i];
+
+		if(my_kvt->key == NULL)
+			break;
 
 		struct subsys_kvpair *kvp = (struct subsys_kvpair*)
 			kmalloc(sizeof(struct subsys_kvpair), GFP_KERNEL);
@@ -515,7 +517,7 @@ static inline void __enabled_stinstance_hide(struct subsys_testing_instance *sti
  * return positive results 
  */
 
-bool testing_register_subsys(__maybe_unused struct subsys_regi_args *args)
+bool testing_register_subsys(__maybe_unused const struct subsys_regi_args *args)
 {
 
 #ifdef SCID_CONFIG_TESTING
@@ -529,8 +531,7 @@ bool testing_register_subsys(__maybe_unused struct subsys_regi_args *args)
 	}
 
 	sut->name = args->name;
-	sut->kvt = &args->kvt;
-	sut->kvt_len = args->kvt_len;
+	sut->kvt = args->kvt;
 	spin_lock_init(&sut->tilock);
 	INIT_LIST_HEAD(&sut->testing_inst);
 
@@ -640,7 +641,10 @@ int __do_testing_setval(
 		return TESTING_SETVAL_NOKEY;
 	}
 
-	if(!kvp->started) {
+	bool has_started = READ_ONCE(kvp->started);
+	smp_mb();
+
+	if(!has_started) {
 		rcu_read_unlock();
 		return TESTING_SETVAL_NOTSTARTED;
 	}
