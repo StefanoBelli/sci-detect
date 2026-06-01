@@ -179,8 +179,59 @@ static int query_int_value_testing_for_me(const char* subsys, const char* key)
 		goto __finish; \
 	}
 
+#define die_if(expr) \
+	if(expr) { \
+		fprintf(stderr, "TEST FAILED because " #expr " is false, errno = %s " \
+				"(see " __FILE__ ":%d)\n", strerror(errno), __LINE__); \
+		rv = EXIT_FAILURE; \
+		goto __finish; \
+	}
+
 #define test_passed() \
 	puts("OK! All tests passed!"); \
 	rv = EXIT_SUCCESS
 
+#define __unused __attribute__((__unused__))
+
+#define spurious_byte_memwrite(ptr, value) \
+	*((volatile char*)ptr) = value
+
+static int trigger_syscall_pagewrite(void* addr, size_t len)
+{
+	int fd = open("/dev/random", O_RDONLY);
+	if(fd < 0) {
+		perror("open");
+		return EXIT_FAILURE;
+	}
+
+	if(read(fd, addr, len) < 0) {
+		close(fd);
+		perror("read");
+		return EXIT_FAILURE;
+	}
+
+	close(fd);
+	return EXIT_SUCCESS;
+}
+
+#define spurious_byte_memread(varname, ptr) \
+	__unused volatile char varname = *(ptr) 
+
+static int trigger_syscall_pageread(void* addr, size_t len)
+{
+	int fd = open("/dev/null", O_WRONLY);
+	if(fd < 0) {
+		perror("open");
+		return EXIT_FAILURE;
+	}
+
+	if(write(fd, addr, len) < 0) {
+		close(fd);
+		perror("write");
+		return EXIT_FAILURE;
+	}
+
+	close(fd);
+	return EXIT_SUCCESS;
+}
 #endif

@@ -2,7 +2,9 @@ SHELL=/bin/bash
 CC=gcc
 CFLAGS=-O0 -Wall -W -Wextra -Wshadow -std=c11 -pedantic
 TESTS= \
-	   test-dap-first-access-read.test
+	   test-dap-first-access-read.test \
+	   test-dap-first-access-write.test \
+	   test-dap-prefault.test
 
 all: $(TESTS)
 
