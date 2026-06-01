@@ -8,21 +8,26 @@
 #include <hooks/add/utils/addpages.h>
 #include <testing/testing.h>
 
+#define __testing(key) testing_setval("add-dap-hook", key, NULL)
+
 #define do_anonymous_page__symbol "do_anonymous_page"
 
 static int do_anonymous_page__ehkrphook(
 		struct kretprobe_instance *krpi, struct pt_regs *regs)
 {
 	struct vm_fault *vmf = (struct vm_fault*) regs->di;
-	testing_setval("add-dap-hook", "success", NULL);
 
 	/* are we on the right kernel control path? */
 	if(!got_this_vmf(vmf))
 		return 1;
 
+	__testing("entry");
+
 	/* don't care about zero page (demand paging, first read) */
-	if(!(vmf->flags & FAULT_FLAG_WRITE))
+	if(!(vmf->flags & FAULT_FLAG_WRITE)) {
+		__testing("zero-page");
 		return 1;
+	}
 
 	/* just some consistency checks */
 	if(vmf->pte) {
@@ -73,6 +78,8 @@ static int do_anonymous_page__hkrphook(
 	if(regs_return_value(regs) != 0)
 		return 0;
 
+	__testing("return-ok");
+
 	/* copy vmf ptr from entry handler */
 	vmf = *((struct vm_fault**)krpi->data);
 
@@ -87,7 +94,8 @@ static int do_anonymous_page__hkrphook(
 
 	if(!add_pages_byfolio(vmf->pte, dap_further_pte_checks, NULL, true, NULL))
 		scid_err("unable to add pages");
-
+	else
+		__testing("materialize-page");
 
 	/* release the page table lock */
 	spin_unlock_irqrestore(vmf->ptl, cpu_flags);

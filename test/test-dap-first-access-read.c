@@ -1,28 +1,71 @@
 #include "testutils.h"
 #include <sys/mman.h>
 
+#define SUBSYS_NAME "add-dap-hook"
+#define ENTRY_KEY "entry"
+#define ZEROPAGE_KEY "zero-page"
+#define RETURNOK_KEY "return-ok"
+#define MATERIALIZEPAGE_KEY "materialize-page"
+
 int main()
 {
-	enable_testing_for_me("add-dap-hook");
-	start_value_testing_for_me("add-dap-hook", "success");
+	int rv = EXIT_SUCCESS;
 
-	char *mem = mmap(NULL, 4096, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+	enable_testing_for_me(SUBSYS_NAME);
+	start_value_testing_for_me(SUBSYS_NAME, ENTRY_KEY);
+	start_value_testing_for_me(SUBSYS_NAME, ZEROPAGE_KEY);
+	start_value_testing_for_me(SUBSYS_NAME, RETURNOK_KEY);
+	start_value_testing_for_me(SUBSYS_NAME, MATERIALIZEPAGE_KEY);
+
+	/* PREPARING: do the mmap */
+	char *mem = (char*) mmap(
+			NULL, 3 * 4096, 
+			PROT_READ | PROT_WRITE, 
+			MAP_PRIVATE | MAP_ANONYMOUS, 
+			-1, 0);
 	if(mem == MAP_FAILED) {
 		perror("mmap");
-		exit(EXIT_FAILURE);
+		rv = EXIT_FAILURE;
+		goto __finish;
 	}
 
-	*mem = 'a';
+	/* TEST without doing the initial access */
+	{
+		int entry = query_int_value_testing_for_me(SUBSYS_NAME, ENTRY_KEY);
+		int zeropage = query_int_value_testing_for_me(SUBSYS_NAME, ZEROPAGE_KEY);
+		int returnok = query_int_value_testing_for_me(SUBSYS_NAME, RETURNOK_KEY);
+		int materializepage = query_int_value_testing_for_me(SUBSYS_NAME, MATERIALIZEPAGE_KEY);
 
-	char out[8192];
-	memset(out, 0, 8192);
-	query_value_testing_for_me("add-dap-hook", "success", out, 8192);
+		test_int_eq(entry, 0);
+		test_int_eq(returnok, 0);
+		test_int_eq(zeropage, 0);
+		test_int_eq(materializepage, 0);
+	}
 
-	printf("%s\n", out);
+	/* TEST after initial READ access has been done */
+	char ch = *mem;
 
-	stop_value_testing_for_me("add-dap-hook", "success");
-	disable_testing_for_me("add-dap-hook");
+	{
+		int entry = query_int_value_testing_for_me(SUBSYS_NAME, ENTRY_KEY);
+		int zeropage = query_int_value_testing_for_me(SUBSYS_NAME, ZEROPAGE_KEY);
+		int returnok = query_int_value_testing_for_me(SUBSYS_NAME, RETURNOK_KEY);
+		int materializepage = query_int_value_testing_for_me(SUBSYS_NAME, MATERIALIZEPAGE_KEY);
 
-	return 0;
+		test_int_eq(entry, 1);
+		test_int_eq(returnok, 0);
+		test_int_eq(zeropage, 1);
+		test_int_eq(materializepage, 0);
+	}
+
+	test_passed();
+
+__finish:
+	stop_value_testing_for_me(SUBSYS_NAME, ENTRY_KEY);
+	stop_value_testing_for_me(SUBSYS_NAME, ZEROPAGE_KEY);
+	stop_value_testing_for_me(SUBSYS_NAME, RETURNOK_KEY);
+	stop_value_testing_for_me(SUBSYS_NAME, MATERIALIZEPAGE_KEY);
+	disable_testing_for_me(SUBSYS_NAME);
+
+	return rv;
 }
 

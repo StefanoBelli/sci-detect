@@ -25,7 +25,11 @@ static const struct subsys_regi_args add_tests[] = {
 	{
 		.name = "add-dap-hook",
 		.kvt = {
-			ATOMICALLY_INCREMENTED_KEY("success"),
+			ATOMICALLY_INCREMENTED_KEY("entry"),
+			ATOMICALLY_INCREMENTED_KEY("zero-page"),
+			ATOMICALLY_INCREMENTED_KEY("return-ok"),
+			ATOMICALLY_INCREMENTED_KEY("materialize-page"),
+
 			END_OF_KVS
 		}
 	},

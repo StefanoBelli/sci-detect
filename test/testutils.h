@@ -151,7 +151,36 @@ static void query_value_testing_for_me(const char* subsys, const char* key, char
 {
 	query_value_testing_for(subsys, key, gettid(), out, outsize);
 }
-	
+
+static int query_int_value_testing_for(const char *subsys, const char* key, pid_t pid)
+{
+	char querybuf[100];
+	memset(querybuf, 0, 100);
+
+	query_value_testing_for(subsys, key, pid, querybuf, 100);
+
+	return strtol(querybuf, NULL, 10);
+}
+
+static int query_int_value_testing_for_me(const char* subsys, const char* key)
+{
+	return query_int_value_testing_for(subsys, key, gettid());
+}
+
 #undef BASEDIR
+
+#define test_int_eq(x, y) \
+	if(x != y) { \
+		fprintf(stderr, #x " == " #y " FAILED (see " __FILE__ ":%d)\n", __LINE__); \
+		fputs("\ttheir actual values are:\n", stderr); \
+		fprintf(stderr ,"\t\t" #x " = %d\n", x); \
+		fprintf(stderr, "\t\t" #y " = %d\n", y); \
+		rv = EXIT_FAILURE; \
+		goto __finish; \
+	}
+
+#define test_passed() \
+	puts("OK! All tests passed!"); \
+	rv = EXIT_SUCCESS
 
 #endif
