@@ -12,3 +12,5 @@ bin/
 *.mod
 Module.symvers
 modules.order
+
+test/*.test
