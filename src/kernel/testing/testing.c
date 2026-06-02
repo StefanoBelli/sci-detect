@@ -87,6 +87,10 @@ struct subsys_under_test {
 
 static struct list_head sut_head;
 
+/* prototype, see def. below */
+static inline void __enabled_stinstance_hide(
+		struct subsys_testing_instance *sti, struct subsys_kvpair *kvp_upto_excl);
+
 /* WARNING: this does not eliminate @sti from the containing list */
 static void __subsys_testing_instance_free(struct rcu_head *rcuh)
 {
@@ -100,13 +104,13 @@ static void __subsys_testing_instance_free(struct rcu_head *rcuh)
 		return;
 
 	list_for_each_entry_safe(kvp, tmp, &sti->kv_pairs, kvp_head) {
+		list_del(&kvp->kvp_head);
+
 		if(kvp->value)
 			kfree(kvp->value);
 
 		if(kvp)
 			kfree(kvp);
-
-		list_del(&kvp->kvp_head);
 	}
 
 	kfree(sti);
@@ -172,7 +176,7 @@ static struct subsys_testing_instance* __do_enable_subsys(
 
 	struct subsys_testing_instance *new_sti =
 		(struct subsys_testing_instance *) 
-			kmalloc(sizeof(struct subsys_testing_instance), GFP_KERNEL);
+			kmalloc(sizeof(struct subsys_testing_instance), GFP_ATOMIC);
 	if(!new_sti)
 		goto __unlock_cleanup0;
 
@@ -186,11 +190,11 @@ static struct subsys_testing_instance* __do_enable_subsys(
 			break;
 
 		struct subsys_kvpair *kvp = (struct subsys_kvpair*)
-			kmalloc(sizeof(struct subsys_kvpair), GFP_KERNEL);
+			kmalloc(sizeof(struct subsys_kvpair), GFP_ATOMIC);
 		if(!kvp)
 			goto __unlock_cleanup0;
 
-		kvp->value = kzalloc(my_kvt->value_size, GFP_KERNEL);
+		kvp->value = kzalloc(my_kvt->value_size, GFP_ATOMIC);
 		if(!kvp->value)
 			goto __unlock_cleanup0;
 
@@ -223,10 +227,16 @@ __unlock_cleanup0:
 
 #ifdef CONFIG_SYSFS
 
+static void dummy_kot_release(__always_unused struct kobject *kobj)
+{
+
+}
+
 /* shall be used by every other kobject */
 static const struct kobj_type default_kot = {
 	/* don't need the ->release */
 	.sysfs_ops = &kobj_sysfs_ops,
+	.release = dummy_kot_release
 };
 
 static struct kobject testing_mod_kobj;
@@ -357,16 +367,18 @@ static ssize_t disable_store(
 	if(rv)
 		return rv;
 
-	spin_lock(&sut->tilock);
+	rcu_read_lock();
+
 	struct subsys_testing_instance *sti = 
 		__subsys_testing_instance_search(pid_res, &sut->testing_inst);
-	if(!sti) {
-		spin_unlock(&sut->tilock);
-		return -ESRCH;
-	}
 
-	__scidtest_kobject_del_and_put(&sti->kobj);
-	__subsys_testing_instance_eliminate(sti, sut, ONLY_UNLOCK);
+	rcu_read_unlock();
+
+	if(!sti)
+		return -ESRCH;
+
+	__enabled_stinstance_hide(sti, NULL);
+	__subsys_testing_instance_eliminate(sti, sut, LOCK_AND_UNLOCK);
 
 	return len;
 }
@@ -425,7 +437,7 @@ static ssize_t enable_store(
 	return len;
 
 __kobj_del_cleanup1:
-	__scidtest_kobject_del_and_put(&sti->kobj);
+	__enabled_stinstance_hide(sti);
 __cleanup1:
 	__subsys_testing_instance_eliminate(sti, sut, LOCK_AND_UNLOCK);
 	return -ENOENT;
@@ -499,10 +511,26 @@ static inline void __registered_subsys_hide(struct subsys_under_test *sut)
 
 }
 
-static inline void __enabled_stinstance_hide(struct subsys_testing_instance *sti)
+/* do the kobject_del and kobject_put on every kvpair + instance descriptor.
+ *
+ * @sti: the instance descriptor
+ * @kvp_upto_excl: if not NULL, do the del/unref for [0, kvp_upto_excl).
+ * 					Otherwise, do it for every element in the kv pair list.
+ */
+static inline void __enabled_stinstance_hide(
+		struct subsys_testing_instance *sti, struct subsys_kvpair *kvp_upto_excl)
 {
 
 #ifdef CONFIG_SYSFS
+	struct subsys_kvpair *kvp;
+
+	list_for_each_entry(kvp, &sti->kv_pairs, kvp_head) {
+		if(kvp_upto_excl && kvp == kvp_upto_excl)
+			break;
+
+		__scidtest_kobject_del_and_put(&kvp->kobj);
+	}
+
 	__scidtest_kobject_del_and_put(&sti->kobj);
 #endif
 
@@ -583,7 +611,7 @@ void teardown_testing(void)
 		list_for_each_entry_safe(sti, sti_tmp, &pos->testing_inst, other_testing_insts) {
 			scid_infof(" --> eliminating testing instance for pid=%d", sti->vpid);
 
-			__enabled_stinstance_hide(sti);
+			__enabled_stinstance_hide(sti, NULL);
 			__subsys_testing_instance_eliminate(sti, pos, NO_LOCKING_AT_ALL);
 		}
 		spin_unlock(&pos->tilock);

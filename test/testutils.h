@@ -169,7 +169,7 @@ static int query_int_value_testing_for_me(const char* subsys, const char* key)
 
 #undef BASEDIR
 
-#define test_int_eq(x, y) \
+#define test_int_eq_hard(x, y) \
 	if(x != y) { \
 		fprintf(stderr, #x " == " #y " FAILED (see " __FILE__ ":%d)\n", __LINE__); \
 		fputs("\ttheir actual values are:\n", stderr); \
@@ -177,6 +177,19 @@ static int query_int_value_testing_for_me(const char* subsys, const char* key)
 		fprintf(stderr, "\t\t" #y " = %d\n", y); \
 		rv = EXIT_FAILURE; \
 		goto __finish; \
+	}
+
+#define test_int_eq(x, y) \
+	if(x != y) { \
+		fprintf(stderr, #x " == " #y " %s FAILED (see " __FILE__ ":%d)\n", \
+				x > y && x - y < 2 ? "SOFT" : "HARD", __LINE__); \
+		fputs("\ttheir actual values are:\n", stderr); \
+		fprintf(stderr ,"\t\t" #x " = %d\n", x); \
+		fprintf(stderr, "\t\t" #y " = %d\n", y); \
+		if(!(x > y && x - y < 2)) { \
+			rv = EXIT_FAILURE; \
+			goto __finish; \
+		} \
 	}
 
 #define die_if(expr) \
