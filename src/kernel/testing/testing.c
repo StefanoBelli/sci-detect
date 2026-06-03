@@ -4,7 +4,7 @@
 
 #include <linux/list.h>
 #include <linux/string.h>
-#include <linux/spinlock.h>
+#include <linux/mutex.h>
 #include <linux/rcupdate.h>
 #include <linux/sched.h>
 #include <linux/pid.h>
@@ -81,7 +81,7 @@ struct subsys_under_test {
 	struct list_head other_subsyses; 
 
 	/* this lock protects the testing_inst list */
-	spinlock_t tilock; 
+	struct mutex tilock; 
 	struct list_head testing_inst;
 };
 
@@ -89,7 +89,7 @@ static struct list_head sut_head;
 
 /* prototype, see def. below */
 static inline void __enabled_stinstance_hide(
-		struct subsys_testing_instance *sti, struct subsys_kvpair *kvp_upto_excl);
+		struct subsys_testing_instance *sti, struct subsys_kvpair *kvp_upto_incl);
 
 /* WARNING: this does not eliminate @sti from the containing list */
 static void __subsys_testing_instance_free(struct rcu_head *rcuh)
@@ -139,12 +139,12 @@ static void __subsys_testing_instance_eliminate(
 		struct sti_eliminate_lock_control lock_control)
 {
 	if(lock_control.lock_before)
-		spin_lock(&sut->tilock);
+		mutex_lock(&sut->tilock);
 
 	list_del_rcu(&sti->other_testing_insts);
 
 	if(lock_control.unlock_after)
-		spin_unlock(&sut->tilock);
+		mutex_unlock(&sut->tilock);
 
 	call_rcu(&sti->rcu, __subsys_testing_instance_free);
 }
@@ -167,10 +167,10 @@ static struct subsys_testing_instance *__subsys_testing_instance_search(
 static struct subsys_testing_instance* __do_enable_subsys(
 		struct subsys_under_test *my_sut, pid_t vpid)
 {
-	spin_lock(&my_sut->tilock);
+	mutex_lock(&my_sut->tilock);
 
 	if(__subsys_testing_instance_search(vpid, &my_sut->testing_inst)) {
-		spin_unlock(&my_sut->tilock);
+		mutex_unlock(&my_sut->tilock);
 		return NULL;
 	}
 
@@ -213,11 +213,11 @@ static struct subsys_testing_instance* __do_enable_subsys(
 	/* now visible to everyone */
 	list_add_rcu(&new_sti->other_testing_insts, &my_sut->testing_inst);
 
-	spin_unlock(&my_sut->tilock);
+	mutex_unlock(&my_sut->tilock);
 	return new_sti;
 
 __unlock_cleanup0:
-	spin_unlock(&my_sut->tilock);
+	mutex_unlock(&my_sut->tilock);
 
 	/* we don't need to hold the lock here */
 	call_rcu(&new_sti->rcu, __subsys_testing_instance_free);
@@ -228,9 +228,7 @@ __unlock_cleanup0:
 #ifdef CONFIG_SYSFS
 
 static void dummy_kot_release(__always_unused struct kobject *kobj)
-{
-
-}
+{ /* nop */ }
 
 /* shall be used by every other kobject */
 static const struct kobj_type default_kot = {
@@ -367,18 +365,18 @@ static ssize_t disable_store(
 	if(rv)
 		return rv;
 
-	rcu_read_lock();
+	mutex_lock(&sut->tilock);
 
 	struct subsys_testing_instance *sti = 
 		__subsys_testing_instance_search(pid_res, &sut->testing_inst);
 
-	rcu_read_unlock();
-
-	if(!sti)
+	if(!sti) {
+		mutex_unlock(&sut->tilock);
 		return -ESRCH;
+	}
 
 	__enabled_stinstance_hide(sti, NULL);
-	__subsys_testing_instance_eliminate(sti, sut, LOCK_AND_UNLOCK);
+	__subsys_testing_instance_eliminate(sti, sut, ONLY_UNLOCK);
 
 	return len;
 }
@@ -411,11 +409,17 @@ static ssize_t enable_store(
 
 	struct subsys_kvpair *pos;
 
+	/* initialize the upto variable to none */
+	struct subsys_kvpair *kvp_upto_incl = (struct subsys_kvpair*) -1;
+
 	/* for each key */
 	list_for_each_entry(pos, &sti->kv_pairs, kvp_head) {
 		/* the /<pid>/<key>/ subdir */
 		if(__scidtest_kobject_init_and_add(&pos->kobj, &sti->kobj, pos->key))
 			goto __kobj_del_cleanup1;
+
+		/* the last valid kobject for kvp */
+		kvp_upto_incl = pos;
 
 		/* the /<pid>/<key>/query file */
 		if(sysfs_create_file(&pos->kobj, &query_key_kobj_attr.attr))
@@ -434,10 +438,12 @@ static ssize_t enable_store(
 			goto __kobj_del_cleanup1;
 	}
 
+	/* everything ok! */
 	return len;
 
 __kobj_del_cleanup1:
-	__enabled_stinstance_hide(sti);
+	/* kvp_upto_incl will never be NULL */
+	__enabled_stinstance_hide(sti, kvp_upto_incl);
 __cleanup1:
 	__subsys_testing_instance_eliminate(sti, sut, LOCK_AND_UNLOCK);
 	return -ENOENT;
@@ -514,21 +520,24 @@ static inline void __registered_subsys_hide(struct subsys_under_test *sut)
 /* do the kobject_del and kobject_put on every kvpair + instance descriptor.
  *
  * @sti: the instance descriptor
- * @kvp_upto_excl: if not NULL, do the del/unref for [0, kvp_upto_excl).
- * 					Otherwise, do it for every element in the kv pair list.
+ * @kvp_upto_excl: 
+ * 					if not NULL && not ((struct subsys_kvpair*) -1), do the del/unref for [0, kvp_upto_incl].
+ * 					else if ((struct subsys_kvpair*) -1), skip the kvp kobject del/unref loop
+ * 					else if NULL, do it for every element in the kv pair list.
  */
 static inline void __enabled_stinstance_hide(
-		struct subsys_testing_instance *sti, struct subsys_kvpair *kvp_upto_excl)
+		struct subsys_testing_instance *sti, struct subsys_kvpair *kvp_upto_incl)
 {
 
 #ifdef CONFIG_SYSFS
 	struct subsys_kvpair *kvp;
 
-	list_for_each_entry(kvp, &sti->kv_pairs, kvp_head) {
-		if(kvp_upto_excl && kvp == kvp_upto_excl)
-			break;
-
-		__scidtest_kobject_del_and_put(&kvp->kobj);
+	if(kvp_upto_incl != (struct subsys_kvpair*) -1) {
+		list_for_each_entry(kvp, &sti->kv_pairs, kvp_head) {
+			__scidtest_kobject_del_and_put(&kvp->kobj);
+			if(kvp_upto_incl && kvp == kvp_upto_incl)
+				break;
+		}
 	}
 
 	__scidtest_kobject_del_and_put(&sti->kobj);
@@ -560,7 +569,7 @@ bool testing_register_subsys(__maybe_unused const struct subsys_regi_args *args)
 
 	sut->name = args->name;
 	sut->kvt = args->kvt;
-	spin_lock_init(&sut->tilock);
+	mutex_init(&sut->tilock);
 	INIT_LIST_HEAD(&sut->testing_inst);
 
 	if(!__registered_subsys_expose(sut)) {
@@ -607,14 +616,14 @@ void teardown_testing(void)
 		struct subsys_testing_instance *sti;
 		struct subsys_testing_instance *sti_tmp;
 
-		spin_lock(&pos->tilock);
+		mutex_lock(&pos->tilock);
 		list_for_each_entry_safe(sti, sti_tmp, &pos->testing_inst, other_testing_insts) {
 			scid_infof(" --> eliminating testing instance for pid=%d", sti->vpid);
 
 			__enabled_stinstance_hide(sti, NULL);
 			__subsys_testing_instance_eliminate(sti, pos, NO_LOCKING_AT_ALL);
 		}
-		spin_unlock(&pos->tilock);
+		mutex_unlock(&pos->tilock);
 
 		__registered_subsys_hide(pos);
 		list_del(&pos->other_subsyses);
