@@ -4,7 +4,8 @@ CFLAGS=-O0 -Wall -W -Wextra -Wshadow -std=c11 -pedantic
 TESTS= \
 	   test-dap-first-access-read.test \
 	   test-dap-first-access-write.test \
-	   test-dap-prefault.test
+	   test-dap-prefault.test \
+	   test-dwp-wpc-cow-anon.test
 
 all: $(TESTS)
 

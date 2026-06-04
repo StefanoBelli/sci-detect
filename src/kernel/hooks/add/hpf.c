@@ -11,6 +11,8 @@
 static int handle_pte_fault__ehkrphook(
 		struct kretprobe_instance *krpi, struct pt_regs *regs) 
 {
+	WARN_ON(irqs_disabled());
+
 	struct vm_fault *vmf;
 	struct vm_fault_entry *entry;
 

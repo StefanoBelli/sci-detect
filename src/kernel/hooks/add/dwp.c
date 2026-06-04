@@ -5,6 +5,10 @@
 #include <vmfs.h>
 #include <logging.h>
 #include <hooks/add/utils/addpages.h>
+#include <testing/testing.h>
+
+#define __testing(key) testing_setval("add-dwp-hook", key, NULL)
+
 
 /* since private may be changed frequently... */
 static_assert(
@@ -23,6 +27,8 @@ static int finish_mkwrite_fault__phkphook(
 	struct vm_fault_entry *entry = got_this_vmf(vmf);
 	if(!entry)
 		return 0;
+
+	__testing("fmw-entry");
 
 	private(entry) = (void*) 2;
 	return 0;
@@ -52,6 +58,8 @@ static int do_wp_page__ehkrphook(
 	if(!entry)
 		return 1;
 
+	__testing("entry");
+
 	/* almost a noop, just copy params for handler */
 	*((struct vm_fault_entry**)krpi->data) = entry;
 	return 0;
@@ -76,16 +84,21 @@ static int do_wp_page__hkrphook(
 	if(private(entry) == (void*) 1)
 		return 0;
 
+	__testing("wpr-path-taken");
+
 	unsigned long rrv = regs_return_value(regs);
 
 	/* if finish_mkwrite_fault got executed and its rv = 0, wp_page_reuse got called */
 	if(private(entry) == (void*) 2) {
+
 		/* but here we check for outer do_wp_page rv, and the following can happen:
 		 *  - wp_page_shared: finish_mkwrite_fault successful if rv = 0 or rv = VM_FAULT_COMPLETED 
 		 *  - wp_pfn_shared: finsih_mkwrite_fault successful if rv = 0 */
 		if(
 				(!rrv || (rrv & VM_FAULT_COMPLETED)) && 
 				!(rrv & (VM_FAULT_ERROR | VM_FAULT_NOPAGE))) {
+
+			__testing("wpr-caused-by-mkwrite-fault");
 			vmf = vmf(entry);
 			goto __do_wpr;
 		}
@@ -112,9 +125,10 @@ static int do_wp_page__hkrphook(
 	 * and expr is always true. Therefore, superfluous checks got removed.
 	 * (see wp_pfn_shared, wp_page_shared and how they get called in do_wp_page)
 	 */
-	if(shared)
+	if(shared) {
+		__testing("wpr-caused-by-shared");
 		goto __do_wpr;
-	else {
+	} else {
 		if(!page)
 			return 0;
 
@@ -132,8 +146,10 @@ static int do_wp_page__hkrphook(
 		bool unshare = vmf->flags & FAULT_FLAG_UNSHARE;
 		bool page_anon_excl = PageAnonExclusive(page);
 
-		if(folio_anon && page_anon_excl && !unshare)
+		if(folio_anon && page_anon_excl && !unshare) {
+			__testing("wpr-caused-by-anon-excl");
 			goto __do_wpr;
+		}
 	}
 	
 	return 0;
@@ -181,6 +197,8 @@ static int ____do_wpr_prior_checks(struct vm_fault *vmf)
 		scid_err("orig_pte is already writeable");
 		return 0;
 	}
+
+	__testing("wpr-prior-checks-pass");
 
 	return 1;
 }
@@ -232,6 +250,8 @@ static void ____do_wpr_inspect_pte_after(struct vm_fault *vmf)
 
 	if(!add_one_page(vmf->pte, dwp_further_pte_checks, vmf->vma, NULL))
 		scid_err("unable to add page");
+	else
+		__testing("wpr-page-ok");
 }
 
 static inline void __do_wp_page_reuse(struct vm_fault *vmf)

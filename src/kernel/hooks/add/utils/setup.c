@@ -33,6 +33,32 @@ static const struct subsys_regi_args add_tests[] = {
 			END_OF_KVS
 		}
 	},
+	{
+		.name = "add-dwp-hook",
+		.kvt = {
+			ATOMICALLY_INCREMENTED_KEY("fmw-entry"),
+			ATOMICALLY_INCREMENTED_KEY("entry"),
+			ATOMICALLY_INCREMENTED_KEY("wpr-path-taken"),
+			ATOMICALLY_INCREMENTED_KEY("wpr-caused-by-mkwrite-fault"),
+			ATOMICALLY_INCREMENTED_KEY("wpr-caused-by-shared"),
+			ATOMICALLY_INCREMENTED_KEY("wpr-caused-by-anon-excl"),
+			ATOMICALLY_INCREMENTED_KEY("wpr-prior-checks-pass"),
+			ATOMICALLY_INCREMENTED_KEY("wpr-page-ok"),
+
+			END_OF_KVS
+		}
+	},
+	{
+		.name = "add-wpc-hook",
+		.kvt = {
+			ATOMICALLY_INCREMENTED_KEY("entry"),
+			ATOMICALLY_INCREMENTED_KEY("entry-checks-pass"),
+			ATOMICALLY_INCREMENTED_KEY("return-ok"),
+			ATOMICALLY_INCREMENTED_KEY("cow-done-and-page-added"),
+
+			END_OF_KVS
+		}
+	}
 };
 
 #endif 

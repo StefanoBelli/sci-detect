@@ -5,6 +5,10 @@
 #include <vmfs.h>
 #include <logging.h>
 #include <hooks/add/utils/addpages.h>
+#include <testing/testing.h>
+
+#define __testing(key) testing_setval("add-wpc-hook", key, NULL)
+
 
 /* since private may be changed frequently... */
 static_assert(
@@ -23,6 +27,8 @@ static int wp_page_copy__ehkrphook(
 	struct vm_fault_entry *entry = got_this_vmf(vmf);
 	if(!entry)
 		return 1;
+
+	__testing("entry");
 
 	/* flag that wp_page_copy is being run... 
 	 * used later by do_wp_page hook to avoid 
@@ -65,6 +71,8 @@ static int wp_page_copy__ehkrphook(
 		return 1;
 	}
 
+	__testing("entry-checks-pass");
+
 	/* alright, see you on the return handler... */
 	*((struct vm_fault**)krpi->data) = vmf;
 	return 0;
@@ -106,6 +114,8 @@ static int wp_page_copy__hkrphook(
 	if(regs_return_value(regs) != 0)
 		return 0;
 
+	__testing("return-ok");
+
 	/* get vmf pointer from entry handler */
 	vmf = *((struct vm_fault**)krpi->data);
 
@@ -116,6 +126,8 @@ static int wp_page_copy__hkrphook(
 
 	if(!add_pages_byfolio(vmf->pte, wpc_further_pte_checks, vmf, true, NULL))
 		scid_err("unable to add pages");
+	else
+		__testing("cow-done-and-page-added");
 
 	return 0;
 }
