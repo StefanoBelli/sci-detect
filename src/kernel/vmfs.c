@@ -5,6 +5,7 @@
 #include <linux/list.h>
 #include <linux/kprobes.h>
 #include <linux/compiler.h>
+#include <linux/errno.h>
 
 #include <vmfs.h>
 #include <logging.h>
@@ -58,8 +59,21 @@ static DEFINE_PER_CPU(struct vm_fault_list, vmfs);
 static struct vm_fault_list vmfs;
 #endif 
 
-void setup_vmfs_pcp_lists(void) 
+static struct kmem_cache *vmfs_cachep;
+
+int setup_vmfs_pcp_lists(void) 
 {
+	vmfs_cachep = kmem_cache_create(
+			"vmfs_cache", 
+			sizeof(struct vm_fault_entry), 
+			0, 
+			SLAB_HWCACHE_ALIGN | SLAB_ACCOUNT | SLAB_RECLAIM_ACCOUNT, 
+			NULL);
+
+	if(!vmfs_cachep) {
+		scid_err("unable to create a new kmem_cache for vmfs");
+		return -ENOMEM;
+	}
 
 #ifdef CONFIG_SMP
 	unsigned int cpu;
@@ -74,6 +88,7 @@ void setup_vmfs_pcp_lists(void)
 	hash_init(vmfs.ht);
 #endif
 
+	return 0;
 }
 
 static inline void __ht_destroy_all(struct vm_fault_list *l) 
@@ -91,6 +106,7 @@ static inline void __ht_destroy_all(struct vm_fault_list *l)
 /* this must be called *AFTER* unregister_k(ret)probes did its job */
 void teardown_vmfs_pcp_lists(void) 
 {
+	kmem_cache_destroy(vmfs_cachep);
 
 #ifdef CONFIG_SMP
 	unsigned int cpu;
@@ -226,7 +242,7 @@ struct vm_fault_entry *add_vmf(struct vm_fault *vmf)
 	struct vm_fault_entry *entry;
 	struct vm_fault_list *my_list;
 
-	if((entry = kmalloc(sizeof(struct vm_fault_entry), GFP_ATOMIC)) == NULL) {
+	if((entry = kmem_cache_alloc(vmfs_cachep, GFP_ATOMIC)) == NULL) {
 		scid_err("memory exhausted");
 		return NULL;
 	}
@@ -260,5 +276,5 @@ void del_vmf(struct vm_fault_entry *entry)
 {
 	__del_entry_from_pcp_list(entry);
 
-	kfree(entry);
+	kmem_cache_free(vmfs_cachep, entry);
 }

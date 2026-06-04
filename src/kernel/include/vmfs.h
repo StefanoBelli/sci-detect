@@ -27,7 +27,7 @@ struct vm_fault_entry {
 #define vmf(entry) ((entry)->value.vmf)
 #define private(entry) ((entry)->value.private)
 
-void setup_vmfs_pcp_lists(void);
+int setup_vmfs_pcp_lists(void);
 void teardown_vmfs_pcp_lists(void);
 
 /* 

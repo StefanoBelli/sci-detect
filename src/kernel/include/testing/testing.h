@@ -125,7 +125,7 @@ int __do_testing_setval(const char *subsys_name, const char *key, void *args);
  */
 #define testing_setval __testing_setval
 #else
-#define testing_setval(x, y, z) (0)
+#define testing_setval(x, y, z) ({0;})
 #endif
 
 #endif

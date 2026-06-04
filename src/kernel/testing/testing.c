@@ -2,6 +2,7 @@
 
 #ifdef SCID_CONFIG_TESTING
 
+#include <linux/slab.h>
 #include <linux/list.h>
 #include <linux/string.h>
 #include <linux/mutex.h>
@@ -81,7 +82,7 @@ struct subsys_under_test {
 	struct list_head other_subsyses; 
 
 	/* this lock protects the testing_inst list */
-	struct mutex tilock; 
+	struct mutex tilock;
 	struct list_head testing_inst;
 };
 
@@ -109,8 +110,7 @@ static void __subsys_testing_instance_free(struct rcu_head *rcuh)
 		if(kvp->value)
 			kfree(kvp->value);
 
-		if(kvp)
-			kfree(kvp);
+		kfree(kvp);
 	}
 
 	kfree(sti);
@@ -176,7 +176,7 @@ static struct subsys_testing_instance* __do_enable_subsys(
 
 	struct subsys_testing_instance *new_sti =
 		(struct subsys_testing_instance *) 
-			kmalloc(sizeof(struct subsys_testing_instance), GFP_ATOMIC);
+			kmalloc(sizeof(struct subsys_testing_instance), GFP_KERNEL);
 	if(!new_sti)
 		goto __unlock_cleanup0;
 
@@ -190,13 +190,15 @@ static struct subsys_testing_instance* __do_enable_subsys(
 			break;
 
 		struct subsys_kvpair *kvp = (struct subsys_kvpair*)
-			kmalloc(sizeof(struct subsys_kvpair), GFP_ATOMIC);
+			kmalloc(sizeof(struct subsys_kvpair), GFP_KERNEL);
 		if(!kvp)
 			goto __unlock_cleanup0;
 
-		kvp->value = kzalloc(my_kvt->value_size, GFP_ATOMIC);
-		if(!kvp->value)
+		kvp->value = kzalloc(my_kvt->value_size, GFP_KERNEL);
+		if(!kvp->value) {
+			kfree(kvp);
 			goto __unlock_cleanup0;
+		}
 
 		kvp->key = my_kvt->key;
 		kvp->started = false;
@@ -204,8 +206,11 @@ static struct subsys_testing_instance* __do_enable_subsys(
 		kvp->kv_ops = &my_kvt->kv_ops;
 
 		if(kvp->kv_ops->init_value && 
-				!kvp->kv_ops->init_value(kvp->value, kvp->value_size))
+				!kvp->kv_ops->init_value(kvp->value, kvp->value_size)) {
+			kfree(kvp->value);
+			kfree(kvp);
 			goto __unlock_cleanup0;
+		}
 
 		list_add(&kvp->kvp_head, &new_sti->kv_pairs);
 	}
@@ -219,8 +224,8 @@ static struct subsys_testing_instance* __do_enable_subsys(
 __unlock_cleanup0:
 	mutex_unlock(&my_sut->tilock);
 
-	/* we don't need to hold the lock here */
-	call_rcu(&new_sti->rcu, __subsys_testing_instance_free);
+	if(new_sti)
+		call_rcu(&new_sti->rcu, __subsys_testing_instance_free);
 
 	return NULL;
 }
@@ -404,8 +409,10 @@ static ssize_t enable_store(
 		return -EBUSY;
 
 	/* the /<pid>/ subdir */
-	if(__scidtest_kobject_init_and_add_fmt(&sti->kobj, kobj, "%d", pid_res))
+	if(__scidtest_kobject_init_and_add_fmt(&sti->kobj, kobj, "%d", pid_res)) {
+		kobject_put(&sti->kobj);
 		goto __cleanup1;
+	}
 
 	struct subsys_kvpair *pos;
 
@@ -415,8 +422,10 @@ static ssize_t enable_store(
 	/* for each key */
 	list_for_each_entry(pos, &sti->kv_pairs, kvp_head) {
 		/* the /<pid>/<key>/ subdir */
-		if(__scidtest_kobject_init_and_add(&pos->kobj, &sti->kobj, pos->key))
+		if(__scidtest_kobject_init_and_add(&pos->kobj, &sti->kobj, pos->key)) {
+			kobject_put(&sti->kobj);
 			goto __kobj_del_cleanup1;
+		}
 
 		/* the last valid kobject for kvp */
 		kvp_upto_incl = pos;
@@ -462,6 +471,7 @@ static inline bool __testing_root_expose(void)
 
 	int rv = __scidtest_kobject_init_and_add(&testing_mod_kobj, mod_kobj, "testing");
 	if(rv) {
+		kobject_put(&testing_mod_kobj);
 		scid_errf("unable to create testing kobj :(, rv = %d", rv);
 		return false;
 	}
@@ -488,7 +498,7 @@ static inline bool __registered_subsys_expose(struct subsys_under_test *sut)
 #ifdef CONFIG_SYSFS
 	if(__scidtest_kobject_init_and_add(
 				&sut->kobj, &testing_mod_kobj, sut->name)) {
-
+		kobject_put(&sut->kobj);
 		scid_err("unable to create subsys kobj");
 		return false;
 	}
@@ -631,6 +641,8 @@ void teardown_testing(void)
 	}
 
 	__testing_root_hide();
+
+	rcu_barrier();
 #endif
 
 }
@@ -644,14 +656,17 @@ int __do_testing_setval(
 	if(!in_task())
 		return TESTING_SETVAL_NOTASK;
 
-	struct subsys_under_test *sut = NULL;
+	struct subsys_under_test *sut;
+	bool sut_found = false;
 
 	list_for_each_entry(sut, &sut_head, other_subsyses) {
-		if(!strcmp(sut->name, subsys_name))
+		if(!strcmp(sut->name, subsys_name)) {
+			sut_found = true;
 			break;
+		}
 	}
 
-	if(!sut)
+	if(!sut_found)
 		return TESTING_SETVAL_NOSUT;
 
 	pid_t vpid_thr = task_pid_vnr(current);
@@ -666,14 +681,17 @@ int __do_testing_setval(
 		return TESTING_SETVAL_NOINST;
 	}
 
-	struct subsys_kvpair *kvp = NULL;
+	struct subsys_kvpair *kvp;
+	bool kvp_found = false;
 
 	list_for_each_entry(kvp, &sti->kv_pairs, kvp_head) {
-		if(!strcmp(key, kvp->key))
+		if(!strcmp(key, kvp->key)) {
+			kvp_found = true;
 			break;
+		}
 	}
 
-	if(!kvp) {
+	if(!kvp_found) {
 		rcu_read_unlock();
 		return TESTING_SETVAL_NOKEY;
 	}

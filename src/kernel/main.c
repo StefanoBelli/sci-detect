@@ -21,7 +21,12 @@ int setup_module(void)
 		return rv;
 	}
 
-	setup_vmfs_pcp_lists();
+	rv = setup_vmfs_pcp_lists();
+	if(rv) {
+		teardown_testing();
+		scid_errf("setup_vmfs_pcp_lists failed with rv=%d", rv);
+		return rv;
+	}
 
 	rv = setup_hooks();
 	if (rv) {

@@ -84,8 +84,19 @@ static int do_anonymous_page__hkrphook(
 	vmf = *((struct vm_fault**)krpi->data);
 
 	/* this could be possible */
-	if(!vmf->pte || !vmf->ptl) {
-		scid_err("pte or ptl is NULL, this is strange...");
+	if(!vmf->pte) {
+		scid_err("pte is NULL...");
+		return 0;
+	}
+
+	if(!vmf->ptl) {
+		scid_err("ptl is NULL...");
+		return 0;
+	}
+
+	/* needed to avoid risk of deadlocks */
+	if(spin_is_locked(vmf->ptl)) {
+		scid_warn("the PTL is already taken, this may lead to deadlock");
 		return 0;
 	}
 

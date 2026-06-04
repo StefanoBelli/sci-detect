@@ -111,8 +111,18 @@ static int wp_page_copy__hkrphook(
 	/* get vmf pointer from entry handler */
 	vmf = *((struct vm_fault**)krpi->data);
 
-	if(!vmf->ptl || !vmf->pte) {
-		scid_err("ptl or pte is NULL on ret");
+	if(!vmf->pte) {
+		scid_err("pte is NULL...");
+		return 0;
+	}
+
+	if(!vmf->ptl) {
+		scid_err("ptl is NULL...");
+		return 0;
+	}
+
+	if(spin_is_locked(vmf->ptl)) {
+		scid_warn("lock is already held, ignoring to avoid possible deadlock");
 		return 0;
 	}
 

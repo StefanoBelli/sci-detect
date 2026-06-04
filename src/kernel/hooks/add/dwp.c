@@ -228,8 +228,18 @@ static void ____do_wpr_inspect_pte_after(struct vm_fault *vmf)
 	unsigned long cpu_flags;
 
 	/* check if pte in vmf is valid, post-wp_page_reuse */
-	if(!vmf->ptl || !vmf->pte) {
-		scid_err("invalid pte in vmf");
+	if(!vmf->pte) {
+		scid_err("pte is NULL...");
+		return;
+	}
+
+	if(!vmf->ptl) {
+		scid_err("ptl is NULL...");
+		return;
+	}
+
+	if(spin_is_locked(vmf->ptl)) {
+		scid_warn("lock already held, ignoring to avoid deadlocks...");
 		return;
 	}
 
