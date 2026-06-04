@@ -1,4 +1,3 @@
-#include <linux/spinlock.h>
 #include <linux/kprobes.h>
 #include <linux/pgtable.h>
 #include <linux/compiler.h>
@@ -225,32 +224,14 @@ static bool dwp_further_pte_checks(
 
 static void ____do_wpr_inspect_pte_after(struct vm_fault *vmf)
 {
-	unsigned long cpu_flags;
-
 	/* check if pte in vmf is valid, post-wp_page_reuse */
 	if(!vmf->pte) {
 		scid_err("pte is NULL...");
 		return;
 	}
 
-	if(!vmf->ptl) {
-		scid_err("ptl is NULL...");
-		return;
-	}
-
-	if(spin_is_locked(vmf->ptl)) {
-		scid_warn("lock already held, ignoring to avoid deadlocks...");
-		return;
-	}
-
-	/* get the page table lock */
-	spin_lock_irqsave(vmf->ptl, cpu_flags);
-
 	if(!add_one_page(vmf->pte, dwp_further_pte_checks, vmf->vma, NULL))
 		scid_err("unable to add page");
-
-	/* release the page table lock */
-	spin_unlock_irqrestore(vmf->ptl, cpu_flags);
 }
 
 static inline void __do_wp_page_reuse(struct vm_fault *vmf)

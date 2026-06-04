@@ -1,6 +1,5 @@
 #include <linux/kprobes.h>
 #include <linux/string.h>
-#include <linux/spinlock.h>
 #include <linux/compiler.h>
 
 #include <vmfs.h>
@@ -99,7 +98,6 @@ static int wp_page_copy__hkrphook(
 		struct kretprobe_instance *krpi, struct pt_regs *regs)
 {
 	struct vm_fault *vmf;
-	unsigned long cpu_flags;
 
 	/* should be enough: in the end, wp_page_copy's job is to
 	 * allocate new page, copy content and setup PTE and every
@@ -116,24 +114,8 @@ static int wp_page_copy__hkrphook(
 		return 0;
 	}
 
-	if(!vmf->ptl) {
-		scid_err("ptl is NULL...");
-		return 0;
-	}
-
-	if(spin_is_locked(vmf->ptl)) {
-		scid_warn("lock is already held, ignoring to avoid possible deadlock");
-		return 0;
-	}
-
-	/* get the page table lock */
-	spin_lock_irqsave(vmf->ptl, cpu_flags);
-
 	if(!add_pages_byfolio(vmf->pte, wpc_further_pte_checks, vmf, true, NULL))
 		scid_err("unable to add pages");
-
-	/* put the page table lock*/
-	spin_unlock_irqrestore(vmf->ptl, cpu_flags);
 
 	return 0;
 }

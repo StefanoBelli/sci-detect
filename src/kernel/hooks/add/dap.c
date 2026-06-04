@@ -1,5 +1,4 @@
 #include <linux/kprobes.h>
-#include <linux/spinlock.h>
 #include <linux/string.h>
 #include <linux/compiler.h>
 
@@ -67,7 +66,6 @@ static int do_anonymous_page__hkrphook(
 		struct kretprobe_instance *krpi, struct pt_regs *regs)
 {
 	struct vm_fault *vmf;
-	unsigned long cpu_flags;
 
 	/* worth any further check? 
 	 * In this case, it is enough to check for retval != 0.
@@ -89,27 +87,10 @@ static int do_anonymous_page__hkrphook(
 		return 0;
 	}
 
-	if(!vmf->ptl) {
-		scid_err("ptl is NULL...");
-		return 0;
-	}
-
-	/* needed to avoid risk of deadlocks */
-	if(spin_is_locked(vmf->ptl)) {
-		scid_warn("the PTL is already taken, this may lead to deadlock");
-		return 0;
-	}
-
-	/* get the page table lock */
-	spin_lock_irqsave(vmf->ptl, cpu_flags);
-
 	if(!add_pages_byfolio(vmf->pte, dap_further_pte_checks, NULL, true, NULL))
 		scid_err("unable to add pages");
 	else
 		__testing("materialize-page");
-
-	/* release the page table lock */
-	spin_unlock_irqrestore(vmf->ptl, cpu_flags);
 
 	return 0;
 }
