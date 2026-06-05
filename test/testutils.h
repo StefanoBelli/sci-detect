@@ -179,14 +179,32 @@ static int query_int_value_testing_for_me(const char* subsys, const char* key)
 		goto __finish; \
 	}
 
-#define test_int_eq(x, y) \
-	if(x != y) { \
-		fprintf(stderr, #x " == " #y " %s FAILED (see " __FILE__ ":%d)\n", \
-				x > y && x - y < 2 ? "SOFT" : "HARD", __LINE__); \
+#define test_int_ge_hard(x, y) \
+	if(x < y) { \
+		fprintf(stderr, #x " >= " #y " FAILED (see " __FILE__ ":%d)\n", __LINE__); \
 		fputs("\ttheir actual values are:\n", stderr); \
 		fprintf(stderr ,"\t\t" #x " = %d\n", x); \
 		fprintf(stderr, "\t\t" #y " = %d\n", y); \
-		if(!(x > y && x - y < 2)) { \
+		rv = EXIT_FAILURE; \
+		goto __finish; \
+	} else if(x > y) { \
+		fprintf(stderr, "see " __FILE__ ":%d\n", __LINE__); \
+		fprintf(stderr, "\t\t" #x " = %d\n", x); \
+		fprintf(stderr, "\t\t" #y " = %d\n", y); \
+	}
+
+#ifndef SOFT_FAIL_TOLERANCE
+#define SOFT_FAIL_TOLERANCE 2
+#endif
+
+#define test_int_eq(x, y) \
+	if(x != y) { \
+		fprintf(stderr, #x " == " #y " %s FAILED (see " __FILE__ ":%d)\n", \
+				x > y && x - y <= SOFT_FAIL_TOLERANCE ? "SOFT" : "HARD", __LINE__); \
+		fputs("\ttheir actual values are:\n", stderr); \
+		fprintf(stderr ,"\t\t" #x " = %d\n", x); \
+		fprintf(stderr, "\t\t" #y " = %d\n", y); \
+		if(!(x > y && x - y <= SOFT_FAIL_TOLERANCE)) { \
 			rv = EXIT_FAILURE; \
 			goto __finish; \
 		} \

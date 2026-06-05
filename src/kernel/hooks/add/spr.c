@@ -7,6 +7,9 @@
 #include <vmfs.h>
 #include <logging.h>
 #include <hooks/add/utils/addpages.h>
+#include <testing/testing.h>
+
+#define __testing(key) testing_setval("add-spr-hook", key, NULL)
 
 typedef unsigned long __ckb_type;
 
@@ -50,6 +53,7 @@ static int filemap_map_pages__phkphook(
 		__maybe_unused struct kprobe *kp, 
 		struct pt_regs *regs)
 {
+	__testing("caller-fmp");
 	__raise_caller(CALLER_FILEMAP_MAP_PAGES_BITNR, regs);
 	return 0;
 }
@@ -67,6 +71,7 @@ static int do_fault__phkphook(
 		__maybe_unused struct kprobe *kp, 
 		struct pt_regs *regs)
 {
+	__testing("caller-df");
 	__raise_caller(CALLER_DO_FAULT_BITNR, regs);
 	return 0;
 }
@@ -84,6 +89,7 @@ static int finish_fault__phkphook(
 		__maybe_unused struct kprobe *kp, 
 		struct pt_regs *regs)
 {
+	__testing("caller-ff");
 	__raise_caller(CALLER_FINISH_FAULT_BITNR, regs);
 	return 0;
 }
@@ -122,14 +128,20 @@ struct set_pte_range_args {
 #define FAULT_AROUND_SPT_KCP_BITS \
 	((1 << CALLER_FILEMAP_MAP_PAGES_BITNR) | (1 << CALLER_DO_FAULT_BITNR))
 
+#define FALLBACK_SPT_KCP_BITS \
+	(REGULAR_SPT_KCP_BITS | FAULT_AROUND_SPT_KCP_BITS)
+
 #define is_fault_around_kcp(bm) \
 	((bm & EVERY_POSSIBLE_CALLER) == FAULT_AROUND_SPT_KCP_BITS)
 
 #define is_regular_kcp(bm) \
 	((bm & EVERY_POSSIBLE_CALLER) == REGULAR_SPT_KCP_BITS)
 
+#define is_fallback_kcp(bm) \
+	((bm & EVERY_POSSIBLE_CALLER) == FALLBACK_SPT_KCP_BITS)
+
 #define is_legit_kcp(bm) \
-	(is_regular_kcp(bm) || is_fault_around_kcp(bm))
+	(is_regular_kcp(bm) || is_fault_around_kcp(bm) || is_fallback_kcp(bm))
 
 static int set_pte_range__ehkrphook(
 		struct kretprobe_instance *krpi, struct pt_regs *regs)
@@ -144,6 +156,8 @@ static int set_pte_range__ehkrphook(
 	unsigned long caller_bitmap = (unsigned long) private(entry);
 	if(!is_legit_kcp(caller_bitmap))
 		return 1;
+
+	__testing("entry-ok");
 
 	struct set_pte_range_args args = {
 		.vmf = vmf,
@@ -180,6 +194,8 @@ static int set_pte_range__hkrphook(
 		return 0;
 	}
 
+	__testing("return-ok");
+
 	/* 
 	 * no need to take the page table lock as it is already held
 	 * by the outer finish_fault function.
@@ -192,6 +208,8 @@ static int set_pte_range__hkrphook(
 	/* sets contiguous pages to continuous linear addrs */
 	if(!add_pages_bynr(args->vmf->pte, spr_further_pte_checks, NULL, args->nr))
 		scid_err("unable to add pages");
+	else
+		__testing("pages-ok");
 
 	return 0;
 }

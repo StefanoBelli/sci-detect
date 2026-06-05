@@ -58,6 +58,19 @@ static const struct subsys_regi_args add_tests[] = {
 
 			END_OF_KVS
 		}
+	},
+	{
+		.name = "add-spr-hook",
+		.kvt = {
+			ATOMICALLY_INCREMENTED_KEY("caller-fmp"),
+			ATOMICALLY_INCREMENTED_KEY("caller-df"),
+			ATOMICALLY_INCREMENTED_KEY("caller-ff"),
+			ATOMICALLY_INCREMENTED_KEY("entry-ok"),	
+			ATOMICALLY_INCREMENTED_KEY("return-ok"),
+			ATOMICALLY_INCREMENTED_KEY("pages-ok"),
+
+			END_OF_KVS
+		}
 	}
 };
 
