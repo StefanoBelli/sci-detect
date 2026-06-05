@@ -370,7 +370,7 @@ int main()
 		int status;
 		die_if(child_pid < 0);
 		die_if(waitpid(child_pid, &status, 0) < 0);
-		die_if(!WIFEXITED(status) && WEXITSTATUS(status) != EXIT_SUCCESS);
+		die_if(!WIFEXITED(status) || WEXITSTATUS(status) != EXIT_SUCCESS);
 
 		reset_value_testing_for_me(DWP_SUBSYS_NAME, DWP_ENTRY_KEY);
 		reset_value_testing_for_me(DWP_SUBSYS_NAME, DWP_WPR_PATH_TAKEN_KEY);

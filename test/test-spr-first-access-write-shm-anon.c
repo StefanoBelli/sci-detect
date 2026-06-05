@@ -47,6 +47,7 @@ int main()
 		test_int_ge_hard(pages_ok, 0);
 	}
 
+	/* this case needs more clarity, we avoid accumulating values */
 	reset_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
 	reset_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
 	reset_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
@@ -54,9 +55,9 @@ int main()
 	reset_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
 	reset_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
 
-	/* TEST initial read access. Remeber that set_pte_range may set more than 1 PTEs */
+	/* TEST initial write access */
 	{
-		spurious_byte_memread(ch, mem);
+		spurious_byte_memwrite(mem, 'a');
 
 		int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
 		int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
@@ -65,7 +66,7 @@ int main()
 		int return_ok = query_int_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
 		int pages_ok = query_int_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
 
-		test_int_eq_hard(caller_fmp, 1);
+		test_int_eq_hard(caller_fmp, 0);
 		test_int_eq_hard(caller_df, 1);
 		test_int_eq_hard(caller_ff, 1);
 		test_int_eq_hard(entry_ok, 1);
@@ -81,34 +82,7 @@ int main()
 	reset_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
 	reset_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
 
-	/* TEST second read access on same page */
-	{
-		spurious_byte_memread(ch, mem);
-
-		int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
-		int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
-		int caller_ff = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
-		int entry_ok = query_int_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
-		int return_ok = query_int_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
-		int pages_ok = query_int_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
-
-		test_int_eq_hard(caller_fmp, 0);
-		test_int_eq_hard(caller_df, 0);
-		test_int_eq_hard(caller_ff, 0);
-		test_int_eq_hard(entry_ok, 0);
-		test_int_eq_hard(return_ok, 0);
-		test_int_eq_hard(pages_ok, 0);
-	}
-
-	/* this case needs more clarity, we avoid accumulating values */
-	reset_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
-
-	/* TEST third write access on same page */
+	/* TEST second write access */
 	{
 		spurious_byte_memwrite(mem, 'a');
 
@@ -135,36 +109,9 @@ int main()
 	reset_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
 	reset_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
 
-	/* TEST initial read access on another page. This is not present. */
+	/* TEST third read access */
 	{
-		spurious_byte_memread(ch, mem + 4098);
-
-		int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
-		int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
-		int caller_ff = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
-		int entry_ok = query_int_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
-		int return_ok = query_int_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
-		int pages_ok = query_int_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
-
-		test_int_eq_hard(caller_fmp, 1);
-		test_int_eq_hard(caller_df, 1);
-		test_int_eq_hard(caller_ff, 1);
-		test_int_eq_hard(entry_ok, 1);
-		test_int_eq_hard(return_ok, 1);
-		test_int_eq_hard(pages_ok, 1);
-	}
-
-	/* this case needs more clarity, we avoid accumulating values */
-	reset_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
-
-	/* TEST second write access on another page */
-	{
-		spurious_byte_memwrite(mem + 4098, 'a');
+		spurious_byte_memread(ch, mem);
 
 		int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
 		int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
@@ -189,171 +136,9 @@ int main()
 	reset_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
 	reset_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
 
-	/* TEST third read access on another page */
+	/* TEST initial write access on another page */
 	{
-		spurious_byte_memread(ch, mem + 4098);
-
-		int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
-		int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
-		int caller_ff = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
-		int entry_ok = query_int_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
-		int return_ok = query_int_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
-		int pages_ok = query_int_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
-
-		test_int_eq_hard(caller_fmp, 0);
-		test_int_eq_hard(caller_df, 0);
-		test_int_eq_hard(caller_ff, 0);
-		test_int_eq_hard(entry_ok, 0);
-		test_int_eq_hard(return_ok, 0);
-		test_int_eq_hard(pages_ok, 0);
-	}
-
-	/* this case needs more clarity, we avoid accumulating values */
-	reset_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
-
-	/* TEST initial read access on a third page. This is not present. */
-	{
-		spurious_byte_memread(ch, mem + 8193);
-
-		int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
-		int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
-		int caller_ff = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
-		int entry_ok = query_int_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
-		int return_ok = query_int_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
-		int pages_ok = query_int_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
-
-		test_int_eq_hard(caller_fmp, 1);
-		test_int_eq_hard(caller_df, 1);
-		test_int_eq_hard(caller_ff, 1);
-		test_int_eq_hard(entry_ok, 1);
-		test_int_eq_hard(return_ok, 1);
-		test_int_eq_hard(pages_ok, 1);
-	}
-
-	/* this case needs more clarity, we avoid accumulating values */
-	reset_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
-
-	/* TEST second read access on a third page */
-	{
-		spurious_byte_memread(ch, mem + 8193);
-
-		int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
-		int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
-		int caller_ff = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
-		int entry_ok = query_int_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
-		int return_ok = query_int_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
-		int pages_ok = query_int_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
-
-		test_int_eq_hard(caller_fmp, 0);
-		test_int_eq_hard(caller_df, 0);
-		test_int_eq_hard(caller_ff, 0);
-		test_int_eq_hard(entry_ok, 0);
-		test_int_eq_hard(return_ok, 0);
-		test_int_eq_hard(pages_ok, 0);
-	}
-
-	/* this case needs more clarity, we avoid accumulating values */
-	reset_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
-
-	/* TEST third (overall) write access via syscall on a third page */
-	{
-		spurious_byte_memwrite(mem + 8193, 'a');
-
-		int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
-		int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
-		int caller_ff = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
-		int entry_ok = query_int_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
-		int return_ok = query_int_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
-		int pages_ok = query_int_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
-
-		test_int_eq_hard(caller_fmp, 0);
-		test_int_eq_hard(caller_df, 0);
-		test_int_eq_hard(caller_ff, 0);
-		test_int_eq_hard(entry_ok, 0);
-		test_int_eq_hard(return_ok, 0);
-		test_int_eq_hard(pages_ok, 0);
-	}
-
-	/* this case needs more clarity, we avoid accumulating values */
-	reset_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
-
-	/* TEST first read access via syscall on a fourth page */
-	{
-		die_if(trigger_syscall_pageread(mem + 12288, 10));
-
-		int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
-		int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
-		int caller_ff = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
-		int entry_ok = query_int_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
-		int return_ok = query_int_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
-		int pages_ok = query_int_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
-
-		test_int_eq_hard(caller_fmp, 0);
-		test_int_eq_hard(caller_df, 0);
-		test_int_eq_hard(caller_ff, 0);
-		test_int_eq_hard(entry_ok, 0);
-		test_int_eq_hard(return_ok, 0);
-		test_int_eq_hard(pages_ok, 0);
-	}
-
-	/* this case needs more clarity, we avoid accumulating values */
-	reset_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
-
-	/* TEST second read access via syscall on a fourth page */
-	{
-		die_if(trigger_syscall_pageread(mem + 12288, 10));
-
-		int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
-		int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
-		int caller_ff = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
-		int entry_ok = query_int_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
-		int return_ok = query_int_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
-		int pages_ok = query_int_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
-
-		test_int_eq_hard(caller_fmp, 0);
-		test_int_eq_hard(caller_df, 0);
-		test_int_eq_hard(caller_ff, 0);
-		test_int_eq_hard(entry_ok, 0);
-		test_int_eq_hard(return_ok, 0);
-		test_int_eq_hard(pages_ok, 0);
-	}
-
-	/* this case needs more clarity, we avoid accumulating values */
-	reset_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
-
-	/* TEST third (overall) write access via syscall on a fourth page */
-	{
-		die_if(trigger_syscall_pagewrite(mem + 12288, 10));
+		spurious_byte_memwrite(mem + 4097, 'a');
 
 		int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
 		int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
@@ -378,9 +163,117 @@ int main()
 	reset_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
 	reset_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
 
-	/* TEST fourth (overall) write access via syscall on a fourth page */
+	/* TEST second read access on another page */
 	{
-		spurious_byte_memwrite(mem + 12288, 'a');
+		spurious_byte_memread(ch, mem + 4099);
+
+		int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
+		int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
+		int caller_ff = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
+		int entry_ok = query_int_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
+		int return_ok = query_int_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
+		int pages_ok = query_int_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
+
+		test_int_eq_hard(caller_fmp, 0);
+		test_int_eq_hard(caller_df, 0);
+		test_int_eq_hard(caller_ff, 0);
+		test_int_eq_hard(entry_ok, 0);
+		test_int_eq_hard(return_ok, 0);
+		test_int_eq_hard(pages_ok, 0);
+	}
+
+	/* this case needs more clarity, we avoid accumulating values */
+	reset_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
+	reset_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
+	reset_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
+	reset_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
+	reset_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
+	reset_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
+
+	/* TEST first write access with a syscall, on another page */
+	{
+		die_if(trigger_syscall_pagewrite(mem + 4100, 'a'));
+
+		int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
+		int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
+		int caller_ff = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
+		int entry_ok = query_int_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
+		int return_ok = query_int_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
+		int pages_ok = query_int_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
+
+		test_int_eq_hard(caller_fmp, 0);
+		test_int_eq_hard(caller_df, 0);
+		test_int_eq_hard(caller_ff, 0);
+		test_int_eq_hard(entry_ok, 0);
+		test_int_eq_hard(return_ok, 0);
+		test_int_eq_hard(pages_ok, 0);
+	}
+
+	/* this case needs more clarity, we avoid accumulating values */
+	reset_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
+	reset_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
+	reset_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
+	reset_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
+	reset_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
+	reset_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
+
+	/* TEST first write access with a syscall, on a third page */
+	{
+		die_if(trigger_syscall_pagewrite(mem + 8194, 'a'));
+
+		int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
+		int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
+		int caller_ff = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
+		int entry_ok = query_int_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
+		int return_ok = query_int_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
+		int pages_ok = query_int_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
+
+		test_int_eq_hard(caller_fmp, 0);
+		test_int_eq_hard(caller_df, 1);
+		test_int_eq_hard(caller_ff, 1);
+		test_int_eq_hard(entry_ok, 1);
+		test_int_eq_hard(return_ok, 1);
+		test_int_eq_hard(pages_ok, 1);
+	}
+
+	/* this case needs more clarity, we avoid accumulating values */
+	reset_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
+	reset_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
+	reset_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
+	reset_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
+	reset_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
+	reset_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
+
+	/* TEST second write access with a syscall, on a third page */
+	{
+		die_if(trigger_syscall_pagewrite(mem + 8194, 'a'));
+
+		int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
+		int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
+		int caller_ff = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
+		int entry_ok = query_int_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
+		int return_ok = query_int_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
+		int pages_ok = query_int_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
+
+		test_int_eq_hard(caller_fmp, 0);
+		test_int_eq_hard(caller_df, 0);
+		test_int_eq_hard(caller_ff, 0);
+		test_int_eq_hard(entry_ok, 0);
+		test_int_eq_hard(return_ok, 0);
+		test_int_eq_hard(pages_ok, 0);
+	}
+
+	/* this case needs more clarity, we avoid accumulating values */
+	reset_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
+	reset_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
+	reset_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
+	reset_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
+	reset_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
+	reset_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
+
+	/* TEST third read access with a syscall, on a third page */
+	{
+		die_if(trigger_syscall_pageread(mem + 8194, 10));
 
 		int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
 		int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);

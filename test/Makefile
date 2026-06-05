@@ -6,7 +6,9 @@ TESTS= \
 	   test-dap-first-access-write.test \
 	   test-dap-prefault.test \
 	   test-dwp-wpc-cow-anon.test \
-	   test-spr-first-access-read-shm-anon.test
+	   test-spr-first-access-read-shm-anon.test \
+	   test-spr-first-access-write-shm-anon.test \
+	   test-spr-childsharing-shm-anon.test
 
 all: $(TESTS)
 
