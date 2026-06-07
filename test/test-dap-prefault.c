@@ -7,6 +7,12 @@
 #define RETURNOK_KEY "return-ok"
 #define MATERIALIZEPAGE_KEY "materialize-page"
 
+#define RESET_ALL() \
+	reset_value_testing_for_me(SUBSYS_NAME, ENTRY_KEY); \
+	reset_value_testing_for_me(SUBSYS_NAME, ZEROPAGE_KEY); \
+	reset_value_testing_for_me(SUBSYS_NAME, RETURNOK_KEY); \
+	reset_value_testing_for_me(SUBSYS_NAME, MATERIALIZEPAGE_KEY); \
+
 int main()
 {
 	const int NUM_PAGES = 22;
@@ -42,10 +48,7 @@ int main()
 		}
 	}
 
-	reset_value_testing_for_me(SUBSYS_NAME, ENTRY_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, ZEROPAGE_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, RETURNOK_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, MATERIALIZEPAGE_KEY);
+	RESET_ALL();
 
 	{
 		/* PREPARING: do the mmap */
@@ -71,10 +74,7 @@ int main()
 		}
 	}
 
-	reset_value_testing_for_me(SUBSYS_NAME, ENTRY_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, ZEROPAGE_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, RETURNOK_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, MATERIALIZEPAGE_KEY);
+	RESET_ALL();
 
 	{
 		/* PREPARING: do the mmap */
@@ -102,10 +102,7 @@ int main()
 		}
 	}
 
-	reset_value_testing_for_me(SUBSYS_NAME, ENTRY_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, ZEROPAGE_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, RETURNOK_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, MATERIALIZEPAGE_KEY);
+	RESET_ALL();
 
 	{
 		/* PREPARING: do the mmap */
@@ -134,10 +131,7 @@ int main()
 		}
 	}
 
-	reset_value_testing_for_me(SUBSYS_NAME, ENTRY_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, ZEROPAGE_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, RETURNOK_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, MATERIALIZEPAGE_KEY);
+	RESET_ALL();
 
 	{
 		/* PREPARING: do the mmap */
@@ -165,10 +159,7 @@ int main()
 		}
 	}
 
-	reset_value_testing_for_me(SUBSYS_NAME, ENTRY_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, ZEROPAGE_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, RETURNOK_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, MATERIALIZEPAGE_KEY);
+	RESET_ALL();
 
 	{
 		/* PREPARING: do the mmap */

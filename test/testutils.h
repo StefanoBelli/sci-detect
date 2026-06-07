@@ -194,7 +194,7 @@ static int query_int_value_testing_for_me(const char* subsys, const char* key)
 	}
 
 #ifndef SOFT_FAIL_TOLERANCE
-#define SOFT_FAIL_TOLERANCE 2
+#define SOFT_FAIL_TOLERANCE 1
 #endif
 
 #define test_int_eq(x, y) \
@@ -224,8 +224,12 @@ static int query_int_value_testing_for_me(const char* subsys, const char* key)
 
 #define __unused __attribute__((__unused__))
 
+#define full_membar() \
+	__asm__ __volatile__("mfence;" ::: "memory")
+
 #define spurious_byte_memwrite(ptr, value) \
-	*((volatile char*)ptr) = value
+	*((volatile char*)ptr) = value; \
+	full_membar()
 
 static int trigger_syscall_pagewrite(void* addr, size_t len)
 {
@@ -246,7 +250,8 @@ static int trigger_syscall_pagewrite(void* addr, size_t len)
 }
 
 #define spurious_byte_memread(varname, ptr) \
-	__unused volatile char varname = *(ptr) 
+	__unused volatile char varname = *(ptr); \
+	full_membar()
 
 static int trigger_syscall_pageread(void* addr, size_t len)
 {

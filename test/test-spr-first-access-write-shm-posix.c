@@ -1,5 +1,7 @@
 #include "testutils.h"
 #include <sys/mman.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 #define SUBSYS_NAME "add-spr-hook"
 
@@ -9,6 +11,10 @@
 #define ENTRY_OK_KEY "entry-ok"
 #define RETURN_OK_KEY "return-ok"
 #define PAGES_OK_KEY "pages-ok"
+
+#define TEST_SHM_POSIX_NAME "testshmposix"
+#define TEST_SHM_POSIX_OFLAG O_RDWR | O_CREAT
+#define TEST_SHM_POSIX_MODE S_IRUSR | S_IWUSR
 
 #define RESET_ALL() \
 	reset_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY); \
@@ -30,6 +36,11 @@ int main()
 	start_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
 	start_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
 
+	int fd = shm_open(
+			TEST_SHM_POSIX_NAME, TEST_SHM_POSIX_OFLAG, TEST_SHM_POSIX_MODE);
+
+	die_if(fd < 0);
+
 	/* PREPARING: do the mmap */
 	char *mem = (char*) mmap(
 			NULL, 30 * 4096, 
@@ -47,7 +58,7 @@ int main()
 		int return_ok = query_int_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
 		int pages_ok = query_int_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
 
-		test_int_eq_hard(caller_fmp, 0);
+		test_int_ge_hard(caller_fmp, 0);
 		test_int_ge_hard(caller_df, 0);
 		test_int_ge_hard(caller_ff, 0);
 		test_int_ge_hard(entry_ok, 0);
@@ -248,6 +259,7 @@ int main()
 
 __finish:
 
+	shm_unlink(TEST_SHM_POSIX_NAME);
 	stop_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
 	stop_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
 	stop_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);

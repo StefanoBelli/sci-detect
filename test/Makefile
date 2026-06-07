@@ -8,8 +8,18 @@ TESTS= \
 	   test-dwp-wpc-cow-anon.test \
 	   test-spr-first-access-read-shm-anon.test \
 	   test-spr-first-access-write-shm-anon.test \
-	   test-spr-childsharing-shm-anon.test
+	   test-spr-childsharing-shm-anon-nonpresent.test \
+	   test-spr-childsharing-shm-anon-present.test \
+	   test-spr-first-access-read-shm-posix.test \
+	   test-spr-first-access-write-shm-posix.test \
+	   test-spr-childsharing-shm-posix-nonpresent.test \
+	   test-spr-childsharing-shm-posix-present.test \
+	   test-spr-first-access-read-shm-sysv.test \
+	   test-spr-first-access-write-shm-sysv.test \
+	   test-spr-childsharing-shm-sysv-present.test \
+	   test-spr-childsharing-shm-sysv-nonpresent.test
 
+ 
 all: $(TESTS)
 
 clean:

@@ -10,6 +10,14 @@
 #define RETURN_OK_KEY "return-ok"
 #define PAGES_OK_KEY "pages-ok"
 
+#define RESET_ALL() \
+	reset_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY); \
+	reset_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY); \
+	reset_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY); \
+	reset_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY); \
+	reset_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY); \
+	reset_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY)
+
 int main()
 {
 	int rv = EXIT_SUCCESS;
@@ -47,12 +55,7 @@ int main()
 		test_int_ge_hard(pages_ok, 0);
 	}
 
-	reset_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
+	RESET_ALL();
 
 	/* TEST initial read access. Remeber that set_pte_range may set more than 1 PTEs */
 	{
@@ -73,13 +76,7 @@ int main()
 		test_int_eq_hard(pages_ok, 1);
 	}
 
-	/* this case needs more clarity, we avoid accumulating values */
-	reset_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
+	RESET_ALL();
 
 	/* TEST second read access on same page */
 	{
@@ -100,13 +97,7 @@ int main()
 		test_int_eq_hard(pages_ok, 0);
 	}
 
-	/* this case needs more clarity, we avoid accumulating values */
-	reset_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
+	RESET_ALL();
 
 	/* TEST third write access on same page */
 	{
@@ -127,13 +118,7 @@ int main()
 		test_int_eq_hard(pages_ok, 0);
 	}
 
-	/* this case needs more clarity, we avoid accumulating values */
-	reset_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
+	RESET_ALL();
 
 	/* TEST initial read access on another page. This is not present. */
 	{
@@ -154,13 +139,7 @@ int main()
 		test_int_eq_hard(pages_ok, 1);
 	}
 
-	/* this case needs more clarity, we avoid accumulating values */
-	reset_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
+	RESET_ALL();
 
 	/* TEST second write access on another page */
 	{
@@ -181,13 +160,7 @@ int main()
 		test_int_eq_hard(pages_ok, 0);
 	}
 
-	/* this case needs more clarity, we avoid accumulating values */
-	reset_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
+	RESET_ALL();
 
 	/* TEST third read access on another page */
 	{
@@ -208,13 +181,7 @@ int main()
 		test_int_eq_hard(pages_ok, 0);
 	}
 
-	/* this case needs more clarity, we avoid accumulating values */
-	reset_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
+	RESET_ALL();
 
 	/* TEST initial read access on a third page. This is not present. */
 	{
@@ -235,13 +202,7 @@ int main()
 		test_int_eq_hard(pages_ok, 1);
 	}
 
-	/* this case needs more clarity, we avoid accumulating values */
-	reset_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
+	RESET_ALL();
 
 	/* TEST second read access on a third page */
 	{
@@ -262,13 +223,7 @@ int main()
 		test_int_eq_hard(pages_ok, 0);
 	}
 
-	/* this case needs more clarity, we avoid accumulating values */
-	reset_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
+	RESET_ALL();
 
 	/* TEST third (overall) write access via syscall on a third page */
 	{
@@ -289,13 +244,7 @@ int main()
 		test_int_eq_hard(pages_ok, 0);
 	}
 
-	/* this case needs more clarity, we avoid accumulating values */
-	reset_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
+	RESET_ALL();
 
 	/* TEST first read access via syscall on a fourth page */
 	{
@@ -316,13 +265,7 @@ int main()
 		test_int_eq_hard(pages_ok, 0);
 	}
 
-	/* this case needs more clarity, we avoid accumulating values */
-	reset_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
+	RESET_ALL();
 
 	/* TEST second read access via syscall on a fourth page */
 	{
@@ -343,13 +286,7 @@ int main()
 		test_int_eq_hard(pages_ok, 0);
 	}
 
-	/* this case needs more clarity, we avoid accumulating values */
-	reset_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
+	RESET_ALL();
 
 	/* TEST third (overall) write access via syscall on a fourth page */
 	{
@@ -370,13 +307,7 @@ int main()
 		test_int_eq_hard(pages_ok, 1);
 	}
 
-	/* this case needs more clarity, we avoid accumulating values */
-	reset_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
-	reset_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
+	RESET_ALL();
 
 	/* TEST fourth (overall) write access via syscall on a fourth page */
 	{

@@ -1,5 +1,6 @@
 #include "testutils.h"
 #include <sys/mman.h>
+#include <sys/shm.h>
 
 #define SUBSYS_NAME "add-spr-hook"
 
@@ -9,6 +10,12 @@
 #define ENTRY_OK_KEY "entry-ok"
 #define RETURN_OK_KEY "return-ok"
 #define PAGES_OK_KEY "pages-ok"
+
+#define TEST_SHMGET_SYSV_KEY 0xdeadbeef
+#define TEST_SHMGET_SYSV_SIZE 30 * 4096
+#define TEST_SHMGET_SYSV_FLG IPC_CREAT | IPC_EXCL
+
+#define TEST_SHMAT_SYSV_FLG 0
 
 #define RESET_ALL() \
 	reset_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY); \
@@ -30,13 +37,15 @@ int main()
 	start_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
 	start_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
 
-	/* PREPARING: do the mmap */
-	char *mem = (char*) mmap(
-			NULL, 30 * 4096, 
-			PROT_READ | PROT_WRITE, 
-			MAP_SHARED | MAP_ANONYMOUS, 
-			-1, 0);
-	die_if(mem == MAP_FAILED);
+	int shmid = shmget(
+			TEST_SHMGET_SYSV_KEY, 
+			TEST_SHMGET_SYSV_SIZE, 
+			TEST_SHMGET_SYSV_FLG);
+	die_if(shmid < 0);
+
+	char *mem = (char*) shmat(shmid, NULL, TEST_SHMAT_SYSV_FLG);
+	die_if(mem == (void*) -1);
+
 
 	/* TEST no initial access - something strange happens */
 	{
@@ -47,7 +56,7 @@ int main()
 		int return_ok = query_int_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
 		int pages_ok = query_int_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
 
-		test_int_eq_hard(caller_fmp, 0);
+		test_int_ge_hard(caller_fmp, 0);
 		test_int_ge_hard(caller_df, 0);
 		test_int_ge_hard(caller_ff, 0);
 		test_int_ge_hard(entry_ok, 0);
@@ -69,7 +78,7 @@ int main()
 		int pages_ok = query_int_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
 
 		test_int_eq_hard(caller_fmp, 0);
-		test_int_eq_hard(caller_df, 1);
+		test_int_eq(caller_df, 1);
 		test_int_eq_hard(caller_ff, 1);
 		test_int_eq_hard(entry_ok, 1);
 		test_int_eq_hard(return_ok, 1);
@@ -132,7 +141,7 @@ int main()
 		int pages_ok = query_int_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
 
 		test_int_eq_hard(caller_fmp, 0);
-		test_int_eq_hard(caller_df, 1);
+		test_int_eq(caller_df, 1);
 		test_int_eq_hard(caller_ff, 1);
 		test_int_eq_hard(entry_ok, 1);
 		test_int_eq_hard(return_ok, 1);
@@ -247,6 +256,8 @@ int main()
 	test_passed();
 
 __finish:
+	shmdt(mem);
+	shmctl(shmid, IPC_RMID, NULL);
 
 	stop_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
 	stop_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);

@@ -84,8 +84,6 @@ static int do_wp_page__hkrphook(
 	if(private(entry) == (void*) 1)
 		return 0;
 
-	__testing("wpr-path-taken");
-
 	unsigned long rrv = regs_return_value(regs);
 
 	/* if finish_mkwrite_fault got executed and its rv = 0, wp_page_reuse got called */
@@ -155,6 +153,7 @@ static int do_wp_page__hkrphook(
 	return 0;
 
 __do_wpr:
+	__testing("wpr-path-taken");
 	__do_wp_page_reuse(vmf);
 	return 0;
 }
