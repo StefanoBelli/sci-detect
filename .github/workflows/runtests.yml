@@ -19,5 +19,11 @@ jobs:
       run: sudo apt install -y linux-headers-$(uname -r)
     - name: Build the module
       run: make
-    - name: Show THP status
+    - name: Show THP status BEFORE moving to madvise
       run: ./scripts/show-thp.sh
+    - name: Set THP status to madvise
+      run: sudo ./scripts/disable-thp-madvise.sh
+    - name: Show THP status AFTER moving to madvise
+      run: ./scripts/show-thp.sh
+    - name: Finally, run tests
+      run: sudo make run-tests
