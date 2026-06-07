@@ -5,6 +5,9 @@ clean: kernel-src-clean user-src-clean
 kernel:
 	make -C src/kernel
 
+kernel-testing:
+	make -C src/kernel BUILD_TYPE=testing
+
 user:
 	make -C src/user
 
