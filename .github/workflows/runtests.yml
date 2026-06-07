@@ -25,5 +25,9 @@ jobs:
       run: sudo ./scripts/disable-thp-madvise.sh
     - name: Show THP status AFTER moving to madvise
       run: ./scripts/show-thp.sh
+    - name: Setup kernel module
+      run: sudo make module-mount
     - name: Finally, run tests
       run: sudo make run-tests
+    - name: Teardown kernel module
+      run: sudo make module-umount
