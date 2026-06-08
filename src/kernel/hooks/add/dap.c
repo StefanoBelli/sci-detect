@@ -1,6 +1,7 @@
 #include <linux/kprobes.h>
 #include <linux/string.h>
 #include <linux/compiler.h>
+#include <linux/spinlock.h>
 
 #include <vmfs.h>
 #include <logging.h>
@@ -87,10 +88,21 @@ static int do_anonymous_page__hkrphook(
 		return 0;
 	}
 
+	if(!vmf->ptl) {
+		scid_err("ptl is NULL...");
+		return 0;
+	}
+
+	/* get the page table lock without disabling IRQs */
+	spin_lock(vmf->ptl);
+
 	if(!add_pages_byfolio(vmf->pte, dap_further_pte_checks, NULL, true, NULL))
 		scid_err("unable to add pages");
 	else
 		__testing("materialize-page");
+
+	/* release the page table lock */
+	spin_unlock(vmf->ptl);
 
 	return 0;
 }

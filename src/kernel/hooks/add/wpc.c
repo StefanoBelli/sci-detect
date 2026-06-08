@@ -1,4 +1,5 @@
 #include <linux/kprobes.h>
+#include <linux/spinlock.h>
 #include <linux/string.h>
 #include <linux/compiler.h>
 
@@ -124,10 +125,21 @@ static int wp_page_copy__hkrphook(
 		return 0;
 	}
 
+	if(!vmf->ptl) {
+		scid_err("ptl is NULL...");
+		return 0;
+	}
+
+	/* get the page table lock without disabling IRQs */
+	spin_lock(vmf->ptl);
+
 	if(!add_pages_byfolio(vmf->pte, wpc_further_pte_checks, vmf, true, NULL))
 		scid_err("unable to add pages");
 	else
 		__testing("cow-done-and-page-added");
+
+	/* release the page table lock */
+	spin_unlock(vmf->ptl);
 
 	return 0;
 }

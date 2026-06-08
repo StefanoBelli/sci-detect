@@ -1,6 +1,7 @@
 #include <linux/kprobes.h>
 #include <linux/pgtable.h>
 #include <linux/compiler.h>
+#include <linux/spinlock.h>
 
 #include <vmfs.h>
 #include <logging.h>
@@ -247,10 +248,21 @@ static void ____do_wpr_inspect_pte_after(struct vm_fault *vmf)
 		return;
 	}
 
+	if(!vmf->ptl) {
+		scid_err("ptl is NULL...");
+		return;
+	}
+
+	/* get the page table lock without disabling IRQs */
+	spin_lock(vmf->ptl);
+
 	if(!add_one_page(vmf->pte, dwp_further_pte_checks, vmf->vma, NULL))
 		scid_err("unable to add page");
 	else
 		__testing("wpr-page-ok");
+
+	/* release the page table lock */
+	spin_unlock(vmf->ptl);
 }
 
 static inline void __do_wp_page_reuse(struct vm_fault *vmf)
