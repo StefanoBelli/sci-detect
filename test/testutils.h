@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
+#include <time.h>
 
 #define __unused __attribute__((__unused__))
 
@@ -296,6 +297,25 @@ __unused static int trigger_syscall_pageread(void* addr, size_t len)
 	({ \
 	 	_Static_assert((nr) > 0, "page index base is 1"); \
 	 	(__starting_mem_varname + (((nr) - 1) * PAGE_SIZE)); \
+	})
+
+__unused static int __rand_int_range(int from , int to) {
+	static int inited = 0;
+	if(!inited) {
+		srand(time(NULL));
+		inited = 1;
+	}
+
+	return rand() % (to + 1 - from) + from;
+}
+
+#define rand_int_range(f, t) \
+	({ \
+	 	int rnd; \
+	 	_Static_assert((f) < (t), "invalid rand range"); \
+	 	rnd = __rand_int_range((f), (t)); \
+	 	RESET_ALL(); \
+	 	rnd; \
 	})
 
 #endif

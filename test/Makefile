@@ -17,8 +17,8 @@ TESTS= \
 	   test-spr-first-access-read-shm-sysv.test \
 	   test-spr-first-access-write-shm-sysv.test \
 	   test-spr-childsharing-shm-sysv-present.test \
-	   test-spr-childsharing-shm-sysv-nonpresent.test
-	   #test-spr-read-file-private.test 
+	   test-spr-childsharing-shm-sysv-nonpresent.test \
+	   test-spr-read-file-private.test 
 	   #test-dwp-wpc-cow-write-file-private.test \
 	   test-dwp-wpc-cow-child-file-private.test \
 	   test-spr-read-file-shared.test \
