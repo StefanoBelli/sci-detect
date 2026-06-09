@@ -12,6 +12,8 @@
 #define RETURN_OK_KEY "return-ok"
 #define PAGES_OK_KEY "pages-ok"
 
+#define TEST_SHM_POSIX_NR_PAGES 30
+
 #define TEST_SHM_POSIX_NAME "testshmposix"
 #define TEST_SHM_POSIX_OFLAG O_RDWR | O_CREAT
 #define TEST_SHM_POSIX_MODE S_IRUSR | S_IWUSR
@@ -41,11 +43,14 @@ int main()
 
 	die_if(fd < 0);
 
+	die_if(ftruncate(fd, TEST_SHM_POSIX_NR_PAGES * PAGE_SIZE));
+
 	/* PREPARING: do the mmap */
 	char *mem = (char*) mmap(
-			NULL, 30 * PAGE_SIZE, 
+			NULL, 
+			TEST_SHM_POSIX_NR_PAGES * PAGE_SIZE, 
 			PROT_READ | PROT_WRITE, 
-			MAP_SHARED | MAP_ANONYMOUS, 
+			MAP_SHARED, 
 			fd, 0);
 	die_if(mem == MAP_FAILED);
 
