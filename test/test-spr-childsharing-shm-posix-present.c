@@ -193,7 +193,7 @@ int main()
 
 	/* PREPARING: do the mmap */
 	char *mem = (char*) mmap(
-			NULL, 30 * 4096, 
+			NULL, 30 * PAGE_SIZE, 
 			PROT_READ | PROT_WRITE, 
 			MAP_SHARED | MAP_ANONYMOUS, 
 			-1, 0);
@@ -220,7 +220,7 @@ int main()
 
 	/* TEST child process shares a present page, does nothing on it */
 	{
-		spurious_byte_memread(ch, mem);
+		spurious_byte_memread(ch, page_nr(1));
 
 		int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
 		int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
@@ -236,14 +236,7 @@ int main()
 		test_int_eq_hard(return_ok, 1);
 		test_int_eq_hard(pages_ok, 1);
 
-		pid_t child_pid = fork();
-		if(!child_pid)
-			exit(__child_base(chld1_donothing_present, mem));
-
-		int status;
-		die_if(child_pid < 0);
-		die_if(waitpid(child_pid, &status, 0) < 0);
-		die_if(!WIFEXITED(status) || WEXITSTATUS(status) != EXIT_SUCCESS);
+		__test_fork_and_wait(__child_base(chld1_donothing_present, page_nr(1)));
 	}
 
 	RESET_ALL();
@@ -251,7 +244,7 @@ int main()
 	/* TEST child process shares a present page, does a read on it */
 	{
 		{
-			spurious_byte_memread(ch, mem + 4096);
+			spurious_byte_memread(ch, page_nr(2));
 
 			int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
 			int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
@@ -268,14 +261,7 @@ int main()
 			test_int_eq_hard(pages_ok, 1);
 		}
 
-		pid_t child_pid = fork();
-		if(!child_pid)
-			exit(__child_base(chld2_doread_present, mem + 4096));
-
-		int status;
-		die_if(child_pid < 0);
-		die_if(waitpid(child_pid, &status, 0) < 0);
-		die_if(!WIFEXITED(status) || WEXITSTATUS(status) != EXIT_SUCCESS);
+		__test_fork_and_wait(__child_base(chld2_doread_present, page_nr(2)));
 
 		RESET_ALL();
 
@@ -300,7 +286,7 @@ int main()
 
 		/* do a read on the previously-written-page after the fork */
 		{
-			spurious_byte_memread(ch, mem + 4096);
+			spurious_byte_memread(ch, page_nr(2));
 
 			int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
 			int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
@@ -321,7 +307,7 @@ int main()
 
 		/* do a write secondly, on another page after the fork */
 		{
-			spurious_byte_memwrite(mem + 4096, 'a');
+			spurious_byte_memwrite(page_nr(2), 'a');
 
 			int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
 			int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
@@ -342,7 +328,7 @@ int main()
 
 		/* do a write with a syscall on a third page after the fork */
 		{
-			die_if(trigger_syscall_pagewrite(mem + 8192, 10));
+			die_if(trigger_syscall_pagewrite(page_nr(3), 10));
 
 			int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
 			int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
@@ -363,7 +349,7 @@ int main()
 
 		/* do a read on the previously-written-page, with a syscall, after the fork */
 		{
-			spurious_byte_memread(ch, mem + 8195);
+			spurious_byte_memread(ch, page_nr(3));
 
 			int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
 			int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
@@ -384,7 +370,7 @@ int main()
 
 		/* do a read first with a syscall, on a fourth page after the fork */
 		{
-			die_if(trigger_syscall_pageread(mem + 12300, 10));
+			die_if(trigger_syscall_pageread(page_nr(4), 10));
 
 			int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
 			int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
@@ -405,7 +391,7 @@ int main()
 
 		/* do a write secondly, on a fourth page, after the fork */
 		{
-			spurious_byte_memwrite(mem + 12301, 'a');
+			spurious_byte_memwrite(page_nr(4), 'a');
 
 			int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
 			int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
@@ -429,7 +415,7 @@ int main()
 		RESET_ALL();
 
 		{
-			spurious_byte_memread(ch, mem + 16390);
+			spurious_byte_memread(ch, page_nr(5));
 
 			int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
 			int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
@@ -446,20 +432,13 @@ int main()
 			test_int_eq_hard(pages_ok, 1);
 		}
 
-		pid_t child_pid = fork();
-		if(!child_pid)
-			exit(__child_base(chld3_dowrite_present, mem + 16390));
-
-		int status;
-		die_if(child_pid < 0);
-		die_if(waitpid(child_pid, &status, 0) < 0);
-		die_if(!WIFEXITED(status) || WEXITSTATUS(status) != EXIT_SUCCESS);
+		__test_fork_and_wait(__child_base(chld3_dowrite_present, page_nr(5)));
 
 		RESET_ALL();
 
 		/* do a write on a page after the fork */
 		{
-			spurious_byte_memwrite(mem + 16390, 'a');
+			spurious_byte_memwrite(page_nr(5), 'a');
 
 			int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
 			int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
@@ -480,7 +459,7 @@ int main()
 
 		/* do a read on the previously-written-page after the fork */
 		{
-			spurious_byte_memread(ch, mem + 16390);
+			spurious_byte_memread(ch, page_nr(5));
 
 			int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
 			int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
@@ -504,7 +483,7 @@ int main()
 		RESET_ALL();
 
 		{
-			spurious_byte_memwrite(mem + 20500, 'a');
+			spurious_byte_memwrite(page_nr(6), 'a');
 
 			int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
 			int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
@@ -521,20 +500,13 @@ int main()
 			test_int_eq_hard(pages_ok, 1);
 		}
 
-		pid_t child_pid = fork();
-		if(!child_pid)
-			exit(__child_base(chld4_dosysread_present, mem + 20500));
-
-		int status;
-		die_if(child_pid < 0);
-		die_if(waitpid(child_pid, &status, 0) < 0);
-		die_if(!WIFEXITED(status) || WEXITSTATUS(status) != EXIT_SUCCESS);
+		__test_fork_and_wait(__child_base(chld4_dosysread_present, page_nr(6)));
 
 		RESET_ALL();
 
 		/* do a write on a page after the fork */
 		{
-			spurious_byte_memwrite(mem + 20500, 'a');
+			spurious_byte_memwrite(page_nr(6), 'a');
 
 			int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
 			int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
@@ -555,7 +527,7 @@ int main()
 
 		/* do a read on the previously-written-page after the fork */
 		{
-			spurious_byte_memread(ch, mem + 20500);
+			spurious_byte_memread(ch, page_nr(6));
 
 			int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
 			int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
@@ -578,7 +550,7 @@ int main()
 		RESET_ALL();
 
 		{
-			die_if(trigger_syscall_pagewrite(mem + 25000, 10));
+			die_if(trigger_syscall_pagewrite(page_nr(7), 10));
 
 			int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
 			int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
@@ -595,20 +567,13 @@ int main()
 			test_int_eq_hard(pages_ok, 1);
 		}
 
-		pid_t child_pid = fork();
-		if(!child_pid)
-			exit(__child_base(chld5_dosyswrite_present, mem + 25000));
-
-		int status;
-		die_if(child_pid < 0);
-		die_if(waitpid(child_pid, &status, 0) < 0);
-		die_if(!WIFEXITED(status) || WEXITSTATUS(status) != EXIT_SUCCESS);
+		__test_fork_and_wait(__child_base(chld5_dosyswrite_present, page_nr(7)));
 
 		RESET_ALL();
 
 		/* do a read on the previously-written-page after the fork */
 		{
-			spurious_byte_memread(ch, mem + 25000);
+			spurious_byte_memread(ch, page_nr(7));
 
 			int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
 			int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
@@ -629,7 +594,7 @@ int main()
 
 		/* do a write on a page after the fork */
 		{
-			spurious_byte_memwrite(mem + 25000, 'a');
+			spurious_byte_memwrite(page_nr(7), 'a');
 
 			int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
 			int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);

@@ -36,7 +36,6 @@
 	reset_value_testing_for_me(WPC_SUBSYS_NAME, WPC_COW_DONE_KEY)
 
 
-
 int child1_tests(char* mem)
 {
 	int rv = EXIT_SUCCESS;
@@ -58,7 +57,7 @@ int child1_tests(char* mem)
 
 	/* TEST after initial read access of non-previously-wrote page */
 	{
-		spurious_byte_memread(ch, mem + (2 * 4096));
+		spurious_byte_memread(ch, page_nr(3));
 
 		int dwp_entry = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_ENTRY_KEY);
 		int dwp_wpr_taken = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_WPR_PATH_TAKEN_KEY);
@@ -91,7 +90,7 @@ int child1_tests(char* mem)
 
 	/* TEST after initial read access of previously-wrote page */
 	{
-		spurious_byte_memread(ch, mem + 4096);
+		spurious_byte_memread(ch, page_nr(2));
 
 		int dwp_entry = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_ENTRY_KEY);
 		int dwp_wpr_taken = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_WPR_PATH_TAKEN_KEY);
@@ -124,7 +123,7 @@ int child1_tests(char* mem)
 
 	/* TEST after initial write access of non-previously-wrote page (CoW of zeropage) */
 	{
-		spurious_byte_memwrite(mem + (2 * 4096), 'a');
+		spurious_byte_memwrite(page_nr(3), 'a');
 
 		int dwp_entry = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_ENTRY_KEY);
 		int dwp_wpr_taken = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_WPR_PATH_TAKEN_KEY);
@@ -157,7 +156,7 @@ int child1_tests(char* mem)
 
 	/* TEST after initial write access of previously-wrote page (CoW of "owned" page) */
 	{
-		spurious_byte_memwrite(mem + 4096, 'a');
+		spurious_byte_memwrite(page_nr(2), 'a');
 
 		int dwp_entry = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_ENTRY_KEY);
 		int dwp_wpr_taken = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_WPR_PATH_TAKEN_KEY);
@@ -225,7 +224,7 @@ int main()
 
 	/* PREPARING: do the mmap */
 	char *mem = (char*) mmap(
-			NULL, 4 * 4096, 
+			NULL, 30 * PAGE_SIZE, 
 			PROT_READ | PROT_WRITE, 
 			MAP_PRIVATE | MAP_ANONYMOUS, 
 			-1, 0);
@@ -264,7 +263,7 @@ int main()
 
 	/* TEST after initial read access */
 	{
-		spurious_byte_memread(ch, mem + 4096);
+		spurious_byte_memread(ch, page_nr(2));
 
 		int dwp_entry = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_ENTRY_KEY);
 		int dwp_wpr_taken = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_WPR_PATH_TAKEN_KEY);
@@ -297,7 +296,7 @@ int main()
 
 	/* TEST after initial write access, CoW of zeropage */
 	{
-		spurious_byte_memwrite(mem + 4096, 'a');
+		spurious_byte_memwrite(page_nr(2), 'a');
 
 		int dwp_entry = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_ENTRY_KEY);
 		int dwp_wpr_taken = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_WPR_PATH_TAKEN_KEY);
@@ -330,7 +329,7 @@ int main()
 
 	/* TEST after second write access, nothing should happen */
 	{
-		spurious_byte_memwrite(mem + 4096, 'a');
+		spurious_byte_memwrite(page_nr(2), 'a');
 
 		int dwp_entry = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_ENTRY_KEY);
 		int dwp_wpr_taken = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_WPR_PATH_TAKEN_KEY);
@@ -359,12 +358,254 @@ int main()
 		test_int_eq(wpc_cow_done, 0);
 	}
 
+	RESET_ALL();
+
+	/* TEST after third write access */
+	{
+		spurious_byte_memread(ch, page_nr(2));
+
+		int dwp_entry = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_ENTRY_KEY);
+		int dwp_wpr_taken = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_WPR_PATH_TAKEN_KEY);
+		int dwp_wpr_mkwrite = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_WPR_MKWRITE_KEY);
+		int dwp_wpr_shared = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_WPR_SHARED_KEY);
+		int dwp_wpr_anonexcl = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_WPR_ANONEXCL_KEY);
+		int dwp_wpr_prior_checks_pass = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_WPR_PRIOR_CHECKS_PASS_KEY);
+		int dwp_wpr_page_ok = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_WPR_PAGE_OK_KEY);
+
+		int wpc_entry = query_int_value_testing_for_me(WPC_SUBSYS_NAME, WPC_ENTRY_KEY);
+		int wpc_entry_check_pass = query_int_value_testing_for_me(WPC_SUBSYS_NAME, WPC_ENTRY_CHECKS_PASS_KEY);
+		int wpc_return_ok = query_int_value_testing_for_me(WPC_SUBSYS_NAME, WPC_RETURN_OK_KEY);
+		int wpc_cow_done = query_int_value_testing_for_me(WPC_SUBSYS_NAME, WPC_COW_DONE_KEY);
+
+		test_int_eq(dwp_entry, 0);
+		test_int_eq(dwp_wpr_taken, 0);
+		test_int_eq(dwp_wpr_mkwrite, 0);
+		test_int_eq(dwp_wpr_shared, 0);
+		test_int_eq(dwp_wpr_anonexcl, 0);
+		test_int_eq(dwp_wpr_prior_checks_pass, 0);
+		test_int_eq(dwp_wpr_page_ok, 0);
+
+		test_int_eq(wpc_entry, 0);
+		test_int_eq(wpc_entry_check_pass, 0);
+		test_int_eq(wpc_return_ok, 0);
+		test_int_eq(wpc_cow_done, 0);
+	}
+
+	RESET_ALL();
+
+	/* TEST after fourth write access */
+	{
+		die_if(trigger_syscall_pagewrite(page_nr(2), 10));
+
+		int dwp_entry = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_ENTRY_KEY);
+		int dwp_wpr_taken = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_WPR_PATH_TAKEN_KEY);
+		int dwp_wpr_mkwrite = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_WPR_MKWRITE_KEY);
+		int dwp_wpr_shared = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_WPR_SHARED_KEY);
+		int dwp_wpr_anonexcl = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_WPR_ANONEXCL_KEY);
+		int dwp_wpr_prior_checks_pass = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_WPR_PRIOR_CHECKS_PASS_KEY);
+		int dwp_wpr_page_ok = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_WPR_PAGE_OK_KEY);
+
+		int wpc_entry = query_int_value_testing_for_me(WPC_SUBSYS_NAME, WPC_ENTRY_KEY);
+		int wpc_entry_check_pass = query_int_value_testing_for_me(WPC_SUBSYS_NAME, WPC_ENTRY_CHECKS_PASS_KEY);
+		int wpc_return_ok = query_int_value_testing_for_me(WPC_SUBSYS_NAME, WPC_RETURN_OK_KEY);
+		int wpc_cow_done = query_int_value_testing_for_me(WPC_SUBSYS_NAME, WPC_COW_DONE_KEY);
+
+		test_int_eq(dwp_entry, 0);
+		test_int_eq(dwp_wpr_taken, 0);
+		test_int_eq(dwp_wpr_mkwrite, 0);
+		test_int_eq(dwp_wpr_shared, 0);
+		test_int_eq(dwp_wpr_anonexcl, 0);
+		test_int_eq(dwp_wpr_prior_checks_pass, 0);
+		test_int_eq(dwp_wpr_page_ok, 0);
+
+		test_int_eq(wpc_entry, 0);
+		test_int_eq(wpc_entry_check_pass, 0);
+		test_int_eq(wpc_return_ok, 0);
+		test_int_eq(wpc_cow_done, 0);
+	}
+
+	RESET_ALL();
+
+	/* TEST after fifth write access */
+	{
+		die_if(trigger_syscall_pageread(page_nr(2), 10));
+
+		int dwp_entry = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_ENTRY_KEY);
+		int dwp_wpr_taken = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_WPR_PATH_TAKEN_KEY);
+		int dwp_wpr_mkwrite = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_WPR_MKWRITE_KEY);
+		int dwp_wpr_shared = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_WPR_SHARED_KEY);
+		int dwp_wpr_anonexcl = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_WPR_ANONEXCL_KEY);
+		int dwp_wpr_prior_checks_pass = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_WPR_PRIOR_CHECKS_PASS_KEY);
+		int dwp_wpr_page_ok = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_WPR_PAGE_OK_KEY);
+
+		int wpc_entry = query_int_value_testing_for_me(WPC_SUBSYS_NAME, WPC_ENTRY_KEY);
+		int wpc_entry_check_pass = query_int_value_testing_for_me(WPC_SUBSYS_NAME, WPC_ENTRY_CHECKS_PASS_KEY);
+		int wpc_return_ok = query_int_value_testing_for_me(WPC_SUBSYS_NAME, WPC_RETURN_OK_KEY);
+		int wpc_cow_done = query_int_value_testing_for_me(WPC_SUBSYS_NAME, WPC_COW_DONE_KEY);
+
+		test_int_eq(dwp_entry, 0);
+		test_int_eq(dwp_wpr_taken, 0);
+		test_int_eq(dwp_wpr_mkwrite, 0);
+		test_int_eq(dwp_wpr_shared, 0);
+		test_int_eq(dwp_wpr_anonexcl, 0);
+		test_int_eq(dwp_wpr_prior_checks_pass, 0);
+		test_int_eq(dwp_wpr_page_ok, 0);
+
+		test_int_eq(wpc_entry, 0);
+		test_int_eq(wpc_entry_check_pass, 0);
+		test_int_eq(wpc_return_ok, 0);
+		test_int_eq(wpc_cow_done, 0);
+	}
+
+	RESET_ALL();
+
+	/* TEST first page read via syscall */
+	{
+		/* this is a particular case: syscalls' fixup code simply 
+		 * returns 0 in this case: no zeropage or PTE modification needed
+		 *
+		 * CoW happens (in situations like these) when zeropage is being pointed to
+		 * effectively.
+		 */
+		die_if(trigger_syscall_pageread(page_nr(26), 10));
+
+		int dwp_entry = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_ENTRY_KEY);
+		int dwp_wpr_taken = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_WPR_PATH_TAKEN_KEY);
+		int dwp_wpr_mkwrite = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_WPR_MKWRITE_KEY);
+		int dwp_wpr_shared = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_WPR_SHARED_KEY);
+		int dwp_wpr_anonexcl = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_WPR_ANONEXCL_KEY);
+		int dwp_wpr_prior_checks_pass = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_WPR_PRIOR_CHECKS_PASS_KEY);
+		int dwp_wpr_page_ok = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_WPR_PAGE_OK_KEY);
+
+		int wpc_entry = query_int_value_testing_for_me(WPC_SUBSYS_NAME, WPC_ENTRY_KEY);
+		int wpc_entry_check_pass = query_int_value_testing_for_me(WPC_SUBSYS_NAME, WPC_ENTRY_CHECKS_PASS_KEY);
+		int wpc_return_ok = query_int_value_testing_for_me(WPC_SUBSYS_NAME, WPC_RETURN_OK_KEY);
+		int wpc_cow_done = query_int_value_testing_for_me(WPC_SUBSYS_NAME, WPC_COW_DONE_KEY);
+
+		test_int_eq(dwp_entry, 0);
+		test_int_eq(dwp_wpr_taken, 0);
+		test_int_eq(dwp_wpr_mkwrite, 0);
+		test_int_eq(dwp_wpr_shared, 0);
+		test_int_eq(dwp_wpr_anonexcl, 0);
+		test_int_eq(dwp_wpr_prior_checks_pass, 0);
+		test_int_eq(dwp_wpr_page_ok, 0);
+
+		test_int_eq(wpc_entry, 0);
+		test_int_eq(wpc_entry_check_pass, 0);
+		test_int_eq(wpc_return_ok, 0);
+		test_int_eq(wpc_cow_done, 0);
+	}
+
+	RESET_ALL();
+
+	/* TEST second page write via syscall */
+	{
+		/* this just calls dap code, its like is a real first access to anonymous memory, 
+		 * and no CoW takes place (see other dap-related tests) 
+		 */
+		die_if(trigger_syscall_pagewrite(page_nr(26), 10));
+
+		int dwp_entry = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_ENTRY_KEY);
+		int dwp_wpr_taken = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_WPR_PATH_TAKEN_KEY);
+		int dwp_wpr_mkwrite = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_WPR_MKWRITE_KEY);
+		int dwp_wpr_shared = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_WPR_SHARED_KEY);
+		int dwp_wpr_anonexcl = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_WPR_ANONEXCL_KEY);
+		int dwp_wpr_prior_checks_pass = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_WPR_PRIOR_CHECKS_PASS_KEY);
+		int dwp_wpr_page_ok = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_WPR_PAGE_OK_KEY);
+
+		int wpc_entry = query_int_value_testing_for_me(WPC_SUBSYS_NAME, WPC_ENTRY_KEY);
+		int wpc_entry_check_pass = query_int_value_testing_for_me(WPC_SUBSYS_NAME, WPC_ENTRY_CHECKS_PASS_KEY);
+		int wpc_return_ok = query_int_value_testing_for_me(WPC_SUBSYS_NAME, WPC_RETURN_OK_KEY);
+		int wpc_cow_done = query_int_value_testing_for_me(WPC_SUBSYS_NAME, WPC_COW_DONE_KEY);
+
+		test_int_eq(dwp_entry, 0);
+		test_int_eq(dwp_wpr_taken, 0);
+		test_int_eq(dwp_wpr_mkwrite, 0);
+		test_int_eq(dwp_wpr_shared, 0);
+		test_int_eq(dwp_wpr_anonexcl, 0);
+		test_int_eq(dwp_wpr_prior_checks_pass, 0);
+		test_int_eq(dwp_wpr_page_ok, 0);
+
+		test_int_eq(wpc_entry, 0);
+		test_int_eq(wpc_entry_check_pass, 0);
+		test_int_eq(wpc_return_ok, 0);
+		test_int_eq(wpc_cow_done, 0);
+	}
+
+	RESET_ALL();
+
+	/* TEST first page read */
+	{
+		spurious_byte_memread(ch, page_nr(27));
+
+		int dwp_entry = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_ENTRY_KEY);
+		int dwp_wpr_taken = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_WPR_PATH_TAKEN_KEY);
+		int dwp_wpr_mkwrite = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_WPR_MKWRITE_KEY);
+		int dwp_wpr_shared = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_WPR_SHARED_KEY);
+		int dwp_wpr_anonexcl = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_WPR_ANONEXCL_KEY);
+		int dwp_wpr_prior_checks_pass = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_WPR_PRIOR_CHECKS_PASS_KEY);
+		int dwp_wpr_page_ok = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_WPR_PAGE_OK_KEY);
+
+		int wpc_entry = query_int_value_testing_for_me(WPC_SUBSYS_NAME, WPC_ENTRY_KEY);
+		int wpc_entry_check_pass = query_int_value_testing_for_me(WPC_SUBSYS_NAME, WPC_ENTRY_CHECKS_PASS_KEY);
+		int wpc_return_ok = query_int_value_testing_for_me(WPC_SUBSYS_NAME, WPC_RETURN_OK_KEY);
+		int wpc_cow_done = query_int_value_testing_for_me(WPC_SUBSYS_NAME, WPC_COW_DONE_KEY);
+
+		test_int_eq(dwp_entry, 0);
+		test_int_eq(dwp_wpr_taken, 0);
+		test_int_eq(dwp_wpr_mkwrite, 0);
+		test_int_eq(dwp_wpr_shared, 0);
+		test_int_eq(dwp_wpr_anonexcl, 0);
+		test_int_eq(dwp_wpr_prior_checks_pass, 0);
+		test_int_eq(dwp_wpr_page_ok, 0);
+
+		test_int_eq(wpc_entry, 0);
+		test_int_eq(wpc_entry_check_pass, 0);
+		test_int_eq(wpc_return_ok, 0);
+		test_int_eq(wpc_cow_done, 0);
+	}
+
+	RESET_ALL();
+
+	/* TEST second page write via syscall */
+	{
+		/* this will actually trigger CoW because we actually accessed the zeropage earlier
+		 * via memory access */
+		die_if(trigger_syscall_pagewrite(page_nr(27), 10));
+
+		int dwp_entry = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_ENTRY_KEY);
+		int dwp_wpr_taken = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_WPR_PATH_TAKEN_KEY);
+		int dwp_wpr_mkwrite = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_WPR_MKWRITE_KEY);
+		int dwp_wpr_shared = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_WPR_SHARED_KEY);
+		int dwp_wpr_anonexcl = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_WPR_ANONEXCL_KEY);
+		int dwp_wpr_prior_checks_pass = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_WPR_PRIOR_CHECKS_PASS_KEY);
+		int dwp_wpr_page_ok = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_WPR_PAGE_OK_KEY);
+
+		int wpc_entry = query_int_value_testing_for_me(WPC_SUBSYS_NAME, WPC_ENTRY_KEY);
+		int wpc_entry_check_pass = query_int_value_testing_for_me(WPC_SUBSYS_NAME, WPC_ENTRY_CHECKS_PASS_KEY);
+		int wpc_return_ok = query_int_value_testing_for_me(WPC_SUBSYS_NAME, WPC_RETURN_OK_KEY);
+		int wpc_cow_done = query_int_value_testing_for_me(WPC_SUBSYS_NAME, WPC_COW_DONE_KEY);
+
+		test_int_eq(dwp_entry, 1);
+		test_int_eq(dwp_wpr_taken, 0);
+		test_int_eq(dwp_wpr_mkwrite, 0);
+		test_int_eq(dwp_wpr_shared, 0);
+		test_int_eq(dwp_wpr_anonexcl, 0);
+		test_int_eq(dwp_wpr_prior_checks_pass, 0);
+		test_int_eq(dwp_wpr_page_ok, 0);
+
+		test_int_eq(wpc_entry, 1);
+		test_int_eq(wpc_entry_check_pass, 1);
+		test_int_eq(wpc_return_ok, 1);
+		test_int_eq(wpc_cow_done, 1);
+	}
+
 	/* TEST fork() CoW */
 	{
 		RESET_ALL();
 
 		{
-			spurious_byte_memwrite(mem + 4096, 'a');
+			spurious_byte_memwrite(page_nr(2), 'a');
 
 			int dwp_entry = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_ENTRY_KEY);
 			int dwp_wpr_taken = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_WPR_PATH_TAKEN_KEY);
@@ -393,20 +634,13 @@ int main()
 			test_int_eq(wpc_cow_done, 0);
 		}
 
-		pid_t child_pid = fork();
-		if(!child_pid)
-			exit(child1_tests(mem));
-		
-		int status;
-		die_if(child_pid < 0);
-		die_if(waitpid(child_pid, &status, 0) < 0);
-		die_if(!WIFEXITED(status) || WEXITSTATUS(status) != EXIT_SUCCESS);
+		__test_fork_and_wait(child1_tests(mem));
 
 		RESET_ALL();
 
 		/* TEST read after fork() of wrote page (no need to reuse, do it when trying to write...) */
 		{
-			spurious_byte_memread(ch, mem + 4096);
+			spurious_byte_memread(ch, page_nr(2));
 
 			int dwp_entry = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_ENTRY_KEY);
 			int dwp_wpr_taken = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_WPR_PATH_TAKEN_KEY);
@@ -439,7 +673,7 @@ int main()
 
 		/* TEST write after fork() of wrote page (reuse RO-d page to actuate CoW) */
 		{
-			spurious_byte_memwrite(mem + 4096, 'a');
+			spurious_byte_memwrite(page_nr(2), 'a');
 
 			int dwp_entry = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_ENTRY_KEY);
 			int dwp_wpr_taken = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_WPR_PATH_TAKEN_KEY);
@@ -473,7 +707,7 @@ int main()
 
 		/* TEST read after fork() of non-wrote page (no need to reuse, do it when trying to write...) */
 		{
-			spurious_byte_memread(ch, mem);
+			spurious_byte_memread(ch, page_nr(1));
 
 			int dwp_entry = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_ENTRY_KEY);
 			int dwp_wpr_taken = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_WPR_PATH_TAKEN_KEY);
@@ -506,7 +740,7 @@ int main()
 
 		/* TEST write after fork() of non wrote page (CoW of zeropage, no reuse of "owned" page) */
 		{
-			spurious_byte_memwrite(mem, 'a');
+			spurious_byte_memwrite(page_nr(1), 'a');
 
 			int dwp_entry = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_ENTRY_KEY);
 			int dwp_wpr_taken = query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_WPR_PATH_TAKEN_KEY);

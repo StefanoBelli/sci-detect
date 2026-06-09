@@ -7,6 +7,12 @@
 #define RETURNOK_KEY "return-ok"
 #define MATERIALIZEPAGE_KEY "materialize-page"
 
+#define RESET_ALL() \
+	reset_value_testing_for_me(SUBSYS_NAME, ENTRY_KEY); \
+	reset_value_testing_for_me(SUBSYS_NAME, ZEROPAGE_KEY); \
+	reset_value_testing_for_me(SUBSYS_NAME, RETURNOK_KEY); \
+	reset_value_testing_for_me(SUBSYS_NAME, MATERIALIZEPAGE_KEY); \
+
 int main()
 {
 	int rv = EXIT_SUCCESS;
@@ -19,15 +25,17 @@ int main()
 
 	/* PREPARING: do the mmap */
 	char *mem = (char*) mmap(
-			NULL, 4 * 4096, 
+			NULL, 4 * PAGE_SIZE, 
 			PROT_READ | PROT_WRITE, 
 			MAP_PRIVATE | MAP_ANONYMOUS, 
 			-1, 0);
 	die_if(mem == MAP_FAILED);
 
-	/* TEST initial WRITE access  */
+	/* 
+	 * TEST initial WRITE access on the first page 
+	 */
 	{
-		spurious_byte_memwrite(mem, 'a');
+		spurious_byte_memwrite(page_nr(1), 'a');
 
 		int entry = query_int_value_testing_for_me(SUBSYS_NAME, ENTRY_KEY);
 		int zeropage = query_int_value_testing_for_me(SUBSYS_NAME, ZEROPAGE_KEY);
@@ -40,54 +48,82 @@ int main()
 		test_int_eq(materializepage, 1);
 	}
 
-	/* TEST another WRITE access  */
+	RESET_ALL();
+
+	/* TEST another WRITE access on the first page */
 	{
-		spurious_byte_memwrite(mem, 'a');
+		spurious_byte_memwrite(page_nr(1), 'a');
 
 		int entry = query_int_value_testing_for_me(SUBSYS_NAME, ENTRY_KEY);
 		int zeropage = query_int_value_testing_for_me(SUBSYS_NAME, ZEROPAGE_KEY);
 		int returnok = query_int_value_testing_for_me(SUBSYS_NAME, RETURNOK_KEY);
 		int materializepage = query_int_value_testing_for_me(SUBSYS_NAME, MATERIALIZEPAGE_KEY);
 
-		test_int_eq(entry, 1);
-		test_int_eq(returnok, 1);
+		test_int_eq(entry, 0);
+		test_int_eq(returnok, 0);
 		test_int_eq(zeropage, 0);
-		test_int_eq(materializepage, 1);
+		test_int_eq(materializepage, 0);
 	}
 
-	/* TEST another READ access  */
+	RESET_ALL();
+
+	/* TEST another READ access on the first page */
 	{
-		spurious_byte_memread(ch, mem);
+		spurious_byte_memread(ch, page_nr(1));
 
 		int entry = query_int_value_testing_for_me(SUBSYS_NAME, ENTRY_KEY);
 		int zeropage = query_int_value_testing_for_me(SUBSYS_NAME, ZEROPAGE_KEY);
 		int returnok = query_int_value_testing_for_me(SUBSYS_NAME, RETURNOK_KEY);
 		int materializepage = query_int_value_testing_for_me(SUBSYS_NAME, MATERIALIZEPAGE_KEY);
 
-		test_int_eq(entry, 1);
-		test_int_eq(returnok, 1);
+		test_int_eq(entry, 0);
+		test_int_eq(returnok, 0);
 		test_int_eq(zeropage, 0);
-		test_int_eq(materializepage, 1);
+		test_int_eq(materializepage, 0);
 	}
 
-	/* TEST another READ access via syscall */
+	RESET_ALL();
+
+	/* TEST another READ access via syscall on the first page */
 	{
-		die_if(trigger_syscall_pageread(mem, 10));
+		die_if(trigger_syscall_pageread(page_nr(1), 10));
 
 		int entry = query_int_value_testing_for_me(SUBSYS_NAME, ENTRY_KEY);
 		int zeropage = query_int_value_testing_for_me(SUBSYS_NAME, ZEROPAGE_KEY);
 		int returnok = query_int_value_testing_for_me(SUBSYS_NAME, RETURNOK_KEY);
 		int materializepage = query_int_value_testing_for_me(SUBSYS_NAME, MATERIALIZEPAGE_KEY);
 
-		test_int_eq(entry, 1);
-		test_int_eq(returnok, 1);
+		test_int_eq(entry, 0);
+		test_int_eq(returnok, 0);
 		test_int_eq(zeropage, 0);
-		test_int_eq(materializepage, 1);
+		test_int_eq(materializepage, 0);
 	}
+
+	RESET_ALL();
 
 	/* TEST another WRITE access via syscall */
 	{
-		die_if(trigger_syscall_pagewrite(mem, 10));
+		die_if(trigger_syscall_pagewrite(page_nr(1), 10));
+
+		int entry = query_int_value_testing_for_me(SUBSYS_NAME, ENTRY_KEY);
+		int zeropage = query_int_value_testing_for_me(SUBSYS_NAME, ZEROPAGE_KEY);
+		int returnok = query_int_value_testing_for_me(SUBSYS_NAME, RETURNOK_KEY);
+		int materializepage = query_int_value_testing_for_me(SUBSYS_NAME, MATERIALIZEPAGE_KEY);
+
+		test_int_eq(entry, 0);
+		test_int_eq(returnok, 0);
+		test_int_eq(zeropage, 0);
+		test_int_eq(materializepage, 0);
+	}
+
+	RESET_ALL();
+
+	/* 
+	 * TEST initial WRITE access via syscall on a second page
+	 * THIS materializes page -- confusion with CoW, everything should be ok 
+	 */
+	{
+		die_if(trigger_syscall_pagewrite(page_nr(2), 10));
 
 		int entry = query_int_value_testing_for_me(SUBSYS_NAME, ENTRY_KEY);
 		int zeropage = query_int_value_testing_for_me(SUBSYS_NAME, ZEROPAGE_KEY);
@@ -100,79 +136,72 @@ int main()
 		test_int_eq(materializepage, 1);
 	}
 
-	/* TEST initial WRITE access via syscall */
+	RESET_ALL();
+
+	/* TEST another WRITE access via syscall on the second page */
 	{
-		die_if(trigger_syscall_pagewrite(mem + 4098, 10));
+		die_if(trigger_syscall_pagewrite(page_nr(2), 10));
 
 		int entry = query_int_value_testing_for_me(SUBSYS_NAME, ENTRY_KEY);
 		int zeropage = query_int_value_testing_for_me(SUBSYS_NAME, ZEROPAGE_KEY);
 		int returnok = query_int_value_testing_for_me(SUBSYS_NAME, RETURNOK_KEY);
 		int materializepage = query_int_value_testing_for_me(SUBSYS_NAME, MATERIALIZEPAGE_KEY);
 
-		test_int_eq(entry, 2);
-		test_int_eq(returnok, 2);
+		test_int_eq(entry, 0);
+		test_int_eq(returnok, 0);
 		test_int_eq(zeropage, 0);
-		test_int_eq(materializepage, 2);
+		test_int_eq(materializepage, 0);
 	}
 
-	/* TEST another WRITE access via syscall */
+	RESET_ALL();
+
+	/* TEST another WRITE access on the second page */
 	{
-		die_if(trigger_syscall_pagewrite(mem + 4098, 10));
+		spurious_byte_memwrite(page_nr(2), 'a');
 
 		int entry = query_int_value_testing_for_me(SUBSYS_NAME, ENTRY_KEY);
 		int zeropage = query_int_value_testing_for_me(SUBSYS_NAME, ZEROPAGE_KEY);
 		int returnok = query_int_value_testing_for_me(SUBSYS_NAME, RETURNOK_KEY);
 		int materializepage = query_int_value_testing_for_me(SUBSYS_NAME, MATERIALIZEPAGE_KEY);
 
-		test_int_eq(entry, 2);
-		test_int_eq(returnok, 2);
+		test_int_eq(entry, 0);
+		test_int_eq(returnok, 0);
 		test_int_eq(zeropage, 0);
-		test_int_eq(materializepage, 2);
+		test_int_eq(materializepage, 0);
 	}
 
-	/* TEST another WRITE access  */
+	RESET_ALL();
+
+	/* TEST another READ access on the second page */
 	{
-		spurious_byte_memwrite(mem + 4125, 'a');
+		spurious_byte_memread(ch, page_nr(2));
 
 		int entry = query_int_value_testing_for_me(SUBSYS_NAME, ENTRY_KEY);
 		int zeropage = query_int_value_testing_for_me(SUBSYS_NAME, ZEROPAGE_KEY);
 		int returnok = query_int_value_testing_for_me(SUBSYS_NAME, RETURNOK_KEY);
 		int materializepage = query_int_value_testing_for_me(SUBSYS_NAME, MATERIALIZEPAGE_KEY);
 
-		test_int_eq(entry, 2);
-		test_int_eq(returnok, 2);
+		test_int_eq(entry, 0);
+		test_int_eq(returnok, 0);
 		test_int_eq(zeropage, 0);
-		test_int_eq(materializepage, 2);
+		test_int_eq(materializepage, 0);
 	}
 
-	/* TEST another READ access  */
+	RESET_ALL();
+
+	/* TEST another READ access via syscall on the second page */
 	{
-		spurious_byte_memread(ch, mem + 4200);
+		die_if(trigger_syscall_pageread(page_nr(2), 10));
 
 		int entry = query_int_value_testing_for_me(SUBSYS_NAME, ENTRY_KEY);
 		int zeropage = query_int_value_testing_for_me(SUBSYS_NAME, ZEROPAGE_KEY);
 		int returnok = query_int_value_testing_for_me(SUBSYS_NAME, RETURNOK_KEY);
 		int materializepage = query_int_value_testing_for_me(SUBSYS_NAME, MATERIALIZEPAGE_KEY);
 
-		test_int_eq(entry, 2);
-		test_int_eq(returnok, 2);
+		test_int_eq(entry, 0);
+		test_int_eq(returnok, 0);
 		test_int_eq(zeropage, 0);
-		test_int_eq(materializepage, 2);
-	}
-
-	/* TEST another READ access via syscall */
-	{
-		die_if(trigger_syscall_pageread(mem + 4200, 10));
-
-		int entry = query_int_value_testing_for_me(SUBSYS_NAME, ENTRY_KEY);
-		int zeropage = query_int_value_testing_for_me(SUBSYS_NAME, ZEROPAGE_KEY);
-		int returnok = query_int_value_testing_for_me(SUBSYS_NAME, RETURNOK_KEY);
-		int materializepage = query_int_value_testing_for_me(SUBSYS_NAME, MATERIALIZEPAGE_KEY);
-
-		test_int_eq(entry, 2);
-		test_int_eq(returnok, 2);
-		test_int_eq(zeropage, 0);
-		test_int_eq(materializepage, 2);
+		test_int_eq(materializepage, 0);
 	}
 
 	test_passed();

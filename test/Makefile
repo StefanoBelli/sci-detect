@@ -1,6 +1,6 @@
 SHELL=/bin/bash
 CC=gcc
-CFLAGS=-O0 -Wall -W -Wextra -Wshadow -std=c11 -pedantic
+CFLAGS=-O0 -Wall -W -Wextra -Wshadow -std=c11
 TESTS= \
 	   test-dap-first-access-read.test \
 	   test-dap-first-access-write.test \
@@ -26,7 +26,7 @@ clean:
 	rm $(TESTS)
 
 test-%.test: test-%.c
-	@echo -ne "\tCC $@\n"
+	@echo -ne "\tCC [test] $@\n"
 	@$(CC) $(CFLAGS) $< -o $@
 
 run-tests: all

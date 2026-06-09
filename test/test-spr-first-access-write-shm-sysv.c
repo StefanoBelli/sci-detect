@@ -12,7 +12,7 @@
 #define PAGES_OK_KEY "pages-ok"
 
 #define TEST_SHMGET_SYSV_KEY 0xdeadbeef
-#define TEST_SHMGET_SYSV_SIZE 30 * 4096
+#define TEST_SHMGET_SYSV_SIZE 30 * PAGE_SIZE
 #define TEST_SHMGET_SYSV_FLG IPC_CREAT | IPC_EXCL
 
 #define TEST_SHMAT_SYSV_FLG 0
@@ -46,7 +46,6 @@ int main()
 	char *mem = (char*) shmat(shmid, NULL, TEST_SHMAT_SYSV_FLG);
 	die_if(mem == (void*) -1);
 
-
 	/* TEST no initial access - something strange happens */
 	{
 		int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
@@ -68,7 +67,7 @@ int main()
 
 	/* TEST initial write access */
 	{
-		spurious_byte_memwrite(mem, 'a');
+		spurious_byte_memwrite(page_nr(1), 'a');
 
 		int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
 		int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
@@ -89,7 +88,7 @@ int main()
 
 	/* TEST second write access */
 	{
-		spurious_byte_memwrite(mem, 'a');
+		spurious_byte_memwrite(page_nr(1), 'a');
 
 		int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
 		int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
@@ -110,7 +109,7 @@ int main()
 
 	/* TEST third read access */
 	{
-		spurious_byte_memread(ch, mem);
+		spurious_byte_memread(ch, page_nr(1));
 
 		int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
 		int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
@@ -131,7 +130,7 @@ int main()
 
 	/* TEST initial write access on another page */
 	{
-		spurious_byte_memwrite(mem + 4097, 'a');
+		spurious_byte_memwrite(page_nr(2), 'a');
 
 		int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
 		int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
@@ -152,7 +151,7 @@ int main()
 
 	/* TEST second read access on another page */
 	{
-		spurious_byte_memread(ch, mem + 4099);
+		spurious_byte_memread(ch, page_nr(2));
 
 		int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
 		int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
@@ -173,7 +172,7 @@ int main()
 
 	/* TEST first write access with a syscall, on another page */
 	{
-		die_if(trigger_syscall_pagewrite(mem + 4100, 'a'));
+		die_if(trigger_syscall_pagewrite(page_nr(2), 'a'));
 
 		int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
 		int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
@@ -194,7 +193,7 @@ int main()
 
 	/* TEST first write access with a syscall, on a third page */
 	{
-		die_if(trigger_syscall_pagewrite(mem + 8194, 'a'));
+		die_if(trigger_syscall_pagewrite(page_nr(3), 'a'));
 
 		int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
 		int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
@@ -215,7 +214,7 @@ int main()
 
 	/* TEST second write access with a syscall, on a third page */
 	{
-		die_if(trigger_syscall_pagewrite(mem + 8194, 'a'));
+		die_if(trigger_syscall_pagewrite(page_nr(3), 'a'));
 
 		int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
 		int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
@@ -236,7 +235,7 @@ int main()
 
 	/* TEST third read access with a syscall, on a third page */
 	{
-		die_if(trigger_syscall_pageread(mem + 8194, 10));
+		die_if(trigger_syscall_pageread(page_nr(3), 10));
 
 		int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
 		int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
