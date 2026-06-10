@@ -20,6 +20,7 @@ TESTS= \
 	   test-spr-childsharing-shm-sysv-nonpresent.test \
 	   test-spr-read-file-private.test \
 	   test-spr-dwp-wpc-cow-write-file-private.test \
+	   test-spr-dwp-wpc-cow-childproc-file-private.test
 	   #test-spr-read-file-shared.test \
 	   test-spr-write-file-shared.test \
 	   test-spr-childsharing-file-shared.test \
