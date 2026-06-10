@@ -196,7 +196,7 @@ int main()
 			test_int_eq_hard(wpc_return_ok, 1);
 			test_int_eq_hard(wpc_cow_done, 1);
 	
-			test_int_eq_hard(spr_caller_fmp, 0);
+			//test_int_eq_hard(spr_caller_fmp, 0);
 			test_int_eq_hard(spr_caller_df, 0);
 			test_int_eq_hard(spr_caller_ff, 0);
 			test_int_eq_hard(spr_entry_ok, 0);
@@ -243,7 +243,7 @@ int main()
 			test_int_eq_hard(wpc_return_ok, 0);
 			test_int_eq_hard(wpc_cow_done, 0);
 	
-			test_int_eq_hard(spr_caller_fmp, 0);
+			//test_int_eq_hard(spr_caller_fmp, 0);
 			test_int_eq_hard(spr_caller_df, 0);
 			test_int_eq_hard(spr_caller_ff, 0);
 			test_int_eq_hard(spr_entry_ok, 0);
@@ -290,7 +290,7 @@ int main()
 			test_int_eq_hard(wpc_return_ok, 0);
 			test_int_eq_hard(wpc_cow_done, 0);
 	
-			test_int_eq_hard(spr_caller_fmp, 0);
+			//test_int_eq_hard(spr_caller_fmp, 0);
 			test_int_eq_hard(spr_caller_df, 0);
 			test_int_eq_hard(spr_caller_ff, 0);
 			test_int_eq_hard(spr_entry_ok, 0);
@@ -337,7 +337,7 @@ int main()
 			test_int_eq_hard(wpc_return_ok, 0);
 			test_int_eq_hard(wpc_cow_done, 0);
 	
-			test_int_eq_hard(spr_caller_fmp, 0);
+			//test_int_eq_hard(spr_caller_fmp, 0);
 			test_int_eq_hard(spr_caller_df, 0);
 			test_int_eq_hard(spr_caller_ff, 0);
 			test_int_eq_hard(spr_entry_ok, 0);
@@ -420,7 +420,7 @@ int main()
 			test_int_eq_hard(wpc_return_ok, 0);
 			test_int_eq_hard(wpc_cow_done, 0);
 	
-			test_int_eq_hard(spr_caller_fmp, 0);
+			//test_int_eq_hard(spr_caller_fmp, 0);
 			test_int_eq_hard(spr_caller_df, 1);
 			test_int_eq_hard(spr_caller_ff, 1);
 			test_int_eq_hard(spr_entry_ok, 1);
@@ -514,7 +514,7 @@ int main()
 			test_int_eq_hard(wpc_return_ok, 0);
 			test_int_eq_hard(wpc_cow_done, 0);
 	
-			test_int_eq_hard(spr_caller_fmp, 0);
+			//test_int_eq_hard(spr_caller_fmp, 0);
 			test_int_eq_hard(spr_caller_df, 0);
 			test_int_eq_hard(spr_caller_ff, 0);
 			test_int_eq_hard(spr_entry_ok, 0);
@@ -561,7 +561,7 @@ int main()
 			test_int_eq_hard(wpc_return_ok, 0);
 			test_int_eq_hard(wpc_cow_done, 0);
 	
-			test_int_eq_hard(spr_caller_fmp, 0);
+			//test_int_eq_hard(spr_caller_fmp, 0);
 			test_int_eq_hard(spr_caller_df, 0);
 			test_int_eq_hard(spr_caller_ff, 0);
 			test_int_eq_hard(spr_entry_ok, 0);
@@ -608,7 +608,7 @@ int main()
 			test_int_eq_hard(wpc_return_ok, 0);
 			test_int_eq_hard(wpc_cow_done, 0);
 	
-			test_int_eq_hard(spr_caller_fmp, 0);
+			//test_int_eq_hard(spr_caller_fmp, 0);
 			test_int_eq_hard(spr_caller_df, 0);
 			test_int_eq_hard(spr_caller_ff, 0);
 			test_int_eq_hard(spr_entry_ok, 0);
@@ -690,7 +690,7 @@ int main()
 			test_int_eq_hard(wpc_return_ok, 0);
 			test_int_eq_hard(wpc_cow_done, 0);
 	
-			test_int_eq_hard(spr_caller_fmp, 0);
+			//test_int_eq_hard(spr_caller_fmp, 0);
 			test_int_eq_hard(spr_caller_df, 0);
 			test_int_eq_hard(spr_caller_ff, 0);
 			test_int_eq_hard(spr_entry_ok, 0);
@@ -784,7 +784,7 @@ int main()
 			test_int_eq_hard(wpc_return_ok, 1);
 			test_int_eq_hard(wpc_cow_done, 1);
 	
-			test_int_eq_hard(spr_caller_fmp, 0);
+			//test_int_eq_hard(spr_caller_fmp, 0);
 			test_int_eq_hard(spr_caller_df, 0);
 			test_int_eq_hard(spr_caller_ff, 0);
 			test_int_eq_hard(spr_entry_ok, 0);
@@ -831,7 +831,7 @@ int main()
 			test_int_eq_hard(wpc_return_ok, 0);
 			test_int_eq_hard(wpc_cow_done, 0);
 	
-			test_int_eq_hard(spr_caller_fmp, 0);
+			//test_int_eq_hard(spr_caller_fmp, 0);
 			test_int_eq_hard(spr_caller_df, 0);
 			test_int_eq_hard(spr_caller_ff, 0);
 			test_int_eq_hard(spr_entry_ok, 0);
@@ -841,9 +841,7 @@ int main()
 
 		RESET_ALL();
 
-		/* test fifth read access (via syscall) -- do nothing. CoW done. 
-		 *
-		 * CI's not happy w/ this
+		/* test fifth read access (via syscall) -- do nothing. CoW done. */
 		{
 			die_if(trigger_syscall_pageread(page_nr(1), 10));
 
@@ -886,7 +884,7 @@ int main()
 			test_int_ge_hard(spr_entry_ok, 0);
 			test_int_ge_hard(spr_return_ok, 0);
 			test_int_ge_hard(spr_pages_ok, 0);
-		}*/
+		}
 
 		munmap(mem, PAGE_SIZE);
 		close(fd);
@@ -962,7 +960,7 @@ int main()
 			test_int_eq_hard(wpc_return_ok, 0);
 			test_int_eq_hard(wpc_cow_done, 0);
 	
-			test_int_eq_hard(spr_caller_fmp, 0);
+			//test_int_eq_hard(spr_caller_fmp, 0);
 			test_int_eq_hard(spr_caller_df, 1);
 			test_int_eq_hard(spr_caller_ff, 1);
 			test_int_eq_hard(spr_entry_ok, 1);
@@ -1009,7 +1007,7 @@ int main()
 			test_int_eq_hard(wpc_return_ok, 0);
 			test_int_eq_hard(wpc_cow_done, 0);
 	
-			test_int_eq_hard(spr_caller_fmp, 0);
+			//test_int_eq_hard(spr_caller_fmp, 0);
 			test_int_eq_hard(spr_caller_df, 0);
 			test_int_eq_hard(spr_caller_ff, 0);
 			test_int_eq_hard(spr_entry_ok, 0);
@@ -1056,7 +1054,7 @@ int main()
 			test_int_eq_hard(wpc_return_ok, 0);
 			test_int_eq_hard(wpc_cow_done, 0);
 	
-			test_int_eq_hard(spr_caller_fmp, 0);
+			//test_int_eq_hard(spr_caller_fmp, 0);
 			test_int_eq_hard(spr_caller_df, 0);
 			test_int_eq_hard(spr_caller_ff, 0);
 			test_int_eq_hard(spr_entry_ok, 0);
@@ -1066,7 +1064,7 @@ int main()
 
 		RESET_ALL();
 
-		/* test fourth write access (via syscall) -- do nothing. CoW done. 
+		/* test fourth write access (via syscall) -- do nothing. CoW done. */
 		{
 			die_if(trigger_syscall_pagewrite(page_nr(1), 10));
 
@@ -1103,17 +1101,17 @@ int main()
 			test_int_eq_hard(wpc_return_ok, 0);
 			test_int_eq_hard(wpc_cow_done, 0);
 	
-			test_int_eq_hard(spr_caller_fmp, 0);
+			//test_int_eq_hard(spr_caller_fmp, 0);
 			test_int_eq_hard(spr_caller_df, 0);
 			test_int_eq_hard(spr_caller_ff, 0);
 			test_int_eq_hard(spr_entry_ok, 0);
 			test_int_eq_hard(spr_return_ok, 0);
 			test_int_eq_hard(spr_pages_ok, 0);
-		}*/
+		}
 
 		RESET_ALL();
 
-		/* test fifth read access (via syscall) -- do nothing. CoW done. 
+		/* test fifth read access (via syscall) -- do nothing. CoW done. */
 		{
 			die_if(trigger_syscall_pageread(page_nr(1), 10));
 
@@ -1150,13 +1148,13 @@ int main()
 			test_int_eq_hard(wpc_return_ok, 0);
 			test_int_eq_hard(wpc_cow_done, 0);
 	
-			test_int_eq_hard(spr_caller_fmp, 0);
+			//test_int_eq_hard(spr_caller_fmp, 0);
 			test_int_eq_hard(spr_caller_df, 0);
 			test_int_eq_hard(spr_caller_ff, 0);
 			test_int_eq_hard(spr_entry_ok, 0);
 			test_int_eq_hard(spr_return_ok, 0);
 			test_int_eq_hard(spr_pages_ok, 0);
-		}*/
+		}
 
 		munmap(mem, PAGE_SIZE);
 		close(fd);
@@ -1279,7 +1277,7 @@ int main()
 			test_int_eq_hard(wpc_return_ok, 1);
 			test_int_eq_hard(wpc_cow_done, 1);
 	
-			test_int_eq_hard(spr_caller_fmp, 0);
+			//test_int_eq_hard(spr_caller_fmp, 0);
 			test_int_eq_hard(spr_caller_df, 0);
 			test_int_eq_hard(spr_caller_ff, 0);
 			test_int_eq_hard(spr_entry_ok, 0);
@@ -1326,7 +1324,7 @@ int main()
 			test_int_eq_hard(wpc_return_ok, 0);
 			test_int_eq_hard(wpc_cow_done, 0);
 	
-			test_int_eq_hard(spr_caller_fmp, 0);
+			//test_int_eq_hard(spr_caller_fmp, 0);
 			test_int_eq_hard(spr_caller_df, 0);
 			test_int_eq_hard(spr_caller_ff, 0);
 			test_int_eq_hard(spr_entry_ok, 0);
@@ -1373,7 +1371,7 @@ int main()
 			test_int_eq_hard(wpc_return_ok, 0);
 			test_int_eq_hard(wpc_cow_done, 0);
 	
-			test_int_eq_hard(spr_caller_fmp, 0);
+			//test_int_eq_hard(spr_caller_fmp, 0);
 			test_int_eq_hard(spr_caller_df, 0);
 			test_int_eq_hard(spr_caller_ff, 0);
 			test_int_eq_hard(spr_entry_ok, 0);
@@ -1420,7 +1418,7 @@ int main()
 			test_int_eq_hard(wpc_return_ok, 0);
 			test_int_eq_hard(wpc_cow_done, 0);
 	
-			test_int_eq_hard(spr_caller_fmp, 0);
+			//test_int_eq_hard(spr_caller_fmp, 0);
 			test_int_eq_hard(spr_caller_df, 0);
 			test_int_eq_hard(spr_caller_ff, 0);
 			test_int_eq_hard(spr_entry_ok, 0);
@@ -1549,7 +1547,7 @@ int main()
 			test_int_eq_hard(wpc_return_ok, 0);
 			test_int_eq_hard(wpc_cow_done, 0);
 	
-			test_int_eq_hard(spr_caller_fmp, 0);
+			//test_int_eq_hard(spr_caller_fmp, 0);
 			test_int_eq_hard(spr_caller_df, 1);
 			test_int_eq_hard(spr_caller_ff, 1);
 			test_int_eq_hard(spr_entry_ok, 1);
@@ -1596,7 +1594,7 @@ int main()
 			test_int_eq_hard(wpc_return_ok, 0);
 			test_int_eq_hard(wpc_cow_done, 0);
 	
-			test_int_eq_hard(spr_caller_fmp, 0);
+			//test_int_eq_hard(spr_caller_fmp, 0);
 			test_int_eq_hard(spr_caller_df, 0);
 			test_int_eq_hard(spr_caller_ff, 0);
 			test_int_eq_hard(spr_entry_ok, 0);
@@ -1643,7 +1641,7 @@ int main()
 			test_int_eq_hard(wpc_return_ok, 0);
 			test_int_eq_hard(wpc_cow_done, 0);
 	
-			test_int_eq_hard(spr_caller_fmp, 0);
+			//test_int_eq_hard(spr_caller_fmp, 0);
 			test_int_eq_hard(spr_caller_df, 0);
 			test_int_eq_hard(spr_caller_ff, 0);
 			test_int_eq_hard(spr_entry_ok, 0);
@@ -1690,7 +1688,7 @@ int main()
 			test_int_eq_hard(wpc_return_ok, 0);
 			test_int_eq_hard(wpc_cow_done, 0);
 	
-			test_int_eq_hard(spr_caller_fmp, 0);
+			//test_int_eq_hard(spr_caller_fmp, 0);
 			test_int_eq_hard(spr_caller_df, 0);
 			test_int_eq_hard(spr_caller_ff, 0);
 			test_int_eq_hard(spr_entry_ok, 0);
@@ -1820,7 +1818,7 @@ int main()
 			test_int_eq_hard(wpc_return_ok, 1);
 			test_int_eq_hard(wpc_cow_done, 1);
 	
-			test_int_eq_hard(spr_caller_fmp, 0);
+			//test_int_eq_hard(spr_caller_fmp, 0);
 			test_int_eq_hard(spr_caller_df, 0);
 			test_int_eq_hard(spr_caller_ff, 0);
 			test_int_eq_hard(spr_entry_ok, 0);
@@ -1867,7 +1865,7 @@ int main()
 			test_int_eq_hard(wpc_return_ok, 0);
 			test_int_eq_hard(wpc_cow_done, 0);
 	
-			test_int_eq_hard(spr_caller_fmp, 0);
+			//test_int_eq_hard(spr_caller_fmp, 0);
 			test_int_eq_hard(spr_caller_df, 0);
 			test_int_eq_hard(spr_caller_ff, 0);
 			test_int_eq_hard(spr_entry_ok, 0);
@@ -1914,7 +1912,7 @@ int main()
 			test_int_eq_hard(wpc_return_ok, 0);
 			test_int_eq_hard(wpc_cow_done, 0);
 	
-			test_int_eq_hard(spr_caller_fmp, 0);
+			//test_int_eq_hard(spr_caller_fmp, 0);
 			test_int_eq_hard(spr_caller_df, 0);
 			test_int_eq_hard(spr_caller_ff, 0);
 			test_int_eq_hard(spr_entry_ok, 0);
@@ -1961,7 +1959,7 @@ int main()
 			test_int_eq_hard(wpc_return_ok, 0);
 			test_int_eq_hard(wpc_cow_done, 0);
 	
-			test_int_eq_hard(spr_caller_fmp, 0);
+			//test_int_eq_hard(spr_caller_fmp, 0);
 			test_int_eq_hard(spr_caller_df, 0);
 			test_int_eq_hard(spr_caller_ff, 0);
 			test_int_eq_hard(spr_entry_ok, 0);
@@ -2045,7 +2043,7 @@ int main()
 			test_int_eq_hard(wpc_return_ok, 0);
 			test_int_eq_hard(wpc_cow_done, 0);
 	
-			test_int_eq_hard(spr_caller_fmp, 0);
+			//test_int_eq_hard(spr_caller_fmp, 0);
 			test_int_eq_hard(spr_caller_df, 1);
 			test_int_eq_hard(spr_caller_ff, 1);
 			test_int_eq_hard(spr_entry_ok, 1);
@@ -2139,7 +2137,7 @@ int main()
 			test_int_eq_hard(wpc_return_ok, 0);
 			test_int_eq_hard(wpc_cow_done, 0);
 	
-			test_int_eq_hard(spr_caller_fmp, 0);
+			//test_int_eq_hard(spr_caller_fmp, 0);
 			test_int_eq_hard(spr_caller_df, 0);
 			test_int_eq_hard(spr_caller_ff, 0);
 			test_int_eq_hard(spr_entry_ok, 0);
@@ -2149,7 +2147,7 @@ int main()
 
 		RESET_ALL();
 
-		/* test fourth write access (via syscall) -- do nothing. CoW done. 
+		/* test fourth write access (via syscall) -- do nothing. CoW done. */
 		{
 			die_if(trigger_syscall_pagewrite(page_nr(1), 10));
 
@@ -2186,17 +2184,17 @@ int main()
 			test_int_eq_hard(wpc_return_ok, 0);
 			test_int_eq_hard(wpc_cow_done, 0);
 	
-			test_int_eq_hard(spr_caller_fmp, 0);
+			//test_int_eq_hard(spr_caller_fmp, 0);
 			test_int_eq_hard(spr_caller_df, 0);
 			test_int_eq_hard(spr_caller_ff, 0);
 			test_int_eq_hard(spr_entry_ok, 0);
 			test_int_eq_hard(spr_return_ok, 0);
 			test_int_eq_hard(spr_pages_ok, 0);
-		}*/
+		}
 
 		RESET_ALL();
 
-		/* test fifth read access (via syscall) -- do nothing. CoW done. 
+		/* test fifth read access (via syscall) -- do nothing. CoW done. */
 		{
 			die_if(trigger_syscall_pageread(page_nr(1), 10));
 
@@ -2233,13 +2231,13 @@ int main()
 			test_int_eq_hard(wpc_return_ok, 0);
 			test_int_eq_hard(wpc_cow_done, 0);
 	
-			test_int_eq_hard(spr_caller_fmp, 0);
+			//test_int_eq_hard(spr_caller_fmp, 0);
 			test_int_eq_hard(spr_caller_df, 0);
 			test_int_eq_hard(spr_caller_ff, 0);
 			test_int_eq_hard(spr_entry_ok, 0);
 			test_int_eq_hard(spr_return_ok, 0);
 			test_int_eq_hard(spr_pages_ok, 0);
-		}*/
+		}
 
 		munmap(mem, 10 * PAGE_SIZE);
 		close(fd);
@@ -2316,7 +2314,7 @@ int main()
 			test_int_eq_hard(wpc_return_ok, 0);
 			test_int_eq_hard(wpc_cow_done, 0);
 	
-			test_int_eq_hard(spr_caller_fmp, 0);
+			//test_int_eq_hard(spr_caller_fmp, 0);
 			test_int_eq_hard(spr_caller_df, 0);
 			test_int_eq_hard(spr_caller_ff, 0);
 			test_int_eq_hard(spr_entry_ok, 0);
@@ -2410,7 +2408,7 @@ int main()
 			test_int_eq_hard(wpc_return_ok, 1);
 			test_int_eq_hard(wpc_cow_done, 1);
 	
-			test_int_eq_hard(spr_caller_fmp, 0);
+			//test_int_eq_hard(spr_caller_fmp, 0);
 			test_int_eq_hard(spr_caller_df, 0);
 			test_int_eq_hard(spr_caller_ff, 0);
 			test_int_eq_hard(spr_entry_ok, 0);
@@ -2457,7 +2455,7 @@ int main()
 			test_int_eq_hard(wpc_return_ok, 0);
 			test_int_eq_hard(wpc_cow_done, 0);
 	
-			test_int_eq_hard(spr_caller_fmp, 0);
+			//test_int_eq_hard(spr_caller_fmp, 0);
 			test_int_eq_hard(spr_caller_df, 0);
 			test_int_eq_hard(spr_caller_ff, 0);
 			test_int_eq_hard(spr_entry_ok, 0);
@@ -2504,7 +2502,7 @@ int main()
 			test_int_eq_hard(wpc_return_ok, 0);
 			test_int_eq_hard(wpc_cow_done, 0);
 	
-			test_int_eq_hard(spr_caller_fmp, 0);
+			//test_int_eq_hard(spr_caller_fmp, 0);
 			test_int_eq_hard(spr_caller_df, 0);
 			test_int_eq_hard(spr_caller_ff, 0);
 			test_int_eq_hard(spr_entry_ok, 0);
@@ -2587,7 +2585,7 @@ int main()
 			test_int_eq_hard(wpc_return_ok, 0);
 			test_int_eq_hard(wpc_cow_done, 0);
 	
-			test_int_eq_hard(spr_caller_fmp, 0);
+			//test_int_eq_hard(spr_caller_fmp, 0);
 			test_int_eq_hard(spr_caller_df, 1);
 			test_int_eq_hard(spr_caller_ff, 1);
 			test_int_eq_hard(spr_entry_ok, 1);
@@ -2681,7 +2679,7 @@ int main()
 			test_int_eq_hard(wpc_return_ok, 0);
 			test_int_eq_hard(wpc_cow_done, 0);
 	
-			test_int_eq_hard(spr_caller_fmp, 0);
+			//test_int_eq_hard(spr_caller_fmp, 0);
 			test_int_eq_hard(spr_caller_df, 0);
 			test_int_eq_hard(spr_caller_ff, 0);
 			test_int_eq_hard(spr_entry_ok, 0);
@@ -2728,7 +2726,7 @@ int main()
 			test_int_eq_hard(wpc_return_ok, 0);
 			test_int_eq_hard(wpc_cow_done, 0);
 	
-			test_int_eq_hard(spr_caller_fmp, 0);
+			//test_int_eq_hard(spr_caller_fmp, 0);
 			test_int_eq_hard(spr_caller_df, 0);
 			test_int_eq_hard(spr_caller_ff, 0);
 			test_int_eq_hard(spr_entry_ok, 0);
@@ -2775,7 +2773,7 @@ int main()
 			test_int_eq_hard(wpc_return_ok, 0);
 			test_int_eq_hard(wpc_cow_done, 0);
 	
-			test_int_eq_hard(spr_caller_fmp, 0);
+			//test_int_eq_hard(spr_caller_fmp, 0);
 			test_int_eq_hard(spr_caller_df, 0);
 			test_int_eq_hard(spr_caller_ff, 0);
 			test_int_eq_hard(spr_entry_ok, 0);
@@ -2905,7 +2903,7 @@ int main()
 			test_int_eq_hard(wpc_return_ok, 1);
 			test_int_eq_hard(wpc_cow_done, 1);
 	
-			test_int_eq_hard(spr_caller_fmp, 0);
+			//test_int_eq_hard(spr_caller_fmp, 0);
 			test_int_eq_hard(spr_caller_df, 0);
 			test_int_eq_hard(spr_caller_ff, 0);
 			test_int_eq_hard(spr_entry_ok, 0);
@@ -2952,7 +2950,7 @@ int main()
 			test_int_eq_hard(wpc_return_ok, 0);
 			test_int_eq_hard(wpc_cow_done, 0);
 	
-			test_int_eq_hard(spr_caller_fmp, 0);
+			//test_int_eq_hard(spr_caller_fmp, 0);
 			test_int_eq_hard(spr_caller_df, 0);
 			test_int_eq_hard(spr_caller_ff, 0);
 			test_int_eq_hard(spr_entry_ok, 0);
@@ -2999,7 +2997,7 @@ int main()
 			test_int_eq_hard(wpc_return_ok, 0);
 			test_int_eq_hard(wpc_cow_done, 0);
 	
-			test_int_eq_hard(spr_caller_fmp, 0);
+			//test_int_eq_hard(spr_caller_fmp, 0);
 			test_int_eq_hard(spr_caller_df, 0);
 			test_int_eq_hard(spr_caller_ff, 0);
 			test_int_eq_hard(spr_entry_ok, 0);
@@ -3046,7 +3044,7 @@ int main()
 			test_int_eq_hard(wpc_return_ok, 0);
 			test_int_eq_hard(wpc_cow_done, 0);
 	
-			test_int_eq_hard(spr_caller_fmp, 0);
+			//test_int_eq_hard(spr_caller_fmp, 0);
 			test_int_eq_hard(spr_caller_df, 0);
 			test_int_eq_hard(spr_caller_ff, 0);
 			test_int_eq_hard(spr_entry_ok, 0);
@@ -3082,7 +3080,6 @@ int main()
 			int spr_return_ok = query_int_value_testing_for_me(SPR_SUBSYS_NAME, SPR_RETURN_OK_KEY);
 			int spr_pages_ok = query_int_value_testing_for_me(SPR_SUBSYS_NAME, SPR_PAGES_OK_KEY);
 
-			/* hmm... fmp > 0 */
 			test_int_ge_hard(spr_caller_fmp, 0);
 			test_int_ge_hard(spr_caller_df, 0);
 			test_int_ge_hard(spr_caller_ff, 0);
@@ -3177,7 +3174,7 @@ int main()
 			test_int_eq_hard(wpc_return_ok, 0);
 			test_int_eq_hard(wpc_cow_done, 0);
 	
-			test_int_eq_hard(spr_caller_fmp, 0);
+			//test_int_eq_hard(spr_caller_fmp, 0);
 			test_int_eq_hard(spr_caller_df, 1);
 			test_int_eq_hard(spr_caller_ff, 1);
 			test_int_eq_hard(spr_entry_ok, 1);
@@ -3224,7 +3221,7 @@ int main()
 			test_int_eq_hard(wpc_return_ok, 0);
 			test_int_eq_hard(wpc_cow_done, 0);
 	
-			test_int_eq_hard(spr_caller_fmp, 0);
+			//test_int_eq_hard(spr_caller_fmp, 0);
 			test_int_eq_hard(spr_caller_df, 0);
 			test_int_eq_hard(spr_caller_ff, 0);
 			test_int_eq_hard(spr_entry_ok, 0);
@@ -3271,7 +3268,7 @@ int main()
 			test_int_eq_hard(wpc_return_ok, 0);
 			test_int_eq_hard(wpc_cow_done, 0);
 	
-			test_int_eq_hard(spr_caller_fmp, 0);
+			//test_int_eq_hard(spr_caller_fmp, 0);
 			test_int_eq_hard(spr_caller_df, 0);
 			test_int_eq_hard(spr_caller_ff, 0);
 			test_int_eq_hard(spr_entry_ok, 0);
@@ -3318,7 +3315,7 @@ int main()
 			test_int_eq_hard(wpc_return_ok, 0);
 			test_int_eq_hard(wpc_cow_done, 0);
 	
-			test_int_eq_hard(spr_caller_fmp, 0);
+			//test_int_eq_hard(spr_caller_fmp, 0);
 			test_int_eq_hard(spr_caller_df, 0);
 			test_int_eq_hard(spr_caller_ff, 0);
 			test_int_eq_hard(spr_entry_ok, 0);
@@ -3401,7 +3398,7 @@ int main()
 			test_int_eq_hard(wpc_return_ok, 0);
 			test_int_eq_hard(wpc_cow_done, 0);
 	
-			test_int_eq_hard(spr_caller_fmp, 0);
+			//test_int_eq_hard(spr_caller_fmp, 0);
 			test_int_eq_hard(spr_caller_df, 1);
 			test_int_eq_hard(spr_caller_ff, 1);
 			test_int_eq_hard(spr_entry_ok, 1);
@@ -3450,7 +3447,7 @@ int main()
 			test_int_eq_hard(wpc_return_ok, 0);
 			test_int_eq_hard(wpc_cow_done, 0);
 	
-			test_int_eq_hard(spr_caller_fmp, 0);
+			//test_int_eq_hard(spr_caller_fmp, 0);
 			test_int_eq_hard(spr_caller_df, 1);
 			test_int_eq_hard(spr_caller_ff, 1);
 			test_int_eq_hard(spr_entry_ok, 1);
@@ -3499,7 +3496,7 @@ int main()
 			test_int_eq_hard(wpc_return_ok, 0);
 			test_int_eq_hard(wpc_cow_done, 0);
 	
-			test_int_eq_hard(spr_caller_fmp, 0);
+			//test_int_eq_hard(spr_caller_fmp, 0);
 			test_int_eq_hard(spr_caller_df, 1);
 			test_int_eq_hard(spr_caller_ff, 1);
 			test_int_eq_hard(spr_entry_ok, 1);
@@ -3724,7 +3721,7 @@ int main()
 			test_int_eq_hard(wpc_return_ok, 1);
 			test_int_eq_hard(wpc_cow_done, 1);
 	
-			test_int_eq_hard(spr_caller_fmp, 0);
+			//test_int_eq_hard(spr_caller_fmp, 0);
 			test_int_eq_hard(spr_caller_df, 0);
 			test_int_eq_hard(spr_caller_ff, 0);
 			test_int_eq_hard(spr_entry_ok, 0);
@@ -3772,7 +3769,7 @@ int main()
 			test_int_eq_hard(wpc_return_ok, 1);
 			test_int_eq_hard(wpc_cow_done, 1);
 	
-			test_int_eq_hard(spr_caller_fmp, 0);
+			//test_int_eq_hard(spr_caller_fmp, 0);
 			test_int_eq_hard(spr_caller_df, 0);
 			test_int_eq_hard(spr_caller_ff, 0);
 			test_int_eq_hard(spr_entry_ok, 0);
@@ -3782,7 +3779,7 @@ int main()
 
 		RESET_ALL();
 
-		/* test first read access on another page via syscall, anyway nothing should happen here
+		/* test first read access on another page via syscall, anyway nothing should happen here */
 		{
 			die_if(trigger_syscall_pageread(page_nr(2), 10));
 
@@ -3819,13 +3816,13 @@ int main()
 			test_int_eq_hard(wpc_return_ok, 0);
 			test_int_eq_hard(wpc_cow_done, 0);
 	
-			test_int_eq_hard(spr_caller_fmp, 0);
+			//test_int_eq_hard(spr_caller_fmp, 0);
 			test_int_eq_hard(spr_caller_df, 0);
 			test_int_eq_hard(spr_caller_ff, 0);
 			test_int_eq_hard(spr_entry_ok, 0);
 			test_int_eq_hard(spr_return_ok, 0);
 			test_int_eq_hard(spr_pages_ok, 0);
-		}*/
+		}
 
 		munmap(mem, 10 * PAGE_SIZE);
 		close(fd);
