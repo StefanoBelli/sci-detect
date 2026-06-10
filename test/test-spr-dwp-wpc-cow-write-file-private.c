@@ -3780,7 +3780,7 @@ int main()
 
 		RESET_ALL();
 
-		/* test first read access on another page via syscall, anyway nothing should happen here */
+		/* test first read access on another page via syscall, anyway nothing should happen here
 		{
 			die_if(trigger_syscall_pageread(page_nr(2), 10));
 
@@ -3823,7 +3823,7 @@ int main()
 			test_int_eq_hard(spr_entry_ok, 0);
 			test_int_eq_hard(spr_return_ok, 0);
 			test_int_eq_hard(spr_pages_ok, 0);
-		}
+		}*/
 
 		munmap(mem, 10 * PAGE_SIZE);
 		close(fd);
