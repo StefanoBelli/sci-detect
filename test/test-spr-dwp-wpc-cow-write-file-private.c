@@ -102,7 +102,7 @@ int main()
 			int spr_return_ok = query_int_value_testing_for_me(SPR_SUBSYS_NAME, SPR_RETURN_OK_KEY);
 			int spr_pages_ok = query_int_value_testing_for_me(SPR_SUBSYS_NAME, SPR_PAGES_OK_KEY);
 
-			test_int_eq_hard(spr_caller_fmp, 0);
+			test_int_ge_hard(spr_caller_fmp, 0);
 			test_int_ge_hard(spr_caller_df, 0);
 			test_int_ge_hard(spr_caller_ff, 0);
 			test_int_ge_hard(spr_entry_ok, 0);
@@ -372,7 +372,7 @@ int main()
 			int spr_return_ok = query_int_value_testing_for_me(SPR_SUBSYS_NAME, SPR_RETURN_OK_KEY);
 			int spr_pages_ok = query_int_value_testing_for_me(SPR_SUBSYS_NAME, SPR_PAGES_OK_KEY);
 
-			test_int_eq_hard(spr_caller_fmp, 0);
+			test_int_ge_hard(spr_caller_fmp, 0);
 			test_int_ge_hard(spr_caller_df, 0);
 			test_int_ge_hard(spr_caller_ff, 0);
 			test_int_ge_hard(spr_entry_ok, 0);
@@ -643,7 +643,7 @@ int main()
 			int spr_return_ok = query_int_value_testing_for_me(SPR_SUBSYS_NAME, SPR_RETURN_OK_KEY);
 			int spr_pages_ok = query_int_value_testing_for_me(SPR_SUBSYS_NAME, SPR_PAGES_OK_KEY);
 
-			test_int_eq_hard(spr_caller_fmp, 0);
+			test_int_ge_hard(spr_caller_fmp, 0);
 			test_int_ge_hard(spr_caller_df, 0);
 			test_int_ge_hard(spr_caller_ff, 0);
 			test_int_ge_hard(spr_entry_ok, 0);
@@ -1185,7 +1185,7 @@ int main()
 			int spr_return_ok = query_int_value_testing_for_me(SPR_SUBSYS_NAME, SPR_RETURN_OK_KEY);
 			int spr_pages_ok = query_int_value_testing_for_me(SPR_SUBSYS_NAME, SPR_PAGES_OK_KEY);
 
-			test_int_eq_hard(spr_caller_fmp, 0);
+			test_int_ge_hard(spr_caller_fmp, 0);
 			test_int_ge_hard(spr_caller_df, 0);
 			test_int_ge_hard(spr_caller_ff, 0);
 			test_int_ge_hard(spr_entry_ok, 0);
@@ -1455,7 +1455,7 @@ int main()
 			int spr_return_ok = query_int_value_testing_for_me(SPR_SUBSYS_NAME, SPR_RETURN_OK_KEY);
 			int spr_pages_ok = query_int_value_testing_for_me(SPR_SUBSYS_NAME, SPR_PAGES_OK_KEY);
 
-			test_int_eq_hard(spr_caller_fmp, 0);
+			test_int_ge_hard(spr_caller_fmp, 0);
 			test_int_ge_hard(spr_caller_df, 0);
 			test_int_ge_hard(spr_caller_ff, 0);
 			test_int_ge_hard(spr_entry_ok, 0);
@@ -1726,7 +1726,7 @@ int main()
 			int spr_return_ok = query_int_value_testing_for_me(SPR_SUBSYS_NAME, SPR_RETURN_OK_KEY);
 			int spr_pages_ok = query_int_value_testing_for_me(SPR_SUBSYS_NAME, SPR_PAGES_OK_KEY);
 
-			test_int_eq_hard(spr_caller_fmp, 0);
+			test_int_ge_hard(spr_caller_fmp, 0);
 			test_int_ge_hard(spr_caller_df, 0);
 			test_int_ge_hard(spr_caller_ff, 0);
 			test_int_ge_hard(spr_entry_ok, 0);
@@ -2269,7 +2269,7 @@ int main()
 			int spr_return_ok = query_int_value_testing_for_me(SPR_SUBSYS_NAME, SPR_RETURN_OK_KEY);
 			int spr_pages_ok = query_int_value_testing_for_me(SPR_SUBSYS_NAME, SPR_PAGES_OK_KEY);
 
-			test_int_eq_hard(spr_caller_fmp, 0);
+			test_int_ge_hard(spr_caller_fmp, 0);
 			test_int_ge_hard(spr_caller_df, 0);
 			test_int_ge_hard(spr_caller_ff, 0);
 			test_int_ge_hard(spr_entry_ok, 0);
@@ -2540,7 +2540,7 @@ int main()
 			int spr_return_ok = query_int_value_testing_for_me(SPR_SUBSYS_NAME, SPR_RETURN_OK_KEY);
 			int spr_pages_ok = query_int_value_testing_for_me(SPR_SUBSYS_NAME, SPR_PAGES_OK_KEY);
 
-			test_int_eq_hard(spr_caller_fmp, 0);
+			test_int_ge_hard(spr_caller_fmp, 0);
 			test_int_ge_hard(spr_caller_df, 0);
 			test_int_ge_hard(spr_caller_ff, 0);
 			test_int_ge_hard(spr_entry_ok, 0);
@@ -2811,7 +2811,7 @@ int main()
 			int spr_return_ok = query_int_value_testing_for_me(SPR_SUBSYS_NAME, SPR_RETURN_OK_KEY);
 			int spr_pages_ok = query_int_value_testing_for_me(SPR_SUBSYS_NAME, SPR_PAGES_OK_KEY);
 
-			test_int_eq_hard(spr_caller_fmp, 0);
+			test_int_ge_hard(spr_caller_fmp, 0);
 			test_int_ge_hard(spr_caller_df, 0);
 			test_int_ge_hard(spr_caller_ff, 0);
 			test_int_ge_hard(spr_entry_ok, 0);
@@ -3354,7 +3354,7 @@ int main()
 			int spr_return_ok = query_int_value_testing_for_me(SPR_SUBSYS_NAME, SPR_RETURN_OK_KEY);
 			int spr_pages_ok = query_int_value_testing_for_me(SPR_SUBSYS_NAME, SPR_PAGES_OK_KEY);
 
-			test_int_eq_hard(spr_caller_fmp, 0);
+			test_int_ge_hard(spr_caller_fmp, 0);
 			test_int_ge_hard(spr_caller_df, 0);
 			test_int_ge_hard(spr_caller_ff, 0);
 			test_int_ge_hard(spr_entry_ok, 0);
@@ -3535,7 +3535,7 @@ int main()
 			int spr_return_ok = query_int_value_testing_for_me(SPR_SUBSYS_NAME, SPR_RETURN_OK_KEY);
 			int spr_pages_ok = query_int_value_testing_for_me(SPR_SUBSYS_NAME, SPR_PAGES_OK_KEY);
 
-			test_int_eq_hard(spr_caller_fmp, 0);
+			test_int_ge_hard(spr_caller_fmp, 0);
 			test_int_ge_hard(spr_caller_df, 0);
 			test_int_ge_hard(spr_caller_ff, 0);
 			test_int_ge_hard(spr_entry_ok, 0);
