@@ -841,7 +841,7 @@ int main()
 
 		RESET_ALL();
 
-		/* test fifth read access (via syscall) -- do nothing. CoW done. 
+		/* test fifth read access (via syscall) -- do nothing. CoW done. */
 		{
 			die_if(trigger_syscall_pageread(page_nr(1), 10));
 
@@ -884,7 +884,7 @@ int main()
 			test_int_eq_hard(spr_entry_ok, 0);
 			test_int_eq_hard(spr_return_ok, 0);
 			test_int_eq_hard(spr_pages_ok, 0);
-		}*/
+		}
 
 		munmap(mem, PAGE_SIZE);
 		close(fd);
