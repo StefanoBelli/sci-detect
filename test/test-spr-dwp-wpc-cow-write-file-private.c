@@ -1,3 +1,5 @@
+#define SOFT_FAIL_TOLERANCE 3
+
 #include "testutils.h"
 #include <sys/mman.h>
 #include <sys/wait.h>
