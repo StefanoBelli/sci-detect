@@ -23,7 +23,7 @@ static struct kprobe *kps[] = {
 
 static const struct subsys_regi_args add_tests[] = {
 	{
-		.name = "add-dap-hook",
+		.name = "pte-page-track-dap-hook",
 		.kvt = {
 			ATOMICALLY_INCREMENTED_KEY("entry"),
 			ATOMICALLY_INCREMENTED_KEY("zero-page"),
@@ -34,7 +34,7 @@ static const struct subsys_regi_args add_tests[] = {
 		}
 	},
 	{
-		.name = "add-dwp-hook",
+		.name = "pte-page-track-dwp-hook",
 		.kvt = {
 			ATOMICALLY_INCREMENTED_KEY("fmw-entry"),
 			ATOMICALLY_INCREMENTED_KEY("entry"),
@@ -49,7 +49,7 @@ static const struct subsys_regi_args add_tests[] = {
 		}
 	},
 	{
-		.name = "add-wpc-hook",
+		.name = "pte-page-track-wpc-hook",
 		.kvt = {
 			ATOMICALLY_INCREMENTED_KEY("entry"),
 			ATOMICALLY_INCREMENTED_KEY("entry-checks-pass"),
@@ -60,7 +60,7 @@ static const struct subsys_regi_args add_tests[] = {
 		}
 	},
 	{
-		.name = "add-spr-hook",
+		.name = "pte-page-track-spr-hook",
 		.kvt = {
 			ATOMICALLY_INCREMENTED_KEY("caller-fmp"),
 			ATOMICALLY_INCREMENTED_KEY("caller-df"),
@@ -77,4 +77,4 @@ static const struct subsys_regi_args add_tests[] = {
 #endif 
 
 /* don't touch */
-GENERATE_SETUP_AND_TEARDOWN_CODE(add, kps, krps, add_tests);
+GENERATE_SETUP_AND_TEARDOWN_CODE(pte_page_track, kps, krps, add_tests);

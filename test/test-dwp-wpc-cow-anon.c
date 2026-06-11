@@ -3,7 +3,7 @@
 #include <sys/wait.h>
 
 /* do_wp_page */
-#define DWP_SUBSYS_NAME "add-dwp-hook"
+#define DWP_SUBSYS_NAME "pte-page-track-dwp-hook"
 
 #define DWP_ENTRY_KEY "entry"
 #define DWP_WPR_PATH_TAKEN_KEY "wpr-path-taken"
@@ -14,7 +14,7 @@
 #define DWP_WPR_PAGE_OK_KEY "wpr-page-ok"
 
 /* wp_page_copy */
-#define WPC_SUBSYS_NAME "add-wpc-hook"
+#define WPC_SUBSYS_NAME "pte-page-track-wpc-hook"
 
 #define WPC_ENTRY_KEY "entry"
 #define WPC_ENTRY_CHECKS_PASS_KEY "entry-checks-pass"

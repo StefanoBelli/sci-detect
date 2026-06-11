@@ -1,13 +1,9 @@
 #include <hooks.h>
+#include <hooks/setuputils.h>
 #include <logging.h>
 
-extern int __setup_add_hooks(void);
-extern int __setup_chg_hooks(void);
-extern int __setup_del_hooks(void);
-
-extern void __teardown_add_hooks(void);
-extern void __teardown_chg_hooks(void);
-extern void __teardown_del_hooks(void);
+extern SETUP_HOOKSGROUP_SIGNATURE(pte_page_track);
+extern TEARDOWN_HOOKSGROUP_SIGNATURE(pte_page_track);
 
 struct hooks_group_desc {
 	const char *name;
@@ -18,24 +14,10 @@ struct hooks_group_desc {
 
 static struct hooks_group_desc hooksgroups[] = {
 	{
-		.name = "add",
-		.brief = "hooks that cause the start of page-state tracking",
-		.setup = __setup_add_hooks,
-		.teardown = __teardown_add_hooks,
-	},
-	
-	{
-		.name = "chg",
-		.brief = "hooks that cause the change of state for the tracked page",
-		.setup = __setup_chg_hooks,
-		.teardown = __teardown_chg_hooks,
-	},
-
-	{
-		.name = "del",
-		.brief = "hooks that cause the untracking of page-state",
-		.setup = __setup_del_hooks,
-		.teardown = __teardown_del_hooks,
+		.name = "pte-page-track",
+		.brief = "hooks that track page frames by looking at PTE level",
+		.setup = SETUP_SYM(pte_page_track),
+		.teardown = TEARDOWN_SYM(pte_page_track),
 	},
 };
 

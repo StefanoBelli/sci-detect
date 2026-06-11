@@ -26,6 +26,18 @@ struct __base_setup_hooks_args {
 int __base_setup_hooks(struct __base_setup_hooks_args*);
 void __base_teardown_hooks(struct __base_setup_hooks_args*);
 
+#define SETUP_SYM(x) \
+	__setup_##x##_hooks
+
+#define TEARDOWN_SYM(x) \
+	__teardown_##x##_hooks
+
+#define SETUP_HOOKSGROUP_SIGNATURE(x) \
+	int SETUP_SYM(x)(void)
+
+#define TEARDOWN_HOOKSGROUP_SIGNATURE(x) \
+	void TEARDOWN_SYM(x)(void)
+
 #ifdef SCID_CONFIG_TESTING
 
 #include <testing/testing.h>
@@ -33,24 +45,24 @@ void __base_teardown_hooks(struct __base_setup_hooks_args*);
 
 #define __size_type typeof(sizeof(0))
 
-#define GENERATE_SETUP_AND_TEARDOWN_CODE(_hookgroup_, _kps_, _krps_, _tests_arr_) \
+#define GENERATE_SETUP_AND_TEARDOWN_CODE(_hooksgroup_, _kps_, _krps_, _tests_arr_) \
 	static_assert( \
 			__builtin_types_compatible_p( \
 				typeof((_tests_arr_)), \
 				typeof(struct subsys_regi_args[]))); \
 	\
-	static inline int __hookgroup_test_regi( \
+	static inline int __hooksgroup_test_regi( \
 		const struct subsys_regi_args *tests, \
 		__size_type tests_len, \
-		const char* hookgroup) \
+		const char* hooksgroup) \
 	{ \
 		if(!tests_len) { \
-			scid_infof("no tests were found for hookgroup %s (they're %ld)", hookgroup, tests_len); \
+			scid_infof("no tests were found for hooksgroup %s (they're %ld)", hooksgroup, tests_len); \
 			return 0; \
 		} \
 		\
 		for(__size_type i = 0; i < tests_len; i++) { \
-			scid_infof("registering %s/%s for testing...", hookgroup, tests[i].name); \
+			scid_infof("registering %s for testing...", tests[i].name); \
 			if(!testing_register_subsys(&tests[i])) \
 				return -1; \
 		} \
@@ -58,34 +70,34 @@ void __base_teardown_hooks(struct __base_setup_hooks_args*);
 		return 0; \
 	} \
 	\
-	int __setup_##_hookgroup_##_hooks(void); \
-	void __teardown_##_hookgroup_##_hooks(void); \
+	SETUP_HOOKSGROUP_SIGNATURE(_hooksgroup_); \
+	TEARDOWN_HOOKSGROUP_SIGNATURE(_hooksgroup_); \
 	\
 	__DEFINE_BASE_SETUP_HOOKS_ARGS(bsha, kps, krps); \
 	\
-	int __setup_##_hookgroup_##_hooks(void) \
+	SETUP_HOOKSGROUP_SIGNATURE(_hooksgroup_) \
 	{ \
 		__size_type nr_tests = __static_array_size((_tests_arr_),[0],); \
-		if(__hookgroup_test_regi((_tests_arr_), nr_tests, #_hookgroup_)) \
+		if(__hooksgroup_test_regi((_tests_arr_), nr_tests, #_hooksgroup_)) \
 			return -1; \
 		return __base_setup_hooks(&bsha); \
 	} \
-	void __teardown_##_hookgroup_##_hooks(void) \
+	TEARDOWN_HOOKSGROUP_SIGNATURE(_hooksgroup_) \
 	{ \
 		__base_teardown_hooks(&bsha); \
 	}
 #else
-#define GENERATE_SETUP_AND_TEARDOWN_CODE(_hookgroup_, _kps_, _krps_, __unused) \
-	int __setup_##_hookgroup_##_hooks(void); \
-	void __teardown_##_hookgroup_##_hooks(void); \
+#define GENERATE_SETUP_AND_TEARDOWN_CODE(_hooksgroup_, _kps_, _krps_, __unused) \
+	SETUP_HOOKSGROUP_SIGNATURE(_hooksgroup_); \
+	TEARDOWN_HOOKSGROUP_SIGNATURE(_hooksgroup_); \
 	\
 	__DEFINE_BASE_SETUP_HOOKS_ARGS(bsha, kps, krps); \
 	\
-	int __setup_##_hookgroup_##_hooks(void) \
+	SETUP_HOOKSGROUP_SIGNATURE(_hooksgroup_) \
 	{ \
 		return __base_setup_hooks(&bsha); \
 	} \
-	void __teardown_##_hookgroup_##_hooks(void) \
+	TEARDOWN_HOOKSGROUP_SIGNATURE(_hooksgroup_) \
 	{ \
 		__base_teardown_hooks(&bsha); \
 	}

@@ -3,7 +3,7 @@
 #include <sys/wait.h>
 #include <sys/shm.h>
 
-#define SUBSYS_NAME "add-spr-hook"
+#define SUBSYS_NAME "pte-page-track-spr-hook"
 
 #define CALLER_FMP_KEY "caller-fmp"
 #define CALLER_DF_KEY "caller-df"

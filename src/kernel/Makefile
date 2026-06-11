@@ -12,25 +12,14 @@ $(modname)-objs += \
 	\
 		hooks/setuputils.o \
 		\
-			hooks/add/hpf.o \
-			hooks/add/dap.o \
-			hooks/add/wpc.o \
-			hooks/add/dwp.o \
-			hooks/add/spr.o \
+			hooks/pte-page-track/hpf.o \
+			hooks/pte-page-track/dap.o \
+			hooks/pte-page-track/wpc.o \
+			hooks/pte-page-track/dwp.o \
+			hooks/pte-page-track/spr.o \
 			\
-				hooks/add/utils/addpages.o \
-				hooks/add/utils/setup.o \
-			\
-		\
-			hooks/chg/cpr.o \
-			\
-				hooks/chg/utils/setup.o \
-			\
-		\
-			\
-				hooks/del/utils/setup.o \
-			\
-		\
+				hooks/pte-page-track/utils/addpages.o \
+				hooks/pte-page-track/utils/setup.o
 
 ccflags-y += -Wall -W -Wextra -I$(src)/include -Wno-shadow
 

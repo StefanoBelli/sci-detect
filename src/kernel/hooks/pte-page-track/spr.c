@@ -6,10 +6,10 @@
 
 #include <vmfs.h>
 #include <logging.h>
-#include <hooks/add/utils/addpages.h>
+#include <hooks/pte-page-track/utils/addpages.h>
 #include <testing/testing.h>
 
-#define __testing(key) testing_setval("add-spr-hook", key, NULL)
+#define MY_TESTING_SUBSYS_NAME "pte-page-track-spr-hook"
 
 typedef unsigned long __ckb_type;
 

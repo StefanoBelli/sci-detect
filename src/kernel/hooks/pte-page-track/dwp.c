@@ -5,11 +5,10 @@
 
 #include <vmfs.h>
 #include <logging.h>
-#include <hooks/add/utils/addpages.h>
+#include <hooks/pte-page-track/utils/addpages.h>
 #include <testing/testing.h>
 
-#define __testing(key) testing_setval("add-dwp-hook", key, NULL)
-
+#define MY_TESTING_SUBSYS_NAME "pte-page-track-dwp-hook"
 
 /* since private may be changed frequently... */
 static_assert(

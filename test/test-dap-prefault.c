@@ -1,7 +1,7 @@
 #include "testutils.h"
 #include <sys/mman.h>
 
-#define SUBSYS_NAME "add-dap-hook"
+#define SUBSYS_NAME "pte-page-track-dap-hook"
 #define ENTRY_KEY "entry"
 #define ZEROPAGE_KEY "zero-page"
 #define RETURNOK_KEY "return-ok"

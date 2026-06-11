@@ -590,10 +590,8 @@ bool testing_register_subsys(__maybe_unused const struct subsys_regi_args *args)
 	/* warning: no lock needed for the main "subsys" list */
 	list_add(&sut->other_subsyses, &sut_head);
 
-	return true;
-#else
-	return true;
 #endif
+	return true;
 
 }
 
@@ -606,10 +604,8 @@ int setup_testing(void)
 	if(!__testing_root_expose())
 		return -1;
 
-	return 0;
-#else
-	return 0;
 #endif
+	return 0;
 
 }
 

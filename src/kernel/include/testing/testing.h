@@ -128,4 +128,8 @@ int __do_testing_setval(const char *subsys_name, const char *key, void *args);
 #define testing_setval(x, y, z) ({0;})
 #endif
 
+/* helpers */
+#define __testing(key) testing_setval(MY_TESTING_SUBSYS_NAME, (key), NULL)
+#define __testing_arg(key, arg) testing_setval(MY_TESTING_SUBSYS_NAME, (key), (arg))
+
 #endif
