@@ -6,6 +6,7 @@
 #include <vmfs.h>
 #include <logging.h>
 #include <hooks/pte-page-track/utils/addpages.h>
+#include <hooks/pte-page-track/utils/check_orig_pte.h>
 #include <testing/testing.h>
 
 #define MY_TESTING_SUBSYS_NAME "pte-page-track-dwp-hook"
@@ -165,41 +166,16 @@ struct kretprobe do_wp_page__krp = {
 	.data_size = sizeof(struct vm_fault_entry*),
 };
 
-static int ____do_wpr_prior_checks(struct vm_fault *vmf)
+static bool ____do_wpr_prior_checks(struct vm_fault *vmf)
 {
-	if(!(vmf->flags & FAULT_FLAG_WRITE) && !(vmf->flags & FAULT_FLAG_MKWRITE)) {
-		scid_err("expecting write or mkwrite fault");
-		return 0;
-	}
-
-	if(!(vmf->flags & FAULT_FLAG_ORIG_PTE_VALID)) {
-		scid_err("orig_pte should be valid");
-		return 0;
-	}
-
-	if(vmf->flags & FAULT_FLAG_REMOTE) {
-		scid_err("this is unexpected...");
-		return 0;
-	}
-
-	if(pte_none(vmf->orig_pte)) {
-		scid_err("orig_pte is none");
-		return 0;
-	}
-
-	if(!pte_present(vmf->orig_pte)) {
-		scid_err("orig_pte is not present");
-		return 0;
-	}
-
-	if(pte_write(vmf->orig_pte)) {
-		scid_err("orig_pte is already writeable");
-		return 0;
+	if(!check_orig_pte(vmf)) {
+		scid_err("orig_pte is invalid");
+		return false;
 	}
 
 	__testing("wpr-prior-checks-pass");
 
-	return 1;
+	return true;
 }
 
 #define new_pte_from_wpr(flgs) ( \

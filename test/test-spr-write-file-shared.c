@@ -1,8 +1,6 @@
 /*
  * file will be overwritten, be careful
  */
-#define SOFT_FAIL_TOLERANCE 3
-
 #include "testutils.h"
 #include <sys/mman.h>
 #include <sys/wait.h>
@@ -211,7 +209,7 @@ int main()
 
 		RESET_ALL();
 
-		/* test third write access -- do nothing. CoW done. */
+		/* test third write access -- do nothing. */
 		{
 			spurious_byte_memwrite(page_nr(1), 'a');
 
@@ -258,7 +256,7 @@ int main()
 
 		RESET_ALL();
 
-		/* test fourth write access (via syscall) -- do nothing. CoW done. */
+		/* test fourth write access (via syscall) -- do nothing. */
 		{
 			die_if(trigger_syscall_pagewrite(page_nr(1), 10));
 
@@ -305,7 +303,7 @@ int main()
 
 		RESET_ALL();
 
-		/* test fifth read access (via syscall) -- do nothing. CoW done. */
+		/* test fifth read access (via syscall) -- do nothing. */
 		{
 			die_if(trigger_syscall_pageread(page_nr(1), 10));
 
@@ -387,8 +385,7 @@ int main()
 
 		RESET_ALL();
 
-		/* test first write access -- do private CoW, make my own copy 
-		 * (will *not* fault around, this is a write access) */
+		/* test first write access */
 		{
 			spurious_byte_memwrite(page_nr(1), 'a');
 
@@ -482,7 +479,7 @@ int main()
 
 		RESET_ALL();
 
-		/* test third write access -- do nothing. CoW done. */
+		/* test third write access -- do nothing. */
 		{
 			spurious_byte_memwrite(page_nr(1), 'a');
 
@@ -529,7 +526,7 @@ int main()
 
 		RESET_ALL();
 
-		/* test fourth write access (via syscall) -- do nothing. CoW done. */
+		/* test fourth write access (via syscall) -- do nothing. */
 		{
 			die_if(trigger_syscall_pagewrite(page_nr(1), 10));
 
@@ -576,7 +573,7 @@ int main()
 
 		RESET_ALL();
 
-		/* test fifth read access (via syscall) -- do nothing. CoW done. */
+		/* test fifth read access (via syscall) -- do nothing. */
 		{
 			die_if(trigger_syscall_pageread(page_nr(1), 10));
 
@@ -799,7 +796,7 @@ int main()
 
 		RESET_ALL();
 
-		/* test fourth write access (via syscall) -- do nothing. CoW done. */
+		/* test fourth write access (via syscall) -- do nothing. */
 		{
 			die_if(trigger_syscall_pagewrite(page_nr(1), 10));
 
@@ -846,7 +843,7 @@ int main()
 
 		RESET_ALL();
 
-		/* test fifth read access (via syscall) -- do nothing. CoW done. */
+		/* test fifth read access (via syscall) -- do nothing. */
 		{
 			die_if(trigger_syscall_pageread(page_nr(1), 10));
 
@@ -928,7 +925,7 @@ int main()
 
 		RESET_ALL();
 
-		/* test first write access via syscall -- do CoW now. */
+		/* test first write access via syscall. */
 		{
 			die_if(trigger_syscall_pagewrite(page_nr(1), 10));
 
@@ -1069,7 +1066,7 @@ int main()
 
 		RESET_ALL();
 
-		/* test fourth write access (via syscall) -- do nothing. CoW done. */
+		/* test fourth write access (via syscall) -- do nothing. */
 		{
 			die_if(trigger_syscall_pagewrite(page_nr(1), 10));
 
@@ -1116,7 +1113,7 @@ int main()
 
 		RESET_ALL();
 
-		/* test fifth read access (via syscall) -- do nothing. CoW done. */
+		/* test fifth read access (via syscall) -- do nothing. */
 		{
 			die_if(trigger_syscall_pageread(page_nr(1), 10));
 
@@ -1165,7 +1162,7 @@ int main()
 		close(fd);
 	}
 
-	/* small-file (single-page-sized file): CoW by write syscall, after PTE being setupped */
+	/* small-file (single-page-sized file): */
 	{
 		int fd = open("res/small-file", O_RDWR, 0);
 		die_if(fd < 0);
@@ -1339,7 +1336,7 @@ int main()
 
 		RESET_ALL();
 
-		/* test fourth write access (via syscall) -- do nothing. CoW done. */
+		/* test fourth write access (via syscall) -- do nothing. */
 		{
 			die_if(trigger_syscall_pagewrite(page_nr(1), 10));
 
@@ -1386,7 +1383,7 @@ int main()
 
 		RESET_ALL();
 
-		/* test fifth read access (via syscall) -- do nothing. CoW done. */
+		/* test fifth read access (via syscall) -- do nothing. */
 		{
 			die_if(trigger_syscall_pageread(page_nr(1), 10));
 
@@ -1435,7 +1432,7 @@ int main()
 		close(fd);
 	}
 
-	/* small-file (single-page-sized file): CoW by write syscall, after PTE **not** being setupped */
+	/* small-file (single-page-sized file): */
 	{
 		int fd = open("res/small-file", O_RDWR, 0);
 		die_if(fd < 0);
@@ -1515,7 +1512,7 @@ int main()
 
 		RESET_ALL();
 
-		/* test second write access via syscall -- do CoW now. */
+		/* test second write access via syscall */
 		{
 			die_if(trigger_syscall_pagewrite(page_nr(1), 10));
 
@@ -1609,7 +1606,7 @@ int main()
 
 		RESET_ALL();
 
-		/* test fourth write access (via syscall) -- do nothing. CoW done. */
+		/* test fourth write access (via syscall) -- do nothing. */
 		{
 			die_if(trigger_syscall_pagewrite(page_nr(1), 10));
 
@@ -1656,7 +1653,7 @@ int main()
 
 		RESET_ALL();
 
-		/* test fifth read access (via syscall) -- do nothing. CoW done. */
+		/* test fifth read access (via syscall) -- do nothing. */
 		{
 			die_if(trigger_syscall_pageread(page_nr(1), 10));
 
@@ -1786,7 +1783,7 @@ int main()
 
 		RESET_ALL();
 
-		/* test second write access -- do private CoW, make my own copy */
+		/* test second write access */
 		{
 			spurious_byte_memwrite(page_nr(1), 'a');
 
@@ -1833,7 +1830,7 @@ int main()
 
 		RESET_ALL();
 
-		/* test third write access -- do nothing. CoW done. */
+		/* test third write access -- do nothing. */
 		{
 			spurious_byte_memwrite(page_nr(1), 'a');
 
@@ -1880,7 +1877,7 @@ int main()
 
 		RESET_ALL();
 
-		/* test fourth write access (via syscall) -- do nothing. CoW done. */
+		/* test fourth write access (via syscall) -- do nothing. */
 		{
 			die_if(trigger_syscall_pagewrite(page_nr(1), 10));
 
@@ -1927,7 +1924,7 @@ int main()
 
 		RESET_ALL();
 
-		/* test fifth read access (via syscall) -- do nothing. CoW done. */
+		/* test fifth read access (via syscall) -- do nothing. */
 		{
 			die_if(trigger_syscall_pageread(page_nr(1), 10));
 
@@ -2010,8 +2007,7 @@ int main()
 
 		RESET_ALL();
 
-		/* test first write access -- do private CoW, make my own copy 
-		 * (will *not* fault around, this is a write access) */
+		/* test first write access */
 		{
 			spurious_byte_memwrite(page_nr(1), 'a');
 
@@ -2105,7 +2101,7 @@ int main()
 
 		RESET_ALL();
 
-		/* test third write access -- do nothing. CoW done. */
+		/* test third write access -- do nothing. */
 		{
 			spurious_byte_memwrite(page_nr(1), 'a');
 
@@ -2152,7 +2148,7 @@ int main()
 
 		RESET_ALL();
 
-		/* test fourth write access (via syscall) -- do nothing. CoW done. */
+		/* test fourth write access (via syscall) -- do nothing. */
 		{
 			die_if(trigger_syscall_pagewrite(page_nr(1), 10));
 
@@ -2199,7 +2195,7 @@ int main()
 
 		RESET_ALL();
 
-		/* test fifth read access (via syscall) -- do nothing. CoW done. */
+		/* test fifth read access (via syscall) -- do nothing. */
 		{
 			die_if(trigger_syscall_pageread(page_nr(1), 10));
 
@@ -2423,7 +2419,7 @@ int main()
 
 		RESET_ALL();
 
-		/* test fourth write access (via syscall) -- do nothing. CoW done. */
+		/* test fourth write access (via syscall) -- do nothing. */
 		{
 			die_if(trigger_syscall_pagewrite(page_nr(1), 10));
 
@@ -2470,7 +2466,7 @@ int main()
 
 		RESET_ALL();
 
-		/* test fifth read access (via syscall) -- do nothing. CoW done. */
+		/* test fifth read access (via syscall) -- do nothing. */
 		{
 			die_if(trigger_syscall_pageread(page_nr(1), 10));
 
@@ -2553,7 +2549,7 @@ int main()
 
 		RESET_ALL();
 
-		/* test first write access via syscall -- do CoW now. */
+		/* test first write access via syscall. */
 		{
 			die_if(trigger_syscall_pagewrite(page_nr(1), 10));
 
@@ -2694,7 +2690,7 @@ int main()
 
 		RESET_ALL();
 
-		/* test fourth write access (via syscall) -- do nothing. CoW done. */
+		/* test fourth write access (via syscall) -- do nothing. */
 		{
 			die_if(trigger_syscall_pagewrite(page_nr(1), 10));
 
@@ -2741,7 +2737,7 @@ int main()
 
 		RESET_ALL();
 
-		/* test fifth read access (via syscall) -- do nothing. CoW done. */
+		/* test fifth read access (via syscall) -- do nothing. */
 		{
 			die_if(trigger_syscall_pageread(page_nr(1), 10));
 
@@ -2790,7 +2786,7 @@ int main()
 		close(fd);
 	}
 
-	/* big-file (10-page-sized file): CoW by write syscall, after PTE being setupped */
+	/* big-file (10-page-sized file) */
 	{
 		int fd = open("res/big-file", O_RDWR, 0);
 		die_if(fd < 0);
@@ -2965,7 +2961,7 @@ int main()
 
 		RESET_ALL();
 
-		/* test fourth write access (via syscall) -- do nothing. CoW done. */
+		/* test fourth write access (via syscall) -- do nothing.  */
 		{
 			die_if(trigger_syscall_pagewrite(page_nr(1), 10));
 
@@ -3012,7 +3008,7 @@ int main()
 
 		RESET_ALL();
 
-		/* test fifth read access (via syscall) -- do nothing. CoW done. */
+		/* test fifth read access (via syscall) -- do nothing. */
 		{
 			die_if(trigger_syscall_pageread(page_nr(1), 10));
 
@@ -3061,7 +3057,7 @@ int main()
 		close(fd);
 	}
 
-	/* big-file (10-page-sized file): CoW by write syscall, after PTE **not** being setupped */
+	/* big-file (10-page-sized file) */
 	{
 		int fd = open("res/big-file", O_RDWR, 0);
 		die_if(fd < 0);
@@ -3142,7 +3138,7 @@ int main()
 
 		RESET_ALL();
 
-		/* test second write access via syscall -- do CoW now. */
+		/* test second write access via syscall */
 		{
 			die_if(trigger_syscall_pagewrite(page_nr(1), 10));
 
@@ -3236,7 +3232,7 @@ int main()
 
 		RESET_ALL();
 
-		/* test fourth write access (via syscall) -- do nothing. CoW done. */
+		/* test fourth write access (via syscall) -- do nothing. */
 		{
 			die_if(trigger_syscall_pagewrite(page_nr(1), 10));
 
@@ -3283,7 +3279,7 @@ int main()
 
 		RESET_ALL();
 
-		/* test fifth read access (via syscall) -- do nothing. CoW done. */
+		/* test fifth read access (via syscall) -- do nothing. */
 		{
 			die_if(trigger_syscall_pageread(page_nr(1), 10));
 
@@ -3366,7 +3362,7 @@ int main()
 
 		RESET_ALL();
 
-		/* test first write access via syscall -- do CoW now. */
+		/* test first write access via syscall */
 		{
 			die_if(trigger_syscall_pagewrite(page_nr(1), 10));
 
@@ -3413,9 +3409,7 @@ int main()
 
 		RESET_ALL();
 
-		/* test second write access via store instr, another page. -- do CoW now. 
-		 * No fault around earlier, no fault around now (write access).
-		 * PTE is missing. */
+		/* test second write access via store instr, another page. */
 		{
 			spurious_byte_memwrite(page_nr(6), 'a');
 

@@ -189,8 +189,18 @@ static int set_pte_range__hkrphook(
 
 	args = (struct set_pte_range_args*) krpi->data;
 
-	if(!args->vmf->ptl || !args->vmf->pte || !args->nr) {
-		scid_err("invalid arguments");
+	if(!args->vmf->ptl) {
+		scid_err("ptl is NULL");
+		return 0;
+	}
+
+	if(!args->vmf->pte) {
+		scid_err("ptep is NULL");
+		return 0;
+	}
+
+	if(!args->nr) {
+		scid_err("nr is 0");
 		return 0;
 	}
 

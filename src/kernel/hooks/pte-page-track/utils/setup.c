@@ -21,7 +21,7 @@ static struct kprobe *kps[] = {
 
 #include <testing/default-kvops.h>
 
-static const struct subsys_regi_args add_tests[] = {
+static const struct subsys_regi_args ppt_suts[] = {
 	{
 		.name = "pte-page-track-dap-hook",
 		.kvt = {
@@ -77,4 +77,4 @@ static const struct subsys_regi_args add_tests[] = {
 #endif 
 
 /* don't touch */
-GENERATE_SETUP_AND_TEARDOWN_CODE(pte_page_track, kps, krps, add_tests);
+GENERATE_SETUP_AND_TEARDOWN_CODE(pte_page_track, kps, krps, ppt_suts);

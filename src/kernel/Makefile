@@ -19,7 +19,8 @@ $(modname)-objs += \
 			hooks/pte-page-track/spr.o \
 			\
 				hooks/pte-page-track/utils/addpages.o \
-				hooks/pte-page-track/utils/setup.o
+				hooks/pte-page-track/utils/setup.o \
+				hooks/pte-page-track/utils/check_orig_pte.o
 
 ccflags-y += -Wall -W -Wextra -I$(src)/include -Wno-shadow
 

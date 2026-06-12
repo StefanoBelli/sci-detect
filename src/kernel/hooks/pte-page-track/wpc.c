@@ -6,6 +6,7 @@
 #include <vmfs.h>
 #include <logging.h>
 #include <hooks/pte-page-track/utils/addpages.h>
+#include <hooks/pte-page-track/utils/check_orig_pte.h>
 #include <testing/testing.h>
 
 #define MY_TESTING_SUBSYS_NAME "pte-page-track-wpc-hook"
@@ -36,38 +37,8 @@ static int wp_page_copy__ehkrphook(
 	private(entry) = (void*) 1;
 
 	/* consistency checks */
-	if(!(vmf->flags & FAULT_FLAG_WRITE)) {
-		scid_err("not a write fault");
-		return 1;
-	}
-
-	if(vmf->flags & FAULT_FLAG_MKWRITE) {
-		scid_err("unexpected pte mkwrite fault");
-		return 1;
-	}
-
-	if(vmf->flags & FAULT_FLAG_REMOTE) {
-		scid_err("write fault for remote task");
-		return 1;
-	}
-
-	if(!(vmf->flags & FAULT_FLAG_ORIG_PTE_VALID)) {
-		scid_err("orig_pte is not valid");
-		return 1;
-	}
-
-	if(pte_none(vmf->orig_pte)) {
-		scid_err("orig_pte is none");
-		return 1;
-	}
-
-	if(!pte_present(vmf->orig_pte)) {
-		scid_err("orig_pte is not present");
-		return 1;
-	}
-
-	if(pte_write(vmf->orig_pte)) {
-		scid_err("orig_pte has write flag");
+	if(!check_orig_pte(vmf)) {
+		scid_err("orig_pte is invalid");
 		return 1;
 	}
 
