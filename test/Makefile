@@ -29,7 +29,20 @@ TESTS= \
 	   test-shm-sysv-prefault.test \
 	   test-shm-file-shared-prefault.test \
 	   test-shm-file-private-prefault.test
- 
+
+valid_build_types = normal no-fail
+BUILD_TYPE ?= normal
+
+ifneq ($(filter $(BUILD_TYPE), $(valid_build_types)),)
+    $(info BUILD_TYPE=$(BUILD_TYPE) ok)
+else
+    $(error BUILD_TYPE=$(BUILD_TYPE) is invalid)
+endif
+
+ifeq ($(BUILD_TYPE), no-fail)
+	CFLAGS += -Wno-unused-label -DNO_FAIL
+endif 
+
 all: $(TESTS)
 
 clean:

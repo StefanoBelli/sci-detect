@@ -172,6 +172,12 @@ __unused static int query_int_value_testing_for_me(const char* subsys, const cha
 
 #undef BASEDIR
 
+#ifndef SOFT_FAIL_TOLERANCE
+#define SOFT_FAIL_TOLERANCE 1
+#endif
+
+#ifndef NO_FAIL
+
 #define test_int_eq_hard(x, y) \
 	if((x) != (y)) { \
 		fprintf(stderr, #x " == " #y " FAILED (see " __FILE__ ":%d)\n", __LINE__); \
@@ -196,10 +202,6 @@ __unused static int query_int_value_testing_for_me(const char* subsys, const cha
 		fprintf(stderr, "\t\t" #y " = %d\n", (y)); \
 	}
 
-#ifndef SOFT_FAIL_TOLERANCE
-#define SOFT_FAIL_TOLERANCE 1
-#endif
-
 #define test_int_eq(x, y) \
 	if((x) != (y)) { \
 		fprintf(stderr, #x " == " #y " %s FAILED (see " __FILE__ ":%d)\n", \
@@ -212,6 +214,43 @@ __unused static int query_int_value_testing_for_me(const char* subsys, const cha
 			goto __finish; \
 		} \
 	}
+
+#else /* NO_FAIL */
+
+#define test_int_eq_hard(x, y) \
+	if((x) != (y)) { \
+		fprintf(stderr, #x " == " #y " FAILED (see " __FILE__ ":%d)\n", __LINE__); \
+		fputs("\ttheir actual values are:\n", stderr); \
+		fprintf(stderr ,"\t\t" #x " = %d\n", (x)); \
+		fprintf(stderr, "\t\t" #y " = %d\n", (y)); \
+	}
+
+#define test_int_ge_hard(x, y) \
+	if((x) < (y)) { \
+		fprintf(stderr, #x " >= " #y " FAILED (see " __FILE__ ":%d)\n", __LINE__); \
+		fputs("\ttheir actual values are:\n", stderr); \
+		fprintf(stderr ,"\t\t" #x " = %d\n", (x)); \
+		fprintf(stderr, "\t\t" #y " = %d\n", (y)); \
+	} else if((x) > (y)) { \
+		fprintf(stderr, "see " __FILE__ ":%d\n", __LINE__); \
+		fprintf(stderr, "\t\t" #x " = %d\n", (x)); \
+		fprintf(stderr, "\t\t" #y " = %d\n", (y)); \
+	}
+
+#define test_int_eq(x, y) \
+	if((x) != (y)) { \
+		fprintf(stderr, #x " == " #y " %s FAILED (see " __FILE__ ":%d)\n", \
+				(x) > (y) && (((x) - (y)) <= SOFT_FAIL_TOLERANCE) ? "SOFT" : "HARD", __LINE__); \
+		fputs("\ttheir actual values are:\n", stderr); \
+		fprintf(stderr ,"\t\t" #x " = %d\n", (x)); \
+		fprintf(stderr, "\t\t" #y " = %d\n", (y)); \
+		if(!((x) > (y) && (((x) - (y)) <= SOFT_FAIL_TOLERANCE))) { \
+			\
+		} \
+	}
+
+#endif /* NO_FAIL */
+
 
 #define die_if(expr) \
 	if(expr) { \

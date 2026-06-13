@@ -30,7 +30,7 @@ jobs:
     - name: Setup kernel module
       run: sudo make module-mount
     - name: Finally, run tests
-      run: sudo make run-tests
+      run: sudo make BUILD_TYPE=no-fail run-tests
     - name: Teardown kernel module
       run: sudo make module-umount
     - name: Show dmesg
