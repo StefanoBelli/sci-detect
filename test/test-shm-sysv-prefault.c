@@ -1,0 +1,849 @@
+#include "testutils.h"
+#include <sys/mman.h>
+#include <sys/shm.h>
+
+#define SUBSYS_NAME "pte-page-track-spr-hook"
+
+#define CALLER_FMP_KEY "caller-fmp"
+#define CALLER_DF_KEY "caller-df"
+#define CALLER_FF_KEY "caller-ff"
+#define ENTRY_OK_KEY "entry-ok"
+#define RETURN_OK_KEY "return-ok"
+#define PAGES_OK_KEY "pages-ok"
+
+#define RESET_ALL() \
+	reset_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY); \
+	reset_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY); \
+	reset_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY); \
+	reset_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY); \
+	reset_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY); \
+	reset_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY)
+
+#define NUM_PAGES 22
+
+#define TEST_SHMGET_SYSV_KEY 0xdeadbeef
+#define TEST_SHMGET_SYSV_SIZE 30 * PAGE_SIZE
+#define TEST_SHMGET_SYSV_FLG IPC_CREAT | IPC_EXCL
+
+#define TEST_SHMAT_SYSV_FLG 0
+
+int main()
+{
+	int shmid;
+	char* mem;
+
+	int rv = EXIT_SUCCESS;
+
+	enable_testing_for_me(SUBSYS_NAME);
+	start_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
+	start_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
+	start_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
+	start_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
+	start_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
+	start_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
+
+	RESET_ALL();
+
+	{
+		shmid = shmget(
+				TEST_SHMGET_SYSV_KEY, 
+				TEST_SHMGET_SYSV_SIZE, 
+				TEST_SHMGET_SYSV_FLG);
+		die_if(shmid < 0);
+
+		mem = (char*) shmat(shmid, NULL, TEST_SHMAT_SYSV_FLG);
+		die_if(mem == (void*) -1);
+
+		RESET_ALL();
+
+		die_if(madvise(mem, NUM_PAGES * PAGE_SIZE, MADV_POPULATE_READ));
+
+		/* TEST the prefaulting: PTEs must be populated when mmap() is returning... */
+		{
+			int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
+			int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
+			int caller_ff = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
+			int entry_ok = query_int_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
+			int return_ok = query_int_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
+			int pages_ok = query_int_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
+
+			test_int_ge_hard(caller_fmp, 0);
+			test_int_eq(caller_df, NUM_PAGES);
+			test_int_ge_hard(caller_ff, 0);
+			test_int_ge_hard(entry_ok, NUM_PAGES);
+			test_int_ge_hard(return_ok, NUM_PAGES);
+			test_int_ge_hard(pages_ok, NUM_PAGES);	
+		}
+
+		shmdt(mem);
+		shmctl(shmid, IPC_RMID, NULL);
+	}
+
+	RESET_ALL();
+
+	{
+		shmid = shmget(
+				TEST_SHMGET_SYSV_KEY, 
+				TEST_SHMGET_SYSV_SIZE, 
+				TEST_SHMGET_SYSV_FLG);
+		die_if(shmid < 0);
+
+		mem = (char*) shmat(shmid, NULL, TEST_SHMAT_SYSV_FLG);
+		die_if(mem == (void*) -1);
+
+		RESET_ALL();
+
+		die_if(madvise(mem, NUM_PAGES * PAGE_SIZE, MADV_POPULATE_READ | MADV_POPULATE_WRITE));
+
+		/* TEST the prefaulting: PTEs must be populated when mmap() is returning... */
+		{
+			int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
+			int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
+			int caller_ff = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
+			int entry_ok = query_int_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
+			int return_ok = query_int_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
+			int pages_ok = query_int_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
+
+			test_int_ge_hard(caller_fmp, 0);
+			test_int_eq(caller_df, NUM_PAGES);
+			test_int_ge_hard(caller_ff, 0);
+			test_int_ge_hard(entry_ok, NUM_PAGES);
+			test_int_ge_hard(return_ok, NUM_PAGES);
+			test_int_ge_hard(pages_ok, NUM_PAGES);	
+		}
+
+		shmdt(mem);
+		shmctl(shmid, IPC_RMID, NULL);
+	}
+
+	RESET_ALL();
+
+	{
+		shmid = shmget(
+				TEST_SHMGET_SYSV_KEY, 
+				TEST_SHMGET_SYSV_SIZE, 
+				TEST_SHMGET_SYSV_FLG);
+		die_if(shmid < 0);
+
+		mem = (char*) shmat(shmid, NULL, TEST_SHMAT_SYSV_FLG);
+		die_if(mem == (void*) -1);
+
+		RESET_ALL();
+
+		die_if(madvise(mem, NUM_PAGES * PAGE_SIZE, MADV_POPULATE_READ | MADV_POPULATE_WRITE));
+
+		/* TEST the prefaulting: PTEs must be populated when mmap() is returning... */
+		{
+			int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
+			int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
+			int caller_ff = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
+			int entry_ok = query_int_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
+			int return_ok = query_int_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
+			int pages_ok = query_int_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
+
+			test_int_ge_hard(caller_fmp, 0);
+			test_int_eq(caller_df, NUM_PAGES);
+			test_int_ge_hard(caller_ff, 0);
+			test_int_ge_hard(entry_ok, NUM_PAGES);
+			test_int_ge_hard(return_ok, NUM_PAGES);
+			test_int_ge_hard(pages_ok, NUM_PAGES);	
+		}
+
+		RESET_ALL();
+
+		{
+			spurious_byte_memread(ch, page_nr(1));
+
+			int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
+			int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
+			int caller_ff = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
+			int entry_ok = query_int_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
+			int return_ok = query_int_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
+			int pages_ok = query_int_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
+
+			test_int_eq_hard(caller_fmp, 0);
+			test_int_eq_hard(caller_df, 0);
+			test_int_eq_hard(caller_ff, 0);
+			test_int_eq_hard(entry_ok, 0);
+			test_int_eq_hard(return_ok, 0);
+			test_int_eq_hard(pages_ok, 0);	
+		}
+
+		RESET_ALL();
+
+		{	
+			spurious_byte_memwrite(page_nr(NUM_PAGES >> 1), 'a');
+
+			int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
+			int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
+			int caller_ff = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
+			int entry_ok = query_int_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
+			int return_ok = query_int_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
+			int pages_ok = query_int_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
+
+			test_int_eq_hard(caller_fmp, 0);
+			test_int_eq_hard(caller_df, 0);
+			test_int_eq_hard(caller_ff, 0);
+			test_int_eq_hard(entry_ok, 0);
+			test_int_eq_hard(return_ok, 0);
+			test_int_eq_hard(pages_ok, 0);	
+		}
+
+		shmdt(mem);
+		shmctl(shmid, IPC_RMID, NULL);
+	}
+
+	RESET_ALL();
+
+	{
+		shmid = shmget(
+				TEST_SHMGET_SYSV_KEY, 
+				TEST_SHMGET_SYSV_SIZE, 
+				TEST_SHMGET_SYSV_FLG);
+		die_if(shmid < 0);
+
+		mem = (char*) shmat(shmid, NULL, TEST_SHMAT_SYSV_FLG);
+		die_if(mem == (void*) -1);
+
+		RESET_ALL();
+
+		die_if(madvise(mem, (NUM_PAGES >> 1) * PAGE_SIZE, MADV_POPULATE_READ));
+
+		/* TEST the prefaulting: PTEs must be populated when mmap() is returning... */
+		{
+			int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
+			int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
+			int caller_ff = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
+			int entry_ok = query_int_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
+			int return_ok = query_int_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
+			int pages_ok = query_int_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
+
+			test_int_ge_hard(caller_fmp, 0);
+			test_int_eq(caller_df, NUM_PAGES >> 1);
+			test_int_ge_hard(caller_ff, 0);
+			test_int_ge_hard(entry_ok, NUM_PAGES >> 1);
+			test_int_ge_hard(return_ok, NUM_PAGES >> 1);
+			test_int_ge_hard(pages_ok, NUM_PAGES >> 1);	
+		}		
+
+		RESET_ALL();
+
+		{
+			spurious_byte_memread(ch, page_nr(1));
+
+			int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
+			int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
+			int caller_ff = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
+			int entry_ok = query_int_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
+			int return_ok = query_int_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
+			int pages_ok = query_int_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
+
+			test_int_eq_hard(caller_fmp, 0);
+			test_int_eq_hard(caller_df, 0);
+			test_int_eq_hard(caller_ff, 0);
+			test_int_eq_hard(entry_ok, 0);
+			test_int_eq_hard(return_ok, 0);
+			test_int_eq_hard(pages_ok, 0);
+		}
+
+		RESET_ALL();
+
+		{
+			spurious_byte_memread(ch, page_nr((NUM_PAGES >> 1) + 1));
+
+			int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
+			int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
+			int caller_ff = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
+			int entry_ok = query_int_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
+			int return_ok = query_int_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
+			int pages_ok = query_int_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
+
+			test_int_ge_hard(caller_fmp, 0);
+			test_int_eq(caller_df, 1);
+			test_int_ge_hard(caller_ff, 0);
+			test_int_ge_hard(entry_ok, 1);
+			test_int_ge_hard(return_ok, 1);
+			test_int_ge_hard(pages_ok, 1);	
+		}
+
+		RESET_ALL();
+
+		{
+			spurious_byte_memread(ch, page_nr((NUM_PAGES >> 1) + 1));
+
+			int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
+			int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
+			int caller_ff = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
+			int entry_ok = query_int_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
+			int return_ok = query_int_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
+			int pages_ok = query_int_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
+
+			test_int_eq_hard(caller_fmp, 0);
+			test_int_eq_hard(caller_df, 0);
+			test_int_eq_hard(caller_ff, 0);
+			test_int_eq_hard(entry_ok, 0);
+			test_int_eq_hard(return_ok, 0);
+			test_int_eq_hard(pages_ok, 0);
+		}
+		
+		RESET_ALL();
+
+		{
+			spurious_byte_memread(ch, page_nr((NUM_PAGES >> 1) + 2));
+
+			int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
+			int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
+			int caller_ff = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
+			int entry_ok = query_int_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
+			int return_ok = query_int_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
+			int pages_ok = query_int_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
+
+			test_int_ge_hard(caller_fmp, 0);
+			test_int_eq(caller_df, 1);
+			test_int_ge_hard(caller_ff, 0);
+			test_int_ge_hard(entry_ok, 1);
+			test_int_ge_hard(return_ok, 1);
+			test_int_ge_hard(pages_ok, 1);
+		}
+
+		RESET_ALL();
+
+		{
+			die_if(trigger_syscall_pageread(page_nr((NUM_PAGES >> 1) + 2), 10));
+
+			int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
+			int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
+			int caller_ff = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
+			int entry_ok = query_int_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
+			int return_ok = query_int_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
+			int pages_ok = query_int_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
+
+			test_int_eq_hard(caller_fmp, 0);
+			test_int_eq_hard(caller_df, 0);
+			test_int_eq_hard(caller_ff, 0);
+			test_int_eq_hard(entry_ok, 0);
+			test_int_eq_hard(return_ok, 0);
+			test_int_eq_hard(pages_ok, 0);
+		}
+
+		RESET_ALL();
+
+		{
+			die_if(trigger_syscall_pageread(page_nr((NUM_PAGES >> 1) + 3), 10));
+
+			int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
+			int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
+			int caller_ff = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
+			int entry_ok = query_int_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
+			int return_ok = query_int_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
+			int pages_ok = query_int_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
+
+			test_int_eq_hard(caller_fmp, 0);
+			test_int_eq_hard(caller_df, 0);
+			test_int_eq_hard(caller_ff, 0);
+			test_int_eq_hard(entry_ok, 0);
+			test_int_eq_hard(return_ok, 0);
+			test_int_eq_hard(pages_ok, 0);
+		}
+
+		shmdt(mem);
+		shmctl(shmid, IPC_RMID, NULL);
+	}
+
+	RESET_ALL();
+
+	{
+		shmid = shmget(
+				TEST_SHMGET_SYSV_KEY, 
+				TEST_SHMGET_SYSV_SIZE, 
+				TEST_SHMGET_SYSV_FLG);
+		die_if(shmid < 0);
+
+		mem = (char*) shmat(shmid, NULL, TEST_SHMAT_SYSV_FLG);
+		die_if(mem == (void*) -1);
+
+		RESET_ALL();
+
+		die_if(madvise(
+					page_nr(NUM_PAGES >> 1), 
+					(NUM_PAGES >> 2) * PAGE_SIZE, 
+					MADV_POPULATE_WRITE | MADV_POPULATE_READ));
+
+		/* TEST the prefaulting: PTEs must be populated when mmap() is returning... */
+		{
+			int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
+			int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
+			int caller_ff = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
+			int entry_ok = query_int_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
+			int return_ok = query_int_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
+			int pages_ok = query_int_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
+
+			test_int_ge_hard(caller_fmp, 0);
+			test_int_eq(caller_df, NUM_PAGES >> 2);
+			test_int_ge_hard(caller_ff, 0);
+			test_int_ge_hard(entry_ok, NUM_PAGES >> 2);
+			test_int_ge_hard(return_ok, NUM_PAGES >> 2);
+			test_int_ge_hard(pages_ok, NUM_PAGES >> 2);	
+		}		
+
+		RESET_ALL();
+
+		{
+			die_if(trigger_syscall_pageread(page_nr(NUM_PAGES >> 1), 10));
+
+			int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
+			int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
+			int caller_ff = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
+			int entry_ok = query_int_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
+			int return_ok = query_int_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
+			int pages_ok = query_int_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
+
+			test_int_eq_hard(caller_fmp, 0);
+			test_int_eq_hard(caller_df, 0);
+			test_int_eq_hard(caller_ff, 0);
+			test_int_eq_hard(entry_ok, 0);
+			test_int_eq_hard(return_ok, 0);
+			test_int_eq_hard(pages_ok, 0);	
+		}
+
+		RESET_ALL();
+
+		{
+			spurious_byte_memread(ch, page_nr((NUM_PAGES >> 1)));
+
+			int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
+			int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
+			int caller_ff = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
+			int entry_ok = query_int_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
+			int return_ok = query_int_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
+			int pages_ok = query_int_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
+
+			test_int_eq_hard(caller_fmp, 0);
+			test_int_eq_hard(caller_df, 0);
+			test_int_eq_hard(caller_ff, 0);
+			test_int_eq_hard(entry_ok, 0);
+			test_int_eq_hard(return_ok, 0);
+			test_int_eq_hard(pages_ok, 0);	
+		}
+
+		RESET_ALL();
+
+		{
+			spurious_byte_memwrite(page_nr((NUM_PAGES >> 1)), 'a');
+
+			int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
+			int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
+			int caller_ff = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
+			int entry_ok = query_int_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
+			int return_ok = query_int_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
+			int pages_ok = query_int_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
+
+			test_int_eq_hard(caller_fmp, 0);
+			test_int_eq_hard(caller_df, 0);
+			test_int_eq_hard(caller_ff, 0);
+			test_int_eq_hard(entry_ok, 0);
+			test_int_eq_hard(return_ok, 0);
+			test_int_eq_hard(pages_ok, 0);	
+		}
+
+		RESET_ALL();
+
+		{
+			die_if(trigger_syscall_pagewrite(page_nr((NUM_PAGES >> 1) + 1), 10));
+
+			int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
+			int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
+			int caller_ff = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
+			int entry_ok = query_int_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
+			int return_ok = query_int_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
+			int pages_ok = query_int_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
+
+			test_int_eq_hard(caller_fmp, 0);
+			test_int_eq_hard(caller_df, 0);
+			test_int_eq_hard(caller_ff, 0);
+			test_int_eq_hard(entry_ok, 0);
+			test_int_eq_hard(return_ok, 0);
+			test_int_eq_hard(pages_ok, 0);	
+		}
+
+		RESET_ALL();
+
+		{
+			spurious_byte_memread(ch, page_nr((NUM_PAGES >> 1) + 1));
+
+			int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
+			int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
+			int caller_ff = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
+			int entry_ok = query_int_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
+			int return_ok = query_int_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
+			int pages_ok = query_int_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
+
+			test_int_eq_hard(caller_fmp, 0);
+			test_int_eq_hard(caller_df, 0);
+			test_int_eq_hard(caller_ff, 0);
+			test_int_eq_hard(entry_ok, 0);
+			test_int_eq_hard(return_ok, 0);
+			test_int_eq_hard(pages_ok, 0);	
+		}
+
+		RESET_ALL();
+
+		{
+			spurious_byte_memwrite(page_nr((NUM_PAGES >> 1) + 1), 'a');
+
+			int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
+			int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
+			int caller_ff = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
+			int entry_ok = query_int_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
+			int return_ok = query_int_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
+			int pages_ok = query_int_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
+
+			test_int_eq_hard(caller_fmp, 0);
+			test_int_eq_hard(caller_df, 0);
+			test_int_eq_hard(caller_ff, 0);
+			test_int_eq_hard(entry_ok, 0);
+			test_int_eq_hard(return_ok, 0);
+			test_int_eq_hard(pages_ok, 0);	
+		}
+
+		shmdt(mem);
+		shmctl(shmid, IPC_RMID, NULL);
+	}
+
+	RESET_ALL();
+
+	{
+		shmid = shmget(
+				TEST_SHMGET_SYSV_KEY, 
+				TEST_SHMGET_SYSV_SIZE, 
+				TEST_SHMGET_SYSV_FLG);
+		die_if(shmid < 0);
+
+		mem = (char*) shmat(shmid, NULL, TEST_SHMAT_SYSV_FLG);
+		die_if(mem == (void*) -1);
+
+		RESET_ALL();
+
+		die_if(madvise(
+					page_nr(NUM_PAGES >> 1), 
+					(NUM_PAGES >> 2) * PAGE_SIZE, 
+					MADV_POPULATE_WRITE | MADV_POPULATE_READ));
+
+		{
+			int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
+			int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
+			int caller_ff = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
+			int entry_ok = query_int_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
+			int return_ok = query_int_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
+			int pages_ok = query_int_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
+
+			test_int_ge_hard(caller_fmp, 0);
+			test_int_eq(caller_df, NUM_PAGES >> 2);
+			test_int_ge_hard(caller_ff, 0);
+			test_int_ge_hard(entry_ok, NUM_PAGES >> 2);
+			test_int_ge_hard(return_ok, NUM_PAGES >> 2);
+			test_int_ge_hard(pages_ok, NUM_PAGES >> 2);	
+		}
+
+		RESET_ALL();
+
+		{
+			spurious_byte_memwrite(page_nr((NUM_PAGES >> 1) - 1), 'a');
+
+			int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
+			int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
+			int caller_ff = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
+			int entry_ok = query_int_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
+			int return_ok = query_int_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
+			int pages_ok = query_int_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
+
+			test_int_ge_hard(caller_fmp, 0);
+			test_int_eq(caller_df, 1);
+			test_int_ge_hard(caller_ff, 0);
+			test_int_ge_hard(entry_ok, 1);
+			test_int_ge_hard(return_ok, 1);
+			test_int_ge_hard(pages_ok, 1);	
+		}
+
+		RESET_ALL();
+
+		{
+			spurious_byte_memwrite(page_nr((NUM_PAGES >> 1) - 1), 'a');
+
+			int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
+			int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
+			int caller_ff = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
+			int entry_ok = query_int_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
+			int return_ok = query_int_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
+			int pages_ok = query_int_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
+
+			test_int_eq_hard(caller_fmp, 0);
+			test_int_eq_hard(caller_df, 0);
+			test_int_eq_hard(caller_ff, 0);
+			test_int_eq_hard(entry_ok, 0);
+			test_int_eq_hard(return_ok, 0);
+			test_int_eq_hard(pages_ok, 0);	
+		}
+
+		RESET_ALL();
+
+		{
+			spurious_byte_memread(ch, page_nr((NUM_PAGES >> 1) - 1));
+
+			int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
+			int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
+			int caller_ff = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
+			int entry_ok = query_int_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
+			int return_ok = query_int_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
+			int pages_ok = query_int_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
+
+			test_int_eq_hard(caller_fmp, 0);
+			test_int_eq_hard(caller_df, 0);
+			test_int_eq_hard(caller_ff, 0);
+			test_int_eq_hard(entry_ok, 0);
+			test_int_eq_hard(return_ok, 0);
+			test_int_eq_hard(pages_ok, 0);	
+		}
+
+		RESET_ALL();
+
+		{
+			spurious_byte_memread(ch, page_nr((NUM_PAGES >> 1) + (NUM_PAGES >> 2) + 1));
+
+			int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
+			int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
+			int caller_ff = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
+			int entry_ok = query_int_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
+			int return_ok = query_int_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
+			int pages_ok = query_int_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
+
+			test_int_ge_hard(caller_fmp, 0);
+			test_int_eq(caller_df, 1);
+			test_int_ge_hard(caller_ff, 0);
+			test_int_ge_hard(entry_ok, 1);
+			test_int_ge_hard(return_ok, 1);
+			test_int_ge_hard(pages_ok, 1);
+		}
+
+		RESET_ALL();
+
+		{
+			spurious_byte_memwrite(page_nr((NUM_PAGES >> 1) + (NUM_PAGES >> 2) + 1), 'a');
+
+			int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
+			int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
+			int caller_ff = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
+			int entry_ok = query_int_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
+			int return_ok = query_int_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
+			int pages_ok = query_int_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
+
+			test_int_eq_hard(caller_fmp, 0);
+			test_int_eq_hard(caller_df, 0);
+			test_int_eq_hard(caller_ff, 0);
+			test_int_eq_hard(entry_ok, 0);
+			test_int_eq_hard(return_ok, 0);
+			test_int_eq_hard(pages_ok, 0);	
+		}
+
+		RESET_ALL();
+
+		{
+			spurious_byte_memread(ch, page_nr((NUM_PAGES >> 1) + (NUM_PAGES >> 2) + 1));
+
+			int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
+			int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
+			int caller_ff = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
+			int entry_ok = query_int_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
+			int return_ok = query_int_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
+			int pages_ok = query_int_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
+
+			test_int_eq_hard(caller_fmp, 0);
+			test_int_eq_hard(caller_df, 0);
+			test_int_eq_hard(caller_ff, 0);
+			test_int_eq_hard(entry_ok, 0);
+			test_int_eq_hard(return_ok, 0);
+			test_int_eq_hard(pages_ok, 0);	
+		}
+
+		shmdt(mem);
+		shmctl(shmid, IPC_RMID, NULL);
+	}
+
+	RESET_ALL();
+
+	{
+		shmid = shmget(
+				TEST_SHMGET_SYSV_KEY, 
+				TEST_SHMGET_SYSV_SIZE, 
+				TEST_SHMGET_SYSV_FLG);
+		die_if(shmid < 0);
+
+		mem = (char*) shmat(shmid, NULL, TEST_SHMAT_SYSV_FLG);
+		die_if(mem == (void*) -1);
+
+		RESET_ALL();
+
+		die_if(madvise(
+					page_nr(NUM_PAGES >> 1), 
+					(NUM_PAGES >> 2) * PAGE_SIZE, 
+					MADV_POPULATE_WRITE | MADV_POPULATE_READ));
+
+		{
+			int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
+			int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
+			int caller_ff = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
+			int entry_ok = query_int_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
+			int return_ok = query_int_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
+			int pages_ok = query_int_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
+
+			test_int_ge_hard(caller_fmp, 0);
+			test_int_eq(caller_df, NUM_PAGES >> 2);
+			test_int_ge_hard(caller_ff, 0);
+			test_int_ge_hard(entry_ok, NUM_PAGES >> 2);
+			test_int_ge_hard(return_ok, NUM_PAGES >> 2);
+			test_int_ge_hard(pages_ok, NUM_PAGES >> 2);	
+		}
+
+		RESET_ALL();
+
+		{
+			die_if(trigger_syscall_pageread(page_nr((NUM_PAGES >> 1) - 1), 'a'));
+
+			int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
+			int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
+			int caller_ff = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
+			int entry_ok = query_int_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
+			int return_ok = query_int_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
+			int pages_ok = query_int_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
+
+			test_int_eq_hard(caller_fmp, 0);
+			test_int_eq_hard(caller_df, 0);
+			test_int_eq_hard(caller_ff, 0);
+			test_int_eq_hard(entry_ok, 0);
+			test_int_eq_hard(return_ok, 0);
+			test_int_eq_hard(pages_ok, 0);
+		}
+
+		RESET_ALL();
+
+		{
+			spurious_byte_memwrite(page_nr((NUM_PAGES >> 1) - 1), 'a');
+
+			int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
+			int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
+			int caller_ff = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
+			int entry_ok = query_int_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
+			int return_ok = query_int_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
+			int pages_ok = query_int_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
+
+			test_int_ge_hard(caller_fmp, 0);
+			test_int_eq(caller_df, 1);
+			test_int_ge_hard(caller_ff, 0);
+			test_int_ge_hard(entry_ok, 1);
+			test_int_ge_hard(return_ok, 1);
+			test_int_ge_hard(pages_ok, 1);
+		}
+
+		RESET_ALL();
+
+		{
+			spurious_byte_memread(ch, page_nr((NUM_PAGES >> 1) - 1));
+
+			int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
+			int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
+			int caller_ff = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
+			int entry_ok = query_int_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
+			int return_ok = query_int_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
+			int pages_ok = query_int_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
+
+			test_int_eq_hard(caller_fmp, 0);
+			test_int_eq_hard(caller_df, 0);
+			test_int_eq_hard(caller_ff, 0);
+			test_int_eq_hard(entry_ok, 0);
+			test_int_eq_hard(return_ok, 0);
+			test_int_eq_hard(pages_ok, 0);
+		}
+
+		RESET_ALL();
+
+		{
+			die_if(trigger_syscall_pagewrite(page_nr((NUM_PAGES >> 1) + (NUM_PAGES >> 2) + 1), 10));
+
+			int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
+			int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
+			int caller_ff = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
+			int entry_ok = query_int_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
+			int return_ok = query_int_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
+			int pages_ok = query_int_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
+
+			test_int_ge_hard(caller_fmp, 0);
+			test_int_eq_hard(caller_df, 1);
+			test_int_ge_hard(caller_ff, 0);
+			test_int_ge_hard(entry_ok, 1);
+			test_int_ge_hard(return_ok, 1);
+			test_int_ge_hard(pages_ok, 1);
+		}
+
+		RESET_ALL();
+
+		{
+			spurious_byte_memwrite(page_nr((NUM_PAGES >> 1) + (NUM_PAGES >> 2) + 1), 'a');
+
+			int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
+			int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
+			int caller_ff = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
+			int entry_ok = query_int_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
+			int return_ok = query_int_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
+			int pages_ok = query_int_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
+
+			test_int_eq_hard(caller_fmp, 0);
+			test_int_eq_hard(caller_df, 0);
+			test_int_eq_hard(caller_ff, 0);
+			test_int_eq_hard(entry_ok, 0);
+			test_int_eq_hard(return_ok, 0);
+			test_int_eq_hard(pages_ok, 0);
+		}
+
+		RESET_ALL();
+
+		{
+			spurious_byte_memread(ch, page_nr((NUM_PAGES >> 1) + (NUM_PAGES >> 2) + 1));
+
+			int caller_fmp = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
+			int caller_df = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
+			int caller_ff = query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
+			int entry_ok = query_int_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
+			int return_ok = query_int_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
+			int pages_ok = query_int_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
+
+			test_int_eq_hard(caller_fmp, 0);
+			test_int_eq_hard(caller_df, 0);
+			test_int_eq_hard(caller_ff, 0);
+			test_int_eq_hard(entry_ok, 0);
+			test_int_eq_hard(return_ok, 0);
+			test_int_eq_hard(pages_ok, 0);
+		}
+
+		shmdt(mem);
+		shmctl(shmid, IPC_RMID, NULL);
+	}
+
+	test_passed();
+	goto __finish_ok;
+
+__finish:
+	shmdt(mem);
+	shmctl(shmid, IPC_RMID, NULL);
+
+__finish_ok:
+	stop_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
+	stop_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
+	stop_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
+	stop_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
+	stop_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
+	stop_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
+	disable_testing_for_me(SUBSYS_NAME);
+
+	return rv;
+}
+

@@ -215,7 +215,7 @@ __unused static int query_int_value_testing_for_me(const char* subsys, const cha
 
 #define die_if(expr) \
 	if(expr) { \
-		fprintf(stderr, "TEST FAILED because " #expr " is false, errno = %s " \
+		fprintf(stderr, "TEST FAILED because " #expr " is true, errno = %s " \
 				"(see " __FILE__ ":%d)\n", strerror(errno), __LINE__); \
 		rv = EXIT_FAILURE; \
 		goto __finish; \

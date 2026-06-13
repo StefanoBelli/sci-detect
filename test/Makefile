@@ -24,7 +24,11 @@ TESTS= \
 	   test-spr-read-file-shared.test \
 	   test-spr-write-file-shared.test \
 	   test-spr-childsharing-file-shared.test \
-	   test-file-prefault.test
+	   test-shm-anon-prefault.test \
+	   test-shm-posix-prefault.test \
+	   test-shm-sysv-prefault.test \
+	   test-shm-file-shared-prefault.test \
+	   test-shm-file-private-prefault.test
  
 all: $(TESTS)
 
