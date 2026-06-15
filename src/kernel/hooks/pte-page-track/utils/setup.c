@@ -8,6 +8,7 @@ static struct kretprobe *krps[] = {
 	&wp_page_copy__krp,
 	&do_wp_page__krp,
 	&set_pte_range__krp,
+	&change_pte_range__krp,
 };
 
 static struct kprobe *kps[] = {
@@ -15,6 +16,7 @@ static struct kprobe *kps[] = {
 	&finish_fault__kp,
 	&filemap_map_pages__kp,
 	&finish_mkwrite_fault__kp,
+	&free_unref_folios__kp,
 };
 
 #ifdef SCID_CONFIG_TESTING

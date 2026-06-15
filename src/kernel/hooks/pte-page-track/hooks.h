@@ -25,4 +25,8 @@ extern struct kprobe do_fault__kp;
 extern struct kprobe finish_fault__kp;
 extern struct kprobe filemap_map_pages__kp;
 
+/* fuf.c */
+extern struct kprobe free_unref_folios__kp;
 
+/* cpr.c */
+extern struct kretprobe change_pte_range__krp;

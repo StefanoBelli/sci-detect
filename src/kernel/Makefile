@@ -4,6 +4,7 @@ obj-m := $(modname).o
 $(modname)-objs += \
 	main.o \
 	vmfs.o \
+	resolve_syms.o \
 	\
 		testing/testing.o \
 		testing/default-kvops.o \
@@ -17,6 +18,8 @@ $(modname)-objs += \
 			hooks/pte-page-track/wpc.o \
 			hooks/pte-page-track/dwp.o \
 			hooks/pte-page-track/spr.o \
+			hooks/pte-page-track/cpr.o \
+			hooks/pte-page-track/fuf.o \
 			\
 				hooks/pte-page-track/utils/addpages.o \
 				hooks/pte-page-track/utils/setup.o \

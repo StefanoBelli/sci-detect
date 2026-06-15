@@ -3,6 +3,7 @@
 #include <logging.h>
 
 #include <testing/testing.h>
+#include <resolve_syms.h>
 
 MODULE_AUTHOR("Stefano Belli");
 MODULE_DESCRIPTION("Stealth code injection detector");
@@ -14,6 +15,12 @@ void teardown_module(void);
 int setup_module(void) 
 {
 	int rv;
+
+	rv = setup_resolve_all_syms();
+	if(rv) {
+		scid_errf("setup_resolve_all_syms failed with rv=%d", rv);
+		return rv;
+	}
 
 	rv = setup_testing();
 	if(rv) {
