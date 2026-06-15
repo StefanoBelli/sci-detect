@@ -1,8 +1,6 @@
 #ifndef SCID_RESOLVE_SYMS_H
 #define SCID_RESOLVE_SYMS_H
 
-#define pte_offset_map_lock_SYMPAIR_INDEX 0
-
 #define sympair_nr(sym) \
 	sym##_SYMPAIR_INDEX
 

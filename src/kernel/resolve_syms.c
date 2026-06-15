@@ -1,10 +1,6 @@
 #include <linux/kprobes.h>
-#include <resolve_syms.h>
 
-/* has the "pte_offset_map_lock" macro which expands to
- * "pte_offset_map_lock" if kernel version > 7.0.0, or
- * "__pte_offset_map_lock" otherwise
- */
+#include <resolve_syms.h>
 #include <resolve_syms/pte_offset_map_lock.h>
 
 #define INIT_SYMPAIR(_sym) \

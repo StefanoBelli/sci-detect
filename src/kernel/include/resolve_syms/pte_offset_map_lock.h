@@ -14,8 +14,10 @@
  */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(7,0,0)
 #	define pte_offset_map_lock __pte_offset_map_lock
+#	define __pte_offset_map_lock_SYMPAIR_INDEX 0
 #else
 #	define pte_offset_map_lock pte_offset_map_lock
+#	define pte_offset_map_lock_SYMPAIR_INDEX 0
 #endif
 
 DEFINE_RESOLVED_THUNK
