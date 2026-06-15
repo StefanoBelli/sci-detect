@@ -3,10 +3,12 @@
 #include <resolve_syms.h>
 #include <resolve_syms/pte_offset_map_lock.h>
 
+#define __expand_tos(x) #x
+
 #define INIT_SYMPAIR(_sym) \
 	[sympair_nr(_sym)] = { \
 		.addr = NULL, \
-		.sym = #_sym, \
+		.sym = __expand_tos(_sym), \
 	}
 
 struct sympair sp[NR_SYMPAIRS] = {
@@ -14,6 +16,7 @@ struct sympair sp[NR_SYMPAIRS] = {
 };
 
 #undef INIT_SYMPAIR
+#undef __expand_tos
 
 /* prototype */
 void *resolve_sym(const char*);
