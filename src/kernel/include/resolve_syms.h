@@ -1,8 +1,10 @@
 #ifndef SCID_RESOLVE_SYMS_H
 #define SCID_RESOLVE_SYMS_H
 
-#define sympair_nr(sym) \
+#define __sympair_nr(sym) \
 	sym##_SYMPAIR_INDEX
+
+#define sympair_nr(sym) __sympair_nr(sym)
 
 #include <logging.h>
 
@@ -16,7 +18,8 @@ struct sympair {
 extern struct sympair sp[NR_SYMPAIRS];
 
 #define FPTR_TYPE(sym) __scid_sym_##sym##_fptype
-#define THUNK(sym) __scid_resolved__##sym
+#define __THUNK(sym) __scid_resolved__##sym
+#define THUNK(sym) __THUNK(sym)
 
 #define DEFINE_RESOLVED_THUNK(symnr, rvtype, sym, on_error, on_sym_resolved, ...) \
 	\
