@@ -4,8 +4,19 @@
 #include <linux/pgtable.h>
 #include <linux/spinlock.h>
 #include <linux/mm.h>
+#include <linux/version.h>
 
 #include <resolve_syms.h>
+
+/*
+ * versions prior to 7.0.0 had a wrapper around the core
+ * __pte_offset_map_lock (due to static analysis, nothing we care about)
+ */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(7,0,0)
+#	define pte_offset_map_lock __pte_offset_map_lock
+#else
+#	define pte_offset_map_lock pte_offset_map_lock
+#endif
 
 DEFINE_RESOLVED_THUNK
 (

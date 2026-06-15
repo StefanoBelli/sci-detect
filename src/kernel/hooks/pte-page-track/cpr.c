@@ -6,6 +6,9 @@
 #include <hooks/pte-page-track/utils/addpages.h>
 
 #include <logging.h>
+#include <testing/testing.h>
+
+#define MY_TESTING_SUBSYS_NAME "pte-page-track-cpr-hook"
 
 struct change_pte_range_args {
 	/* the vma */
@@ -32,6 +35,8 @@ struct change_pte_range_args {
 static int change_pte_range__ehkrphook(
 		struct kretprobe_instance *krpi, struct pt_regs *regs)
 {
+	__testing("entry");
+
 	struct change_pte_range_args *cpr_args = (struct change_pte_range_args*) krpi->data;
 
 	cpr_args->vma = (struct vm_area_struct *) regs->si;
@@ -65,6 +70,8 @@ static int change_pte_range__hkrphook(
 	if(!rrv || rrv < 0)
 		return 0;
 
+	__testing("return-ok");
+
 	cpr_args = (struct change_pte_range_args*) krpi->data;
 
 	struct mm_struct *mm = cpr_args->vma->vm_mm;
@@ -86,6 +93,8 @@ static int change_pte_range__hkrphook(
 	} while(ptep++, addr += PAGE_SIZE, addr != end);
 
 	pte_unmap_unlock(ptep, ptl);
+
+	__testing("pages-ok");
 
 	return 0;
 }

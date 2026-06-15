@@ -5,12 +5,17 @@
 #include <linux/page-flags.h>
 
 #include <logging.h>
+#include <testing/testing.h>
+
+#define MY_TESTING_SUBSYS_NAME "pte-page-track-fuf-hook"
 
 #define free_unref_folios__symbol "free_unref_folios"
 
 static int free_unref_folios__phkrphook(
 		__always_unused struct kprobe *kp, struct pt_regs *regs)
 {
+	__testing("called");
+
 	struct folio_batch *folios = (struct folio_batch*) regs->di;
 
 	for(unsigned char i = 0; i < folios->nr; i++) {
@@ -22,7 +27,6 @@ static int free_unref_folios__phkrphook(
 			//stop tracking the page, as refcnt dropped to 0
 		}
 	}
-
 
 	return 0;
 }

@@ -1,6 +1,12 @@
 #include <linux/kprobes.h>
 #include <resolve_syms.h>
 
+/* has the "pte_offset_map_lock" macro which expands to
+ * "pte_offset_map_lock" if kernel version > 7.0.0, or
+ * "__pte_offset_map_lock" otherwise
+ */
+#include <resolve_syms/pte_offset_map_lock.h>
+
 #define INIT_SYMPAIR(_sym) \
 	[sympair_nr(_sym)] = { \
 		.addr = NULL, \
@@ -41,7 +47,7 @@ int setup_resolve_all_syms(void)
 			sp[i].addr = resolve_sym(sp[i].sym);
 			if(!sp[i].addr) {
 				scid_errf("unable to resolve %s", sp[i].sym);
-				return -1;
+				return -ENODATA;
 			}
 		}
 	}

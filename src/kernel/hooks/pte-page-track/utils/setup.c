@@ -73,7 +73,26 @@ static const struct subsys_regi_args ppt_suts[] = {
 
 			END_OF_KVS
 		}
+	},
+	{
+		.name = "pte-page-track-cpr-hook",
+		.kvt = {
+			ATOMICALLY_INCREMENTED_KEY("entry"),
+			ATOMICALLY_INCREMENTED_KEY("return-ok"),
+			ATOMICALLY_INCREMENTED_KEY("pages-ok"),
+
+			END_OF_KVS
+		}
+	},
+	{
+		.name = "pte-page-track-fuf-hook",
+		.kvt = {
+			ATOMICALLY_INCREMENTED_KEY("called"),
+
+			END_OF_KVS
+		}
 	}
+
 };
 
 #endif 
