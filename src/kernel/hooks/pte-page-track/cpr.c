@@ -24,10 +24,10 @@ struct change_pte_range_args {
 	unsigned long end;
 
 	/* new protection bits */
-	pgprot_t newprot;
+	/* pgprot_t newprot; */
 
 	/* change protection flags */
-	unsigned long cp_flags;
+	/* unsigned long cp_flags; */
 };
 
 #define change_pte_range__symbol "change_pte_range"
@@ -38,22 +38,23 @@ static int change_pte_range__ehkrphook(
 	__testing("entry");
 
 	struct change_pte_range_args *cpr_args = (struct change_pte_range_args*) krpi->data;
+	unsigned long cp_flags = *((unsigned long*) regs->sp + 1);
 
 	cpr_args->vma = (struct vm_area_struct *) regs->si;
 	cpr_args->pmd = (pmd_t*) regs->dx;
 	cpr_args->addr = regs->cx;
 	cpr_args->end = regs->r8;
-	cpr_args->newprot.pgprot = (pgprotval_t) regs->r9;
-	cpr_args->cp_flags = *((unsigned long*) regs->sp + 1);
+	/* cpr_args->newprot.pgprot = (pgprotval_t) regs->r9; */
+	/* cpr_args->cp_flags = cp_flags; */
 
 	bool invalid =
-		cpr_args->cp_flags & MM_CP_PROT_NUMA ||
-		cpr_args->cp_flags & MM_CP_UFFD_WP ||
-		cpr_args->cp_flags & MM_CP_UFFD_WP_ALL ||
-		cpr_args->cp_flags & MM_CP_UFFD_WP_RESOLVE;
+		cp_flags & MM_CP_PROT_NUMA ||
+		cp_flags & MM_CP_UFFD_WP ||
+		cp_flags & MM_CP_UFFD_WP_ALL ||
+		cp_flags & MM_CP_UFFD_WP_RESOLVE;
 
 	if(invalid) {
-		scid_warnf("unhandled cp_flags: %ld", cpr_args->cp_flags);
+		scid_warnf("unhandled cp_flags: %ld", cp_flags);
 		return 1;
 	}
 

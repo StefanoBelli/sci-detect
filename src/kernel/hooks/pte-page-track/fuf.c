@@ -11,7 +11,7 @@
 
 #define free_unref_folios__symbol "free_unref_folios"
 
-static int free_unref_folios__phkrphook(
+static int free_unref_folios__phkphook(
 		__always_unused struct kprobe *kp, struct pt_regs *regs)
 {
 	__testing("called");
@@ -33,6 +33,6 @@ static int free_unref_folios__phkrphook(
 
 struct kprobe free_unref_folios__kp = {
 	.symbol_name = free_unref_folios__symbol,
-	.pre_handler = free_unref_folios__phkrphook,
+	.pre_handler = free_unref_folios__phkphook,
 };
 
