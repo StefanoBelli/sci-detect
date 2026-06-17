@@ -1,9 +1,9 @@
 #include <hooks.h>
 #include <vmfs.h>
 #include <logging.h>
-
-#include <testing/testing.h>
 #include <resolve_syms.h>
+#include <pgtrack.h>
+#include <testing/testing.h>
 
 MODULE_AUTHOR("Stefano Belli");
 MODULE_DESCRIPTION("Stealth code injection detector");
@@ -14,7 +14,7 @@ void teardown_module(void);
 
 int setup_module(void) 
 {
-	int rv;
+	int rv = 0;
 
 	rv = setup_resolve_all_syms();
 	if(rv) {
@@ -28,28 +28,41 @@ int setup_module(void)
 		return rv;
 	}
 
+	rv = setup_pgtrack();
+	if(rv) {
+		scid_errf("setup_pgtrack failed with rv=%d", rv);
+		goto __teardown_from_testing;
+	}
+
 	rv = setup_vmfs_pcp_lists();
 	if(rv) {
-		teardown_testing();
 		scid_errf("setup_vmfs_pcp_lists failed with rv=%d", rv);
-		return rv;
+		goto __teardown_from_pgtrack;
 	}
 
 	rv = setup_hooks();
 	if (rv) {
-		teardown_vmfs_pcp_lists();
-		teardown_testing();
 		scid_errf("setup_hooks failed with rv=%d", rv);
-		return rv;
+		goto __teardown_from_vmfs_pcp_lists;
 	}
 
-	return 0;
+	return rv;
+
+__teardown_from_vmfs_pcp_lists:
+	teardown_vmfs_pcp_lists();
+__teardown_from_pgtrack:
+	teardown_pgtrack();
+__teardown_from_testing:
+	teardown_testing();
+
+	return rv;
 }
 
 void teardown_module(void) 
 {
 	teardown_hooks();
 	teardown_vmfs_pcp_lists();
+	teardown_pgtrack();
 	teardown_testing();
 }
 

@@ -5,6 +5,7 @@
 #include <linux/page-flags.h>
 
 #include <logging.h>
+#include <pgtrack.h>
 #include <testing/testing.h>
 
 #define MY_TESTING_SUBSYS_NAME "pte-page-track-fuf-hook"
@@ -24,7 +25,7 @@ static int free_unref_folios__phkphook(
 
 		for(unsigned long j = 0; j < nr_pages; j++) {
 			struct page *page = folio_page(folio, j);
-			//stop tracking the page, as refcnt dropped to 0
+			pg_untrack(page);
 		}
 	}
 

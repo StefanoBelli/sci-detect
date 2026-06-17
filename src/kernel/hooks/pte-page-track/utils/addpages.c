@@ -1,4 +1,5 @@
 #include <logging.h>
+#include <pgtrack.h>
 #include <hooks/pte-page-track/utils/addpages.h>
 
 bool add_one_page(
@@ -32,8 +33,8 @@ bool add_one_page(
 	if(page)
 		*page = pg;
 
-	//add to the XArray / radix tree
-	//
+	pg_track(pg, has_wr, has_exec);
+
 	return true;
 }
 

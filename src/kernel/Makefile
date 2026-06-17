@@ -5,6 +5,7 @@ $(modname)-objs += \
 	main.o \
 	vmfs.o \
 	resolve_syms.o \
+	pgtrack.o \
 	\
 		testing/testing.o \
 		testing/default-kvops.o \
