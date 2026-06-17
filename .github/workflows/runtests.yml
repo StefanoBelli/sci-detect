@@ -17,8 +17,6 @@ jobs:
       run: uname -s -r
     - name: Update apt sources
       run: sudo apt update
-    - name: Try to upgrade everything
-      run: sudo apt upgrade -y && sudo apt dist-upgrade -y
     - name: Install kernel headers
       run: sudo apt install -y linux-headers-$(uname -r)
     - name: Build the module
