@@ -40,7 +40,7 @@ endif
 ifeq ($(BUILD_TYPE), release)
 	ccflags-y += -O1
 else ifeq ($(BUILD_TYPE), testing)
-	ccflags-y += -O1 -DSCID_CONFIG_TESTING
+	ccflags-y += -O0 -DSCID_CONFIG_TESTING
 endif
 
 all:
