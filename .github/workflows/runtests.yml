@@ -34,4 +34,5 @@ jobs:
     - name: Teardown kernel module
       run: sudo make module-umount
     - name: Show dmesg
+      if: always()
       run: sudo dmesg
