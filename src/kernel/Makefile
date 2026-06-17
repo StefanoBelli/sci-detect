@@ -38,9 +38,9 @@ else
 endif
 
 ifeq ($(BUILD_TYPE), release)
-	ccflags-y += -O1
+	ccflags-y += -O2
 else ifeq ($(BUILD_TYPE), testing)
-	ccflags-y += -O0 -DSCID_CONFIG_TESTING
+	ccflags-y += -O2 -DSCID_CONFIG_TESTING
 endif
 
 all:
