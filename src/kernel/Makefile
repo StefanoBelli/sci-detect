@@ -10,6 +10,10 @@ $(modname)-objs += \
 		testing/testing.o \
 		testing/default-kvops.o \
 	\
+	netlink.o \
+	\
+		netlink/pgtrack-genl.o \
+	\
 	hooks.o \
 	\
 		hooks/setuputils.o \

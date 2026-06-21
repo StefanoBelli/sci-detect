@@ -4,6 +4,11 @@
 #include <linux/mm.h>
 #include <linux/pgtable.h>
 
+struct pg_track_forward_args {
+	bool creat;
+	unsigned long va;
+};
+
 /* user can provide a callback to evaluate pte */
 typedef bool (*more_checks_pte_fp)(pte_t pte, int rw, int exec, void* args);
 
@@ -14,12 +19,14 @@ typedef bool (*more_checks_pte_fp)(pte_t pte, int rw, int exec, void* args);
  * @checks: user-provided callback to do specific checks on pte
  * @args: the user-provided args to pass to checks
  * @page: can be NULL, set to the retrieved page, you init your local ptr
+ * @pgt_args: args to be forwarded to pg_track
  *
  * Returns: true if did it, false otherwise
  */
 bool add_one_page(
 		pte_t* ptep, more_checks_pte_fp checks, 
-		void* args, struct page **page);
+		void* args, struct page **page, 
+		const struct pg_track_forward_args *pgt_args);
 
 /*
  * add_pages_byfolio - add potentially multiple pages to track.
@@ -36,13 +43,14 @@ bool add_one_page(
  * @args: the user-provided args to pass to checks
  * @onepg: if true, the folio must contain one page, give a warning and return if not
  * @nr_pages: can be NULL, set to the nr of tracked pages, you init your local ptr
+ * @pgt_args: args to be forwarded to pg_track
  *
  * Returns: true if everything ok, false othw
  */
 bool add_pages_byfolio(
 		pte_t* ptep, more_checks_pte_fp checks, void *args, 
-		bool onepg, unsigned long *nr_pages);
-
+		bool onepg, unsigned long *nr_pages,
+		const struct pg_track_forward_args *pgt_args);
 
 /*
  * add_pages_bynr - add nr pages to track
@@ -51,11 +59,13 @@ bool add_pages_byfolio(
  * @checks: user-provided callback to do specific checks on pte
  * @args: the user-provided args to pass to checks
  * @nr: the number of consecutive PTEs to look starting from ptep
+ * @pgt_args: args to be forwarded to pg_track
  *
  * Returns: the number of tracked pages
  */
 unsigned long add_pages_bynr(
 		pte_t *ptep, more_checks_pte_fp checks, 
-		void* args, unsigned long nr);
+		void* args, unsigned long nr, 
+		const struct pg_track_forward_args *pgt_args);
 
 #endif

@@ -4,7 +4,8 @@
 
 bool add_one_page(
 		pte_t* ptep, more_checks_pte_fp checks, 
-		void* args, struct page **page)
+		void* args, struct page **page,
+		const struct pg_track_forward_args *pgt_args)
 {
 	pte_t pte = ptep_get(ptep);
 
@@ -33,18 +34,19 @@ bool add_one_page(
 	if(page)
 		*page = pg;
 
-	pg_track(pg, has_wr, has_exec);
+	pg_track(pg, has_wr, has_exec, pgt_args->creat, pgt_args->va);
 
 	return true;
 }
 
 bool add_pages_byfolio(
 		pte_t *ptep, more_checks_pte_fp checks, 
-		void* args, bool onepg, unsigned long *nr_pages)
+		void* args, bool onepg, unsigned long *nr_pages, 
+		const struct pg_track_forward_args *pgt_args)
 {
 	struct page *page = NULL;
 
-	if(!add_one_page(ptep, checks, args, &page))
+	if(!add_one_page(ptep, checks, args, &page, pgt_args))
 		return false;
 
 	if(nr_pages)
@@ -81,7 +83,7 @@ bool add_pages_byfolio(
 	}
 
 	while(--fnr_pages) {
-		if(!add_one_page(++ptep, checks, args, NULL))
+		if(!add_one_page(++ptep, checks, args, NULL, pgt_args))
 			return false;
 
 		if(nr_pages)
@@ -93,7 +95,8 @@ bool add_pages_byfolio(
 
 unsigned long add_pages_bynr(
 		pte_t *ptep, more_checks_pte_fp checks, 
-		void* args, unsigned long nr)
+		void* args, unsigned long nr,
+		const struct pg_track_forward_args *pgt_args)
 {
 	unsigned long tracked_pages = 0;
 
@@ -101,7 +104,7 @@ unsigned long add_pages_bynr(
 		return 0;
 
 	while(nr--) {
-		if(!add_one_page(ptep++, checks, args, NULL))
+		if(!add_one_page(ptep++, checks, args, NULL, pgt_args))
 			return tracked_pages;
 
 		tracked_pages++;

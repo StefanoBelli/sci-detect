@@ -215,8 +215,15 @@ static int set_pte_range__hkrphook(
 		return 0;
 	}
 
+	struct pg_track_forward_args pgt_args = {
+		.creat = true,
+		.va = args->vmf->real_address,
+	};
+
 	/* sets contiguous pages to continuous linear addrs */
-	if(!add_pages_bynr(args->vmf->pte, spr_further_pte_checks, NULL, args->nr))
+	if(!add_pages_bynr(
+				args->vmf->pte, spr_further_pte_checks, NULL, 
+				args->nr, &pgt_args))
 		scid_err("unable to add pages");
 	else
 		__testing("pages-ok");

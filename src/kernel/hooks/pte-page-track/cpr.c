@@ -87,8 +87,13 @@ static int change_pte_range__hkrphook(
 		return 0;
 	}
 
+	struct pg_track_forward_args pgt_args = {
+		.creat = false,
+		.va = addr,
+	};
+
 	do {
-		if(!add_one_page(ptep, NULL, NULL, NULL))
+		if(!add_one_page(ptep, NULL, NULL, NULL, &pgt_args))
 			scid_warn("unable to add page");
 
 	} while(ptep++, addr += PAGE_SIZE, addr != end);

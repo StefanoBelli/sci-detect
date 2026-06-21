@@ -1,0 +1,41 @@
+#ifndef SCID_USER_NETLINK_DEFS_H
+#define SCID_USER_NETLINK_DEFS_H
+
+#define SCID_GENL_MCGRP_NAME "events"
+
+#define SCID_GENL_NAME "scid"
+#define SCID_GENL_VERSION 1
+
+/* these attrs may be reused, their interpretation
+ * depends on the cmd */
+enum scid_genl_attrs : unsigned int {
+	__SCID_GENL_ATTR_UNSPEC,
+
+	SCID_GENL_ATTR_ARRAY,
+	SCID_GENL_ATTR_ARRAY_NR_ELEMS,
+
+	SCID_GENL_ATTR_EVT_TYPE,
+
+	SCID_GENL_ATTR_PFN,
+	SCID_GENL_ATTR_PID,
+	SCID_GENL_ATTR_VA,
+
+	__SCID_GENL_MAX_NR_ATTRS
+};
+
+#define SCID_GENL_MAX_NR_ATTRS (__SCID_GENL_MAX_NR_ATTRS - 1)
+
+enum scid_genl_cmd : unsigned char {
+	__SCID_GENL_CMD_UNSPEC,
+
+	SCID_GENL_CMD_EVENT_WXWARNING,
+
+	SCID_GENL_CMD_GET_LAST_EVENTS,
+	SCID_GENL_CMD_IS_TRACKED_PAGE,
+
+	__SCID_GENL_MAX_NR_CMDS
+};
+
+#define SCID_GENL_MAX_NR_CMDS (__SCID_GENL_MAX_NR_CMDS - 1)
+
+#endif

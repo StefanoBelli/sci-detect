@@ -96,7 +96,15 @@ static int do_anonymous_page__hkrphook(
 	/* get the page table lock without disabling IRQs */
 	spin_lock(vmf->ptl);
 
-	if(!add_pages_byfolio(vmf->pte, dap_further_pte_checks, NULL, true, NULL))
+	struct pg_track_forward_args pgt_args = {
+		.creat = true,
+		.va = vmf->real_address,
+	};
+
+	if(!add_pages_byfolio(
+				vmf->pte, dap_further_pte_checks, 
+				NULL, true, NULL, &pgt_args))
+
 		scid_err("unable to add pages");
 	else
 		__testing("materialize-page");

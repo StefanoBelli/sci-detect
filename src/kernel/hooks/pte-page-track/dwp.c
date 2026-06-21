@@ -231,7 +231,15 @@ static void ____do_wpr_inspect_pte_after(struct vm_fault *vmf)
 	/* get the page table lock without disabling IRQs */
 	spin_lock(vmf->ptl);
 
-	if(!add_one_page(vmf->pte, dwp_further_pte_checks, vmf->vma, NULL))
+	struct pg_track_forward_args pgt_args = {
+		.creat = true,
+		.va = vmf->real_address,
+	};
+
+	if(!add_one_page(
+				vmf->pte, dwp_further_pte_checks, 
+				vmf->vma, NULL, &pgt_args))
+
 		scid_err("unable to add page");
 	else
 		__testing("wpr-page-ok");

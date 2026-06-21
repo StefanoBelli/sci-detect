@@ -4,6 +4,7 @@
 #include <linux/types.h>
 
 #include <pgtrack.h>
+#include <netlink/pgtrack/events.h>
 #include <logging.h>
 
 #define __pgtrack_log_err_code(err)  \
@@ -90,7 +91,52 @@ static inline struct page_status *__lookup_pfn(unsigned long pfn, struct xarray 
 	return status;
 }
 
-void pg_track(struct page *page, bool has_write, bool has_exec)
+/*
+ * ---SOME NOTES---
+ *
+ * Q: Why there is no need of any kind of reference counting or RCU?
+ *
+ *  * pg_track is being used by every hook that adds/changes page state,
+ * all those hooks are called in process context, and it is either 
+ * in the page fault handler or a normal syscall execution.
+ *
+ *  * pg_untrack is used *only* by the free_unref_folio hook, same 
+ * preconditions.
+ *
+ * When a batch of folios reaches usage counter = 0, free_unref_folios
+ * is called. THIS CAN'T HAPPEN WHILE the "pg_track hooks" are being
+ * run, why? Well, if hooks are currently executing, this means that
+ * process is currently in kernel mode (whether it is a entry handler 
+ * or not, or whatever type of k[ret]probe), and doing stuff regarding
+ * the mapping of page frames. 
+ *
+ * Hence, at least one user for the folio is there and can't be freed.
+ * If "pg_track hooks" are in execution, process didn't call munmap()
+ * and will not, until we exit to user mode, so we have at least 1 user
+ * and no free_unref_folios will be called while doing operations on the
+ * xarrays with pg_track. REMEMBER: THE ISSUE ***WOULD*** BE WITH FREEING
+ * MEMORY, AND NOT "CONCURRENCY".
+ *
+ * ---ON THE CREAT FLAG---
+ *
+ * every hook that uses pg_track will set creat = true, but the hook that
+ * hooks into change_pte_range: that will set creat = false, that is,
+ * if page doesn't exist in any xarray, don't create a new entry and put
+ * it in. This works because if the page that interests the PTE has not yet
+ * been inserted in the xarray, this means that it wasn't captured by other
+ * "initial lifecycle" hooks (e.g. user page fault) and are of no interest 
+ * for us when mprotecting a non-existant page in the xarrays, they will 
+ * get a chance when returned to the buddy allocator...
+ *
+ * ---ONE MORE THING---
+ *
+ * Furthermore, when free_unref_folios is called, those folios are still
+ * not returned to the zoned/buddy allocator. That is, no one will try to
+ * manipulate PTEs pointing to those pages, because no one will be able 
+ * to use them until they actually get freed (see kernel source)
+ * so we can safely do the pg_untrack without worries.
+ */
+void pg_track(struct page *page, bool has_write, bool has_exec, bool creat, unsigned long va)
 {
 	struct xarray *lookedxa;
 	unsigned long pfn = page_to_pfn(page);
@@ -130,13 +176,18 @@ __retry:
 
 		/* check if we changed value to PERM_BITS, oh well... bad page */
 		if(atomic64_read(&pgstatus->perms) == PERM_BITS) {
-			scid_info("WX page ahead!");
+			scid_infof("wx pagei, test = %ld", pfn);
+			bcast_pgtrack_event_wxwarning(pfn, task_pid_vnr(current), va);
 			int err = xa_insert(&bad_pages, pfn, pgstatus, GFP_ATOMIC);
 			__pgtrack_log_err_code(err);
 		}
 	
 	/* unable to find any entry, we must create it */
 	} else {
+		/* this works because... see notes above */
+		if(!creat)
+			return;
+
 		/* create new page_status, not visible until xa_inserted */
 		struct page_status *new_pgstatus = kmem_cache_alloc(page_status_cachep, GFP_ATOMIC);
 		if(!new_pgstatus) {

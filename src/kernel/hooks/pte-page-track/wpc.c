@@ -103,7 +103,15 @@ static int wp_page_copy__hkrphook(
 	/* get the page table lock without disabling IRQs */
 	spin_lock(vmf->ptl);
 
-	if(!add_pages_byfolio(vmf->pte, wpc_further_pte_checks, vmf, true, NULL))
+	struct pg_track_forward_args pgt_args = {
+		.creat = true,
+		.va = vmf->real_address,
+	};
+
+	if(!add_pages_byfolio(
+				vmf->pte, wpc_further_pte_checks, vmf, 
+				true, NULL, &pgt_args))
+
 		scid_err("unable to add pages");
 	else
 		__testing("cow-done-and-page-added");
