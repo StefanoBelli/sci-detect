@@ -6,7 +6,7 @@ LIBNL = libnl-3.0 libnl-genl-3.0
 LIBSCID_SRC = scid.c
 LIBSCID_HDRS = include
 LIBSCID_OUT = libscid.so
-SCID_EXEC_OUT = scid
+SCID_EXEC_OUT = scid.out
 SCID_EXEC_SRC = main.c
 
 all: $(LIBSCID_OUT) $(SCID_EXEC_OUT)
