@@ -21,7 +21,7 @@ $(SCID_EXEC_OUT): $(SCID_EXEC_SRC) | $(LIBSCID_OUT)
 	$(CC) $(CFLAGS) -I$(LIBSCID_HDRS) -L. -lscid -o $@ $<
 
 run:
-	LD_LIBRARY_PATH=. $(SCID_EXEC_OUT)
+	LD_LIBRARY_PATH=. ./$(SCID_EXEC_OUT)
 
 clean:
 	rm $(LIBSCID_OUT) $(SCID_EXEC_OUT)
