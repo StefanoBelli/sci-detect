@@ -1,27 +1,33 @@
 SHELL=/bin/sh
 CC=gcc
 CFLAGS=-O2 -Wall -W -Wextra -Wshadow 
-SCID_NL_SHARED_HEADER=../kernel/include/user
-LIBNL = libnl-3.0 libnl-genl-3.0
-LIBSCID_SRC = scid.c
-LIBSCID_HDRS = include
-LIBSCID_OUT = libscid.so
-SCID_EXEC_OUT = scid.out
-SCID_EXEC_SRC = main.c
+SCID_CLI_OUT=scid.out
+SCID_CLI_OBJS=scid-cli.o
+LIBSCID_HDRS=libscid/include
+LIBSCID_DIR=libscid
+LIBSCID_LNK=scid
+SCID_SHARED_HEADER=../kernel/include/user
 
-all: $(LIBSCID_OUT) $(SCID_EXEC_OUT)
+all: lib cli
 
-$(LIBSCID_OUT): $(LIBSCID_SRC)
-	$(CC) $(CFLAGS) -I$(SCID_NL_SHARED_HEADER) -I$(LIBSCID_HDRS) \
-		-shared -fPIC -fpic -o $@ \
-		$(shell pkg-config --libs --cflags $(LIBNL)) \
-		$<
+cli: $(SCID_CLI_OUT)
 
-$(SCID_EXEC_OUT): $(SCID_EXEC_SRC) | $(LIBSCID_OUT)
-	$(CC) $(CFLAGS) -I$(LIBSCID_HDRS) -I$(SCID_NL_SHARED_HEADER) -L. -lscid -o $@ $<
+$(SCID_CLI_OUT): $(SCID_CLI_OBJS) | lib
+	@echo -e "\tLINK $@"
+	@$(CC) $(CFLAGS) -L$(LIBSCID_DIR) -l$(LIBSCID_LNK) $^ -o $@ 
 
-run:
-	@LD_LIBRARY_PATH=. ./$(SCID_EXEC_OUT)
+$(SCID_CLI_OBJS): %.o: %.c
+	@echo -e "\tCC $<"
+	@$(CC) $(CFLAGS) -c -I$(SCID_SHARED_HEADER) -I$(LIBSCID_HDRS) -o $@ $<
 
 clean:
-	rm $(LIBSCID_OUT) $(SCID_EXEC_OUT)
+	rm $(SCID_CLI_OBJS)
+
+lib:
+	make -C libscid
+
+lib-clean:
+	make -C libscid clean
+
+run:
+	@LD_LIBRARY_PATH=libscid ./$(SCID_CLI_OUT)

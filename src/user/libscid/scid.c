@@ -1,72 +1,18 @@
-#include <stdlib.h>
-#include <netlink/netlink.h>
-#include <netlink/genl/genl.h>
 #include <netlink/genl/ctrl.h>
 
-/* this is for the libscid shared library */
-#include <scid.h>
+#include "scid-internals.h"
 
+/* tunables */
 #define NL_SOCKET_TXBUF_SIZE 0
 #define NL_SOCKET_RXBUF_SIZE 65535
 
-struct cmd_reg_info;
-
-typedef int (*internal_cmd_handler_fpt)(
-		const struct cmd_reg_info* regi, 
-		struct nlattr **attrs,
-		void * uargs);
-
-struct cmd_reg_info {
-	uint8_t cmd;
-	internal_cmd_handler_fpt wrapper_handler;
-	cmd_handler_fpt user_handler;
-};
-
-/* prototypes for cmd/event response wrappers */
-int __scid_wrapper_event_wxwarning(
-		const struct cmd_reg_info *regi,
-		struct nlattr **attrs, 
-		void *uargs);
-
-int __scid_wrapper_get_last_events(
-		const struct cmd_reg_info *regi,
-		struct nlattr **attrs, 
-		void *uargs);
-
-#define __static_array_size(x) (sizeof(x) / sizeof(typeof(x[0])))
-
-/*
- * compile-time regi defs
- */
-static const struct cmd_reg_info __static_regi_defs[] = {
-	{
-		.cmd = SCID_GENL_CMD_EVENT_WXWARNING,
-		.wrapper_handler = __scid_wrapper_event_wxwarning,
-	},
-	{
-		.cmd = SCID_GENL_CMD_GET_LAST_EVENTS,
-		.wrapper_handler = __scid_wrapper_get_last_events,
-	}
-};
-
+/* handle, descriptor */
 struct scid_nl_sk {
 	struct nl_sock *socket;
 	int family_id;
 	int group_id;
 	struct cmd_reg_info *regi;
 	uint8_t regi_size;
-};
-
-/*
- * nla policies
- */
-static const struct nla_policy global_policy[SCID_GENL_MAX_NR_ATTRS + 1] = {
-	[SCID_GENL_ATTR_ARRAY_NR_ELEMS] = { .type = NLA_U32 },
-	[SCID_GENL_ATTR_ARRAY] = { .type = NLA_NESTED },
-	[SCID_GENL_ATTR_VA] = { .type = NLA_UINT },
-	[SCID_GENL_ATTR_PFN] = { .type = NLA_UINT },
-	[SCID_GENL_ATTR_PID] = { .type = NLA_S32 },
-	[SCID_GENL_ATTR_EVT_TYPE] = { .type = NLA_U32 },
 };
 
 struct __main_nlmsg_cb_args {
@@ -93,7 +39,10 @@ static int __main_nlmsg_cb(struct nl_msg *msg, void *arg)
 
 		if(cmd == cur->cmd) {
 			if(cur->user_handler)
-				return cur->wrapper_handler(cur, attrs, args->uargs);
+				return cur->wrapper_handler(
+						cur->user_handler, 
+						attrs, 
+						args->uargs);
 
 			return NL_SKIP;
 		}
@@ -167,7 +116,7 @@ void *scid_new_socket(int *errored)
 	if(!errored)
 		return (void*) SCID_INVALID_ARGS;
 
-	nr_regis = __static_array_size(__static_regi_defs);
+	nr_regis = NR_STATIC_REGI_DEFS;
 	if(!nr_regis)
 		return (void*) SCID_REGIS_ZERO;
 
@@ -315,9 +264,7 @@ long scid_poll_forever(void *desc, void *args, int *loop)
 	return 0;
 }
 
-typedef long (*cmd_attrs_add_cb)(struct nl_msg *, const void*);
-
-static long __scid_send_cmd(
+long __scid_send_cmd(
 		void *desc, uint8_t cmd, void *args, 
 		cmd_attrs_add_cb cb_put_attrs, const void* cb_attrs_args)
 {
@@ -357,149 +304,3 @@ static long __scid_send_cmd(
 	return 0;
 }
 
-/* 
- * command senders
- */
-
-/* get_last_events cmd */
-
-long scid_cmd_get_last_events(void *desc, void *args)
-{
-	return __scid_send_cmd(
-			desc, SCID_GENL_CMD_GET_LAST_EVENTS, args, 
-			NULL, NULL);
-}
-
-/*
- * response wrappers
- */
-
-/* wxwarning event (broadcasted) */
-
-int __scid_wrapper_event_wxwarning(const struct cmd_reg_info *regi,
-		struct nlattr **attrs, void *uargs)
-{
-	struct wxwarning_event evt;
-
-	memset(&evt, 0, sizeof(evt));
-
-	if(attrs[SCID_GENL_ATTR_PID])
-		evt.pid = nla_get_s32(attrs[SCID_GENL_ATTR_PID]);
-
-	if(attrs[SCID_GENL_ATTR_PFN])
-		evt.pfn = nla_get_uint(attrs[SCID_GENL_ATTR_PFN]);
-
-	if(attrs[SCID_GENL_ATTR_VA])
-		evt.va = nla_get_uint(attrs[SCID_GENL_ATTR_VA]);
-
-	regi->user_handler(&evt, uargs);
-
-	return NL_OK;
-}
-
-/* get_last_events cmd */
-
-static void free_all_last_events(struct all_last_events *all)
-{
-	if(!all->nr || !all->evts)
-		return;
-
-	for(uint32_t i = 0; i < all->nr; i++) {
-		void *data = all->evts[i].data;
-		if(data)
-			free(data);
-	}
-
-	free(all->evts);
-}
-
-static int populate_last_evt_wxwarning(struct last_event *evt, struct nlattr *attr)
-{
-	struct wxwarning_event *wxw;
-
-	if(!evt->data) {
-		evt->data = malloc(sizeof(struct wxwarning_event));
-		if(!evt->data)
-			return NL_STOP;
-	}
-
-	wxw = evt->data;
-
-	if(nla_type(attr) == SCID_GENL_ATTR_VA)
-		wxw->va = nla_get_uint(attr);
-	else if(nla_type(attr) == SCID_GENL_ATTR_PID)
-		wxw->pid = nla_get_s32(attr);
-	else if(nla_type(attr) == SCID_GENL_ATTR_PFN)
-		wxw->pfn = nla_get_uint(attr);
-
-	return NL_OK;
-}
-
-int __scid_wrapper_get_last_events(const struct cmd_reg_info *regi,
-		struct nlattr **attrs, void *uargs)
-{
-	int rv = NL_OK;
-	int rem;
-	struct nlattr *pos;
-	struct all_last_events all_evts;
-
-	memset(&all_evts, 0, sizeof(all_evts));
-
-	if(!attrs[SCID_GENL_ATTR_ARRAY_NR_ELEMS])
-		return NL_SKIP;
-
-	all_evts.nr = nla_get_u32(attrs[SCID_GENL_ATTR_ARRAY_NR_ELEMS]);
-
-	if(!attrs[SCID_GENL_ATTR_ARRAY])
-		return NL_SKIP;
-
-	if(!all_evts.nr)
-		goto __finish;
-
-	all_evts.evts = malloc(sizeof(struct last_event) * all_evts.nr);
-	if(!all_evts.evts)
-		return NL_STOP;
-
-	memset(all_evts.evts, 0, all_evts.nr * sizeof(struct last_event));
-
-	/* this may be a bit tricky... the evt type attr helps distinguish index */
-	int i = -1;
-
-	/* suppress compiler warning about non-initialized var usage */
-	enum last_event_type i_evt_type = WXWARNING;
-
-	nla_for_each_nested(pos, attrs[SCID_GENL_ATTR_ARRAY], rem) {
-		int pos_is_evt_type = nla_type(pos) == SCID_GENL_ATTR_EVT_TYPE;
-
-		/* consistency checks */
-		if(i < 0 && !pos_is_evt_type)
-			abort();
-
-		if(pos_is_evt_type) {
-			i_evt_type = nla_get_u32(pos);
-
-			i++;
-
-			/* consistency checks */
-			if(i < 0 || i >= (int) all_evts.nr) 
-				abort();
-
-			all_evts.evts[i].type = i_evt_type;
-			continue;
-		}
-
-		if(i_evt_type == WXWARNING)
-			rv = populate_last_evt_wxwarning(&all_evts.evts[i], pos);
-
-		if(rv != NL_OK)
-			goto __finish_onlyfree;
-	}
-
-__finish:
-	regi->user_handler(&all_evts, uargs);
-
-__finish_onlyfree:
-	free_all_last_events(&all_evts);
-
-	return rv;
-}

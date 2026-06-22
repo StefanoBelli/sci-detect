@@ -176,7 +176,6 @@ __retry:
 
 		/* check if we changed value to PERM_BITS, oh well... bad page */
 		if(atomic64_read(&pgstatus->perms) == PERM_BITS) {
-			scid_infof("wx pagei, test = %ld", pfn);
 			bcast_pgtrack_event_wxwarning(pfn, task_pid_vnr(current), va);
 			int err = xa_insert(&bad_pages, pfn, pgstatus, GFP_ATOMIC);
 			__pgtrack_log_err_code(err);
