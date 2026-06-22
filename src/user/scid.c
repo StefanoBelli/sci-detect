@@ -3,9 +3,6 @@
 #include <netlink/genl/genl.h>
 #include <netlink/genl/ctrl.h>
 
-/* this is the user/kernel shared header */
-#include <scid-netlink-defs.h>
-
 /* this is for the libscid shared library */
 #include <scid.h>
 
@@ -61,11 +58,11 @@ struct scid_nl_sk {
 /* TODO keep this in-sync */
 static const struct nla_policy global_policy[SCID_GENL_MAX_NR_ATTRS + 1] = {
 	[SCID_GENL_ATTR_ARRAY_NR_ELEMS] = { .type = NLA_U32 },
-    [SCID_GENL_ATTR_ARRAY] = { .type = NLA_NESTED },
-    [SCID_GENL_ATTR_VA] = { .type = NLA_U64 },
-    [SCID_GENL_ATTR_PFN] = { .type = NLA_U64 },
-    [SCID_GENL_ATTR_PID] = { .type = NLA_S32 },
-    [SCID_GENL_ATTR_EVT_TYPE] = { .type = NLA_U32 },
+	[SCID_GENL_ATTR_ARRAY] = { .type = NLA_NESTED },
+	[SCID_GENL_ATTR_VA] = { .type = NLA_UINT },
+	[SCID_GENL_ATTR_PFN] = { .type = NLA_UINT },
+	[SCID_GENL_ATTR_PID] = { .type = NLA_S32 },
+	[SCID_GENL_ATTR_EVT_TYPE] = { .type = NLA_U32 },
 };
 
 struct __main_nlmsg_cb_args {
@@ -75,30 +72,30 @@ struct __main_nlmsg_cb_args {
 
 static int __main_nlmsg_cb(struct nl_msg *msg, void *arg) 
 {
-    struct nlmsghdr *hdr = nlmsg_hdr(msg);
-    struct nlattr *attrs[SCID_GENL_MAX_NR_ATTRS + 1];
+	struct nlmsghdr *hdr = nlmsg_hdr(msg);
+	struct nlattr *attrs[SCID_GENL_MAX_NR_ATTRS + 1];
 
-    if (genlmsg_parse(hdr, 0, attrs, SCID_GENL_MAX_NR_ATTRS, global_policy) < 0)
-        return NL_SKIP;
+	if (genlmsg_parse(hdr, 0, attrs, SCID_GENL_MAX_NR_ATTRS, global_policy) < 0)
+		return NL_SKIP;
 
-    struct genlmsghdr *genl_hdr = genlmsg_hdr(hdr);
+	struct genlmsghdr *genl_hdr = genlmsg_hdr(hdr);
 
-    uint8_t cmd = genl_hdr->cmd;
+	uint8_t cmd = genl_hdr->cmd;
 
-    struct __main_nlmsg_cb_args *args = arg;
+	struct __main_nlmsg_cb_args *args = arg;
 
-    for(uint8_t i = 0; i < args->desc->regi_size; i++) {
-    	struct cmd_reg_info *cur = &args->desc->regi[i];
+	for(uint8_t i = 0; i < args->desc->regi_size; i++) {
+		struct cmd_reg_info *cur = &args->desc->regi[i];
 
-    	if(cmd == cur->cmd) {
-    		if(cur->user_handler)
-    			return cur->wrapper_handler(cur, attrs, args->uargs);
+		if(cmd == cur->cmd) {
+			if(cur->user_handler)
+				return cur->wrapper_handler(cur, attrs, args->uargs);
 
-    		return NL_SKIP;
-    	}
-    }
+			return NL_SKIP;
+		}
+	}
 
-    return NL_SKIP;
+	return NL_SKIP;
 }
 
 const char *str_sciderr(void *err)
@@ -157,71 +154,71 @@ long scid_regi_cmd(void* desc, uint8_t cmd, cmd_handler_fpt cmdh)
 void *scid_new_socket(int *errored)
 {
 	struct nl_sock *socket;
-    int family_id;
-    int group_id;
-    uint8_t nr_regis;
+	int family_id;
+	int group_id;
+	uint8_t nr_regis;
 
-    if(!errored)
-    	return SCID_INVALID_ARGS;
+	if(!errored)
+		return SCID_INVALID_ARGS;
 
-    nr_regis = __static_array_size(__static_regi_defs);
-    if(!nr_regis)
-    	return SCID_REGIS_ZERO;
+	nr_regis = __static_array_size(__static_regi_defs);
+	if(!nr_regis)
+		return SCID_REGIS_ZERO;
 
-    *errored = 1;
+	*errored = 1;
 
-    socket = nl_socket_alloc();
-    if (!socket) 
-        return SCID_NL_SKALLOC_FAILURE;
+	socket = nl_socket_alloc();
+	if (!socket) 
+		return SCID_NL_SKALLOC_FAILURE;
 
-    /* ensure enough space for receiving some data */
-    nl_socket_set_buffer_size(socket, NL_SOCKET_RXBUF_SIZE, NL_SOCKET_TXBUF_SIZE);
+	/* ensure enough space for receiving some data */
+	nl_socket_set_buffer_size(socket, NL_SOCKET_RXBUF_SIZE, NL_SOCKET_TXBUF_SIZE);
 
-    if (genl_connect(socket) < 0) {
-        nl_socket_free(socket);
-        return SCID_NL_SKCONN_FAILURE;
-    }
+	if (genl_connect(socket) < 0) {
+		nl_socket_free(socket);
+		return SCID_NL_SKCONN_FAILURE;
+	}
 
-    family_id = genl_ctrl_resolve(socket, SCID_GENL_NAME);
-    if (family_id < 0) {
-        nl_socket_free(socket);
-        return SCID_NL_SKRESOLVE_NAME_FAILURE;
-    }
+	family_id = genl_ctrl_resolve(socket, SCID_GENL_NAME);
+	if (family_id < 0) {
+		nl_socket_free(socket);
+		return SCID_NL_SKRESOLVE_NAME_FAILURE;
+	}
 
-    group_id = genl_ctrl_resolve_grp(socket, SCID_GENL_NAME, SCID_GENL_MCGRP_NAME);
-    if (group_id < 0) {
-        nl_socket_free(socket);
-        return SCID_NL_SKRESOLVE_GROUP_NAME_FAILURE;
-    }
+	group_id = genl_ctrl_resolve_grp(socket, SCID_GENL_NAME, SCID_GENL_MCGRP_NAME);
+	if (group_id < 0) {
+		nl_socket_free(socket);
+		return SCID_NL_SKRESOLVE_GROUP_NAME_FAILURE;
+	}
 
-    struct scid_nl_sk *desc = malloc(sizeof(struct scid_nl_sk));
-    if(!desc) {
-    	nl_socket_free(socket);
-    	return SCID_NL_DESC_ALLOC;
-    }
-   
-    desc->regi = malloc(sizeof(struct cmd_reg_info) * nr_regis);
-    if(!desc->regi) {
-    	nl_socket_free(socket);
-    	free(desc);
-    	return SCID_REGI_ALLOC;
-    }
+	struct scid_nl_sk *desc = malloc(sizeof(struct scid_nl_sk));
+	if(!desc) {
+		nl_socket_free(socket);
+		return SCID_NL_DESC_ALLOC;
+	}
 
-    *errored = 0;
+	desc->regi = malloc(sizeof(struct cmd_reg_info) * nr_regis);
+	if(!desc->regi) {
+		nl_socket_free(socket);
+		free(desc);
+		return SCID_REGI_ALLOC;
+	}
 
-    desc->socket = socket;
-    desc->family_id = family_id;
-    desc->group_id = group_id;
-    desc->regi_size = nr_regis;
+	*errored = 0;
 
-    /* don't memcpy, explicit user_handler = NULL for each i */
-    for(uint8_t i = 0; i < desc->regi_size; i++) {
-    	desc->regi[i].cmd = __static_regi_defs[i].cmd;
-    	desc->regi[i].wrapper_handler = __static_regi_defs[i].wrapper_handler;
-    	desc->regi[i].user_handler = NULL;
-    }
+	desc->socket = socket;
+	desc->family_id = family_id;
+	desc->group_id = group_id;
+	desc->regi_size = nr_regis;
 
-    return desc;
+	/* don't memcpy, explicit user_handler = NULL for each i */
+	for(uint8_t i = 0; i < desc->regi_size; i++) {
+		desc->regi[i].cmd = __static_regi_defs[i].cmd;
+		desc->regi[i].wrapper_handler = __static_regi_defs[i].wrapper_handler;
+		desc->regi[i].user_handler = NULL;
+	}
+
+	return desc;
 }
 
 long scid_broadcast_subscribe(void *desc)
@@ -235,7 +232,7 @@ long scid_broadcast_subscribe(void *desc)
 
 		return (long) SCID_NL_SKADDMEMB_FAILURE;
 
-    return 0;
+	return 0;
 }
 
 long scid_broadcast_unsubscribe(void *desc)
@@ -247,7 +244,7 @@ long scid_broadcast_unsubscribe(void *desc)
 
 		return (long) SCID_NL_SKDROPMEMB_FAILURE;
 
-    return 0;
+	return 0;
 }
 
 void scid_del_socket(void* desc)
@@ -286,17 +283,20 @@ int scid_poll_one_message(void* desc, void *args)
 			__main_nlmsg_cb, &nlargs);
 
 	rv = nl_recvmsgs_default(_desc->socket);
-    if (rv < 0)
-    	return rv;
+	if (rv < 0)
+		return rv;
 
-    return 0;
+	return 0;
 }
 
-int scid_poll_forever(void *desc, void *args)
+int scid_poll_forever(void *desc, void *args, int *loop)
 {
 	int rv;
 
-	while(1) {
+	if(!loop)
+		return (long) SCID_INVALID_ARGS;
+
+	while(*loop) {
 		rv = scid_poll_one_message(desc, args);
 		if(rv < 0)
 			return rv;
@@ -333,7 +333,7 @@ static long __scid_send_cmd(
 			return rv;
 		}
 	}
-	
+
 	if(nl_send_auto(_desc->socket, msg) < 0) {
 		nlmsg_free(msg);
 		return (long) SCID_NL_SKSEND_FAILURE;
@@ -377,10 +377,10 @@ int __scid_wrapper_event_wxwarning(const struct cmd_reg_info *regi,
 		evt.pid = nla_get_s32(attrs[SCID_GENL_ATTR_PID]);
 
 	if(attrs[SCID_GENL_ATTR_PFN])
-		evt.pfn = nla_get_u64(attrs[SCID_GENL_ATTR_PFN]);
+		evt.pfn = nla_get_uint(attrs[SCID_GENL_ATTR_PFN]);
 
 	if(attrs[SCID_GENL_ATTR_VA])
-		evt.va = nla_get_u64(attrs[SCID_GENL_ATTR_VA]);
+		evt.va = nla_get_uint(attrs[SCID_GENL_ATTR_VA]);
 
 	regi->user_handler(&evt, uargs);
 
@@ -416,11 +416,11 @@ static int populate_last_evt_wxwarning(struct last_event *evt, struct nlattr *at
 	wxw = evt->data;
 
 	if(nla_type(attr) == SCID_GENL_ATTR_VA)
-		wxw->va = nla_get_u64(attr);
+		wxw->va = nla_get_uint(attr);
 	else if(nla_type(attr) == SCID_GENL_ATTR_PID)
 		wxw->pid = nla_get_s32(attr);
 	else if(nla_type(attr) == SCID_GENL_ATTR_PFN)
-		wxw->pfn = nla_get_u64(attr);
+		wxw->pfn = nla_get_uint(attr);
 
 	return NL_OK;
 }
@@ -469,7 +469,7 @@ int __scid_wrapper_get_last_events(const struct cmd_reg_info *regi,
 			i_evt_type = nla_get_u32(pos);
 
 			i++;
-			
+
 			/* consistency checks */
 			if(i < 0 || i >= (int) all_evts.nr) 
 				abort();

@@ -1,6 +1,9 @@
 #ifndef SCID_H
 #define SCID_H
 
+/* this is the user/kernel shared header */
+#include <scid-netlink-defs.h>
+
 #include <stdint.h>
 
 #define SCID_NL_SKALLOC_FAILURE ((void*) -1)
@@ -102,10 +105,11 @@ int scid_poll_one_message(void* desc, void* args);
  *
  * @desc: the descriptor
  * @args: args to be passed to the command response handler callback
+ * @loop: ptr to control loop at "recvmsg granularity"
  *
  * Returns: 0 if ok, not 0 othw
  */
-int scid_poll_forever(void* desc, void* args);
+int scid_poll_forever(void* desc, void* args, int *loop);
 
 /**
  * scid_cmd_get_last_events - do a get_last_events cmd and await for
