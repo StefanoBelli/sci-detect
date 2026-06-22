@@ -6,20 +6,21 @@
 
 #include <stdint.h>
 
-#define SCID_NL_SKALLOC_FAILURE ((void*) -1)
-#define SCID_NL_SKCONN_FAILURE ((void*) -2)
-#define SCID_NL_SKRESOLVE_NAME_FAILURE ((void*) -3)
-#define SCID_NL_SKRESOLVE_GROUP_NAME_FAILURE ((void*) -4)
-#define SCID_NL_DESC_ALLOC ((void*) -5)
-#define SCID_NL_SKADDMEMB_FAILURE ((void*) -6)
-#define SCID_NL_SKDROPMEMB_FAILURE ((void*) -7)
-#define SCID_NL_MSG_ALLOC_FAILURE ((void*) -8)
-#define SCID_NL_MSG_HDRPUT_FAILURE ((void*) -9)
-#define SCID_NL_SKSEND_FAILURE ((void*) -10)
-#define SCID_NL_SKRECV_FAILURE ((void*) -11)
-#define SCID_INVALID_ARGS ((void*) -12)
-#define SCID_REGIS_ZERO ((void*) -13)
-#define SCID_REGI_ALLOC ((void*) -14)
+#define SCID_NL_SKALLOC_FAILURE (-1)
+#define SCID_NL_SKCONN_FAILURE (-2)
+#define SCID_NL_SKRESOLVE_NAME_FAILURE (-3)
+#define SCID_NL_SKRESOLVE_GROUP_NAME_FAILURE (-4)
+#define SCID_NL_DESC_ALLOC (-5)
+#define SCID_NL_SKADDMEMB_FAILURE (-6)
+#define SCID_NL_SKDROPMEMB_FAILURE (-7)
+#define SCID_NL_MSG_ALLOC_FAILURE (-8)
+#define SCID_NL_MSG_HDRPUT_FAILURE (-9)
+#define SCID_NL_SKSEND_FAILURE (-10)
+#define SCID_NL_SKRECV_FAILURE (-11)
+#define SCID_INVALID_ARGS (-12)
+#define SCID_REGIS_ZERO (-13)
+#define SCID_REGI_ALLOC (-14)
+#define SCID_NL_SKSETBUFSIZE_FAILURE (-15)
 
 /**
  * str_sciderr - get error string from error code
@@ -28,7 +29,7 @@
  *
  * Returns: a string about the error, never NULL
  */
-const char* str_sciderr(void* err);
+const char* str_sciderr(long err);
 
 /*
  * @cmd_data: the command output, depends on the particular cmd
@@ -109,7 +110,7 @@ int scid_poll_one_message(void* desc, void* args);
  *
  * Returns: 0 if ok, not 0 othw
  */
-int scid_poll_forever(void* desc, void* args, int *loop);
+long scid_poll_forever(void* desc, void* args, int *loop);
 
 /**
  * scid_cmd_get_last_events - do a get_last_events cmd and await for

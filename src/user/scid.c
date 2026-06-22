@@ -35,7 +35,9 @@ int __scid_wrapper_get_last_events(
 
 #define __static_array_size(x) (sizeof(x) / sizeof(typeof(x[0])))
 
-/* TODO keep this in-sync */
+/*
+ * compile-time regi defs
+ */
 static const struct cmd_reg_info __static_regi_defs[] = {
 	{
 		.cmd = SCID_GENL_CMD_EVENT_WXWARNING,
@@ -55,7 +57,9 @@ struct scid_nl_sk {
 	uint8_t regi_size;
 };
 
-/* TODO keep this in-sync */
+/*
+ * nla policies
+ */
 static const struct nla_policy global_policy[SCID_GENL_MAX_NR_ATTRS + 1] = {
 	[SCID_GENL_ATTR_ARRAY_NR_ELEMS] = { .type = NLA_U32 },
 	[SCID_GENL_ATTR_ARRAY] = { .type = NLA_NESTED },
@@ -98,7 +102,7 @@ static int __main_nlmsg_cb(struct nl_msg *msg, void *arg)
 	return NL_SKIP;
 }
 
-const char *str_sciderr(void *err)
+const char *str_sciderr(long err)
 {
 	if(!err)
 		return "success";
@@ -130,6 +134,8 @@ const char *str_sciderr(void *err)
 		return "no compile-time registration";
 	else if(err == SCID_REGI_ALLOC)
 		return "registration allocation failure";
+	else if(err == SCID_NL_SKSETBUFSIZE_FAILURE)
+		return "unable to set socket bufsize";
 
 	return "unknown failure";
 }
@@ -139,7 +145,7 @@ long scid_regi_cmd(void* desc, uint8_t cmd, cmd_handler_fpt cmdh)
 	struct scid_nl_sk *_desc = desc;
 
 	if(!cmdh)
-		return (long) SCID_INVALID_ARGS;
+		return SCID_INVALID_ARGS;
 
 	for(uint8_t i = 0; i < _desc->regi_size; i++) {
 		if(_desc->regi[i].cmd == cmd) {
@@ -148,7 +154,7 @@ long scid_regi_cmd(void* desc, uint8_t cmd, cmd_handler_fpt cmdh)
 		}
 	}
 
-	return (long) SCID_INVALID_ARGS;
+	return SCID_INVALID_ARGS;
 }
 
 void *scid_new_socket(int *errored)
@@ -159,49 +165,53 @@ void *scid_new_socket(int *errored)
 	uint8_t nr_regis;
 
 	if(!errored)
-		return SCID_INVALID_ARGS;
+		return (void*) SCID_INVALID_ARGS;
 
 	nr_regis = __static_array_size(__static_regi_defs);
 	if(!nr_regis)
-		return SCID_REGIS_ZERO;
+		return (void*) SCID_REGIS_ZERO;
 
 	*errored = 1;
 
 	socket = nl_socket_alloc();
 	if (!socket) 
-		return SCID_NL_SKALLOC_FAILURE;
-
-	/* ensure enough space for receiving some data */
-	nl_socket_set_buffer_size(socket, NL_SOCKET_RXBUF_SIZE, NL_SOCKET_TXBUF_SIZE);
+		return (void*) SCID_NL_SKALLOC_FAILURE;
 
 	if (genl_connect(socket) < 0) {
 		nl_socket_free(socket);
-		return SCID_NL_SKCONN_FAILURE;
+		return (void*) SCID_NL_SKCONN_FAILURE;
+	}
+
+	/* ensure enough space for receiving some data */
+	if(nl_socket_set_buffer_size(
+				socket, NL_SOCKET_RXBUF_SIZE, NL_SOCKET_TXBUF_SIZE) < 0) {
+		nl_socket_free(socket);
+		return (void*) SCID_NL_SKSETBUFSIZE_FAILURE;
 	}
 
 	family_id = genl_ctrl_resolve(socket, SCID_GENL_NAME);
 	if (family_id < 0) {
 		nl_socket_free(socket);
-		return SCID_NL_SKRESOLVE_NAME_FAILURE;
+		return (void*) SCID_NL_SKRESOLVE_NAME_FAILURE;
 	}
 
 	group_id = genl_ctrl_resolve_grp(socket, SCID_GENL_NAME, SCID_GENL_MCGRP_NAME);
 	if (group_id < 0) {
 		nl_socket_free(socket);
-		return SCID_NL_SKRESOLVE_GROUP_NAME_FAILURE;
+		return (void*) SCID_NL_SKRESOLVE_GROUP_NAME_FAILURE;
 	}
 
 	struct scid_nl_sk *desc = malloc(sizeof(struct scid_nl_sk));
 	if(!desc) {
 		nl_socket_free(socket);
-		return SCID_NL_DESC_ALLOC;
+		return (void*) SCID_NL_DESC_ALLOC;
 	}
 
 	desc->regi = malloc(sizeof(struct cmd_reg_info) * nr_regis);
 	if(!desc->regi) {
 		nl_socket_free(socket);
 		free(desc);
-		return SCID_REGI_ALLOC;
+		return (void*) SCID_REGI_ALLOC;
 	}
 
 	*errored = 0;
@@ -230,7 +240,7 @@ long scid_broadcast_subscribe(void *desc)
 	if (nl_socket_add_memberships(
 				_desc->socket, _desc->group_id, 0) < 0)
 
-		return (long) SCID_NL_SKADDMEMB_FAILURE;
+		return SCID_NL_SKADDMEMB_FAILURE;
 
 	return 0;
 }
@@ -242,7 +252,7 @@ long scid_broadcast_unsubscribe(void *desc)
 	if (nl_socket_drop_memberships(
 				_desc->socket, _desc->group_id, 0) < 0)
 
-		return (long) SCID_NL_SKDROPMEMB_FAILURE;
+		return SCID_NL_SKDROPMEMB_FAILURE;
 
 	return 0;
 }
@@ -289,12 +299,12 @@ int scid_poll_one_message(void* desc, void *args)
 	return 0;
 }
 
-int scid_poll_forever(void *desc, void *args, int *loop)
+long scid_poll_forever(void *desc, void *args, int *loop)
 {
 	int rv;
 
 	if(!loop)
-		return (long) SCID_INVALID_ARGS;
+		return SCID_INVALID_ARGS;
 
 	while(*loop) {
 		rv = scid_poll_one_message(desc, args);
@@ -318,12 +328,12 @@ static long __scid_send_cmd(
 
 	msg = nlmsg_alloc();
 	if(!msg)
-		return (long) SCID_NL_MSG_ALLOC_FAILURE;
+		return SCID_NL_MSG_ALLOC_FAILURE;
 
 	hdr = genlmsg_put(msg, NL_AUTO_PID, NL_AUTO_SEQ, _desc->family_id, 0, 0, cmd, 0);
 	if(!hdr) {
 		nlmsg_free(msg);
-		return (long) SCID_NL_MSG_HDRPUT_FAILURE;
+		return SCID_NL_MSG_HDRPUT_FAILURE;
 	}
 
 	if(cb_put_attrs) {
@@ -336,13 +346,13 @@ static long __scid_send_cmd(
 
 	if(nl_send_auto(_desc->socket, msg) < 0) {
 		nlmsg_free(msg);
-		return (long) SCID_NL_SKSEND_FAILURE;
+		return SCID_NL_SKSEND_FAILURE;
 	}
 
 	nlmsg_free(msg);
 
 	if(scid_poll_one_message(_desc, args) < 0)
-		return (long) SCID_NL_SKRECV_FAILURE;
+		return SCID_NL_SKRECV_FAILURE;
 
 	return 0;
 }

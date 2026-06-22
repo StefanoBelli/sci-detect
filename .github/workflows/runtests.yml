@@ -17,8 +17,8 @@ jobs:
       run: uname -s -r
     - name: Update apt sources
       run: sudo apt update
-    - name: Install kernel headers
-      run: sudo apt install -y linux-headers-$(uname -r)
+    - name: Install kernel headers and libnl-3
+      run: sudo apt install -y linux-headers-$(uname -r) libnl-3-dev libnl-genl-3-dev
     - name: Build the module
       run: make kernel-testing
     - name: Show THP status BEFORE moving to madvise
