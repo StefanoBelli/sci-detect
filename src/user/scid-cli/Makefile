@@ -12,18 +12,18 @@ all: lib cli
 
 cli: $(SCID_CLI_OUT)
 
+# Thanks: https://stackoverflow.com/questions/42113237/undefined-reference-when-linking-dynamic-library-in-ubuntu-system
 $(SCID_CLI_OUT): $(SCID_CLI_OBJS) | lib
 	@echo -e "\tLINK $@"
 	@$(CC) \
-		$(CFLAGS) \
+		$(CFLAGS) $^ \
 		-L$(LIBSCID_DIR) -l$(LIBSCID_LNK) \
-		$^ -o $@ 
+		-o $@ 
 
 $(SCID_CLI_OBJS): %.o: %.c
 	@echo -e "\tCC $<"
 	@$(CC) \
 		$(CFLAGS) -c \
-		-L$(LIBSCID_DIR) -l$(LIBSCID_LNK) \
 		-I$(SCID_SHARED_HEADER) -I$(LIBSCID_HDRS) \
 		-o $@ $<
 

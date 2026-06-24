@@ -28,12 +28,14 @@ all: $(EXAMPLES)
 clean:
 	rm $(EXAMPLES)
 
+# Thanks: https://stackoverflow.com/questions/42113237/undefined-reference-when-linking-dynamic-library-in-ubuntu-system
+
 example-%.example: example-%.c
 	@echo -ne "\tCC [example] $@\n"
-	@$(CC) $(CFLAGS) \
+	@$(CC) $(CFLAGS) $< \
 		-I$(LIBSCID_HDRS) -I$(SCID_SHARED_HDRS) \
 		-L$(LIBSCID_BASE) -l$(LIBSCID_LNK) \
-		$< -o $@
+		-o $@
 
 run-examples: all
 	@echo -e "\033[1;37m**\033[0m Running \033[1;37mall the examples\033[0m..."
