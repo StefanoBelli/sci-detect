@@ -10,12 +10,12 @@ LIBSCID_OBJS = scid.o scid-cmds.o scid-wrappers.o
 all: $(LIBSCID_OUT)
 
 $(LIBSCID_OUT): $(LIBSCID_OBJS)
-	@echo -e "\tLINK $@"
+	@echo -ne "\tLINK $@\n"
 	@$(CC) $(CFLAGS) -shared -o $@ $^ \
 		$(shell pkg-config --libs $(LIBNL))
 
 $(LIBSCID_OBJS): %.o: %.c
-	@echo -e "\tCC $<"
+	@echo -ne "\tCC $<\n"
 	@$(CC) $(CFLAGS) -fPIC -fpic -c -I$(SCID_NL_SHARED_HEADER) -I$(LIBSCID_HDRS) \
 		 $(shell pkg-config --cflags $(LIBNL)) -o $@ $<
 
