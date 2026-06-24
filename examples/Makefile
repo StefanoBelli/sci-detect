@@ -6,9 +6,24 @@ LIBSCID_HDRS=$(LIBSCID_BASE)/include
 SCID_SHARED_HDRS=../src/kernel/include/user
 LIBSCID_LNK=scid
 
+# order matters (e.g. two uncorrelated process)
 EXAMPLES= \
+	   example-single-one.example \
 	   example-fork.example \
 	   example-vfork.example \
+	   example-shm-posix-fork.example \
+	   example-shm-anon-fork.example \
+	   example-shm-sysv-fork.example \
+	   example-shm-posix-vfork.example \
+	   example-shm-anon-vfork.example \
+	   example-shm-sysv-vfork.example \
+	   example-shm-posix-noncorr-1.example \
+	   example-shm-posix-noncorr-2.example \
+	   example-shm-sysv-noncorr-1.example \
+	   example-shm-sysv-noncorr-2.example \
+	   example-file-priv-fork.example \
+	   example-file-priv-vfork.example
+
 
 valid_build_types = libscid-check without-libscid-check
 BUILD_TYPE ?= libscid-check

@@ -7,7 +7,7 @@ int main()
 
 	mem = mmap(
 			NULL, 
-			4096, 
+			PAGE_SIZE, 
 			PROT_READ | PROT_WRITE, 
 			MAP_PRIVATE | MAP_ANONYMOUS, 
 			-1, 0);
@@ -23,7 +23,7 @@ int main()
 		check_scid_bcast_wxwarning(
 				mem
 				,
-				if(mprotect(mem, 4096, PROT_READ | PROT_EXEC)) {
+				if(mprotect(mem, PAGE_SIZE, PROT_READ | PROT_EXEC)) {
 					perror("mprotect");
 					exit(EXIT_FAILURE);
 				}
@@ -39,7 +39,7 @@ int main()
 	} else
 		wait_for_child(child_pid);
 
-	if(munmap(mem, 4096))
+	if(munmap(mem, PAGE_SIZE))
 		perror("munmap");
 
 	example_passed();

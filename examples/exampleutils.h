@@ -11,6 +11,35 @@
 #include <scid.h>
 #endif
 
+#define __unused __attribute__((__unused__))
+
+#define full_membar() \
+	__asm__ __volatile__("mfence;" ::: "memory")
+
+#define spurious_byte_memwrite(ptr, value) \
+	*((volatile char*)ptr) = value; \
+	full_membar()
+
+#define spurious_byte_memread(varname, ptr) \
+	__unused volatile char varname = *(ptr); \
+	full_membar()
+
+#ifndef __starting_mem_varname
+#	define __starting_mem_varname mem
+#endif
+
+#if !defined(PAGE_SIZE)
+#	if defined(__x86_64__) || defined(__i386__)
+#		define PAGE_SIZE 4096
+#	endif
+#endif
+
+#define page_nr(nr) \
+	({ \
+	 	_Static_assert((nr) > 0, "page index base is 1"); \
+	 	(__starting_mem_varname + (((nr) - 1) * PAGE_SIZE)); \
+	})
+
 #define x86_opcode_ret (0xc3)
 
 #ifdef EXAMPLE_CHECK_WITH_LIBSCID

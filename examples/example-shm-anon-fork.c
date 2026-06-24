@@ -1,6 +1,3 @@
-/* feature test macro required for vfork */
-#define _XOPEN_SOURCE 500
-
 #include "exampleutils.h"
 
 int main()
@@ -12,7 +9,7 @@ int main()
 			NULL, 
 			PAGE_SIZE, 
 			PROT_READ | PROT_WRITE, 
-			MAP_PRIVATE | MAP_ANONYMOUS, 
+			MAP_SHARED | MAP_ANONYMOUS, 
 			-1, 0);
 	if(mem == MAP_FAILED) {
 		perror("mmap");
@@ -21,26 +18,30 @@ int main()
 
 	*mem = x86_opcode_ret;
 
-	child_pid = vfork();
+	child_pid = fork();
 	if(!child_pid) {
+		/* again, this will just change the VMA, but not the PTE
+		 * because there is the shmem_anon vmops (shmem_anon_vm_ops)
+		 */
+		if(mprotect(mem, PAGE_SIZE, PROT_READ | PROT_EXEC)) {
+			perror("mprotect");
+			exit(EXIT_FAILURE);
+		}
+
+		/* lazy PTE change */
 		check_scid_bcast_wxwarning(
 				mem
 				,
-				if(mprotect(mem, PAGE_SIZE, PROT_READ | PROT_EXEC)) {
-					perror("mprotect");
-					_exit(EXIT_FAILURE);
-				}
+				((void(*)(void))mem)();
 				,
 				,
-				);
+		);
 
-		((void(*)(void))mem)();
-		_exit(EXIT_SUCCESS);
-	} else if (child_pid < 0) {
-		perror("vfork");
+		exit(EXIT_SUCCESS);
+	} else if(child_pid < 0) {
+		perror("fork");
 		return EXIT_FAILURE;
 	} else
-		/* this is not necessary, but to check exit status */
 		wait_for_child(child_pid);
 
 	if(munmap(mem, PAGE_SIZE))

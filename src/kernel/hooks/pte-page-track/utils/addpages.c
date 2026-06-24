@@ -10,7 +10,14 @@ bool add_one_page(
 	pte_t pte = ptep_get(ptep);
 
 	if(pte_none(pte)) {
+	
+		/* this may happen frequently, especially with
+		 * change_pte_range, and it is not a problem.
+		 * Userfaultfd may want to deal with that, we don't
+		 * care and simply ignore the PTE */
+#ifdef __AOP_WARN_ABOUT_PTE_NONE
 		scid_err("pte is none");
+#endif 
 		return false;
 	}
 

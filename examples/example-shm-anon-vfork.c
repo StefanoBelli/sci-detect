@@ -1,4 +1,4 @@
-/* feature test macro required for vfork */
+/* ftm for vfork */
 #define _XOPEN_SOURCE 500
 
 #include "exampleutils.h"
@@ -12,7 +12,7 @@ int main()
 			NULL, 
 			PAGE_SIZE, 
 			PROT_READ | PROT_WRITE, 
-			MAP_PRIVATE | MAP_ANONYMOUS, 
+			MAP_SHARED | MAP_ANONYMOUS, 
 			-1, 0);
 	if(mem == MAP_FAILED) {
 		perror("mmap");
@@ -23,24 +23,25 @@ int main()
 
 	child_pid = vfork();
 	if(!child_pid) {
+		/* addr space is purely the same here, that's why no 
+		 * lazy PTE change even if shmem_anon vm ops*/
 		check_scid_bcast_wxwarning(
 				mem
 				,
 				if(mprotect(mem, PAGE_SIZE, PROT_READ | PROT_EXEC)) {
 					perror("mprotect");
-					_exit(EXIT_FAILURE);
+					exit(EXIT_FAILURE);
 				}
 				,
 				,
-				);
-
+		);
+		
 		((void(*)(void))mem)();
-		_exit(EXIT_SUCCESS);
-	} else if (child_pid < 0) {
-		perror("vfork");
+		exit(EXIT_SUCCESS);
+	} else if(child_pid < 0) {
+		perror("fork");
 		return EXIT_FAILURE;
 	} else
-		/* this is not necessary, but to check exit status */
 		wait_for_child(child_pid);
 
 	if(munmap(mem, PAGE_SIZE))

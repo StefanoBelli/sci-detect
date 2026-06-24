@@ -93,8 +93,17 @@ static int change_pte_range__hkrphook(
 	};
 
 	do {
-		if(!add_one_page(ptep, NULL, NULL, NULL, &pgt_args))
+		__maybe_unused bool rv;
+		rv = add_one_page(ptep, NULL, NULL, NULL, &pgt_args);
+
+		/* see also add_one_page, this may happen frequently due to
+		 * a PTE that is pte_none being passed anyway to change_pte_range
+		 * for userfaultfd reasons, we simply ignore it
+		 */
+#ifdef __CPR_WARN_UNABLE_TO_ADD_PAGE
+		if(!rv)
 			scid_warn("unable to add page");
+#endif
 
 	} while(ptep++, addr += PAGE_SIZE, addr != end);
 
