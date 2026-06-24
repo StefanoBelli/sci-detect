@@ -68,11 +68,11 @@ static int populate_last_evt_wxwarning(struct last_event *evt, struct nlattr *at
 	wxw = evt->data;
 
 	if(nla_type(attr) == SCID_GENL_ATTR_VA)
-		wxw->va = nla_get_uint(attr);
+		wxw->va = nla_get_u64(attr);
 	else if(nla_type(attr) == SCID_GENL_ATTR_PID)
 		wxw->pid = nla_get_s32(attr);
 	else if(nla_type(attr) == SCID_GENL_ATTR_PFN)
-		wxw->pfn = nla_get_uint(attr);
+		wxw->pfn = nla_get_u64(attr);
 
 	return NL_OK;
 }
