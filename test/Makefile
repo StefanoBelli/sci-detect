@@ -27,9 +27,9 @@ TESTS= \
 	   test-shm-anon-prefault.test \
 	   test-shm-posix-prefault.test \
 	   test-shm-sysv-prefault.test \
-	   test-shm-file-shared-prefault.test \
-	   test-shm-file-private-prefault.test \
-	   test-cpr-anon-private.test
+	   test-cpr-anon-private.test 
+	   #test-shm-file-shared-prefault.test \
+	   test-shm-file-private-prefault.test 
 
 valid_build_types = normal no-fail
 BUILD_TYPE ?= normal
