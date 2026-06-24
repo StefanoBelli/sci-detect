@@ -17,7 +17,7 @@ kernel-clean:
 	make -C src/kernel clean
 
 user-clean:
-	make -C src/user clean
+	make -C src/user -i clean
 
 # module mounting
 

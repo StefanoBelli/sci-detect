@@ -36,6 +36,8 @@ jobs:
     - name: Show dmesg
       if: always()
       run: sudo dmesg
+    - name: Make libscid and scid CLI
+      run: make user
     - name: Run examples
       run: sudo make run-examples
     - name: Clear dmesg
