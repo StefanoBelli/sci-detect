@@ -1,4 +1,4 @@
-SHELL=/bin/sh
+SHELL=/bin/bash
 CC=gcc
 CFLAGS=-O2 -Wall -W -Wextra -Wshadow 
 SCID_CLI_OUT=scid.out

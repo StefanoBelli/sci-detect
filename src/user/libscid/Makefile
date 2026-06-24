@@ -1,4 +1,4 @@
-SHELL=/bin/sh
+SHELL=/bin/bash
 CC=gcc
 CFLAGS=-O2 -Wall -W -Wextra -Wshadow 
 SCID_NL_SHARED_HEADER=../../kernel/include/user
