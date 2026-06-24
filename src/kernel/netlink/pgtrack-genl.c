@@ -134,12 +134,12 @@ static bool __event_to_populate_skb_with_wxwarning(
 		return false;
 	}
 
-	if(unlikely(nla_put_uint(skb, SCID_GENL_ATTR_PFN, wxw->pfn))) {
+	if(unlikely(nla_put_u64_64bit(skb, SCID_GENL_ATTR_PFN, wxw->pfn, SCID_GENL_ATTR_PAD))) {
 		scid_err("unable to put pfn in skb");
 		return false;
 	}
 
-	if(unlikely(nla_put_uint(skb, SCID_GENL_ATTR_VA, wxw->va))) {
+	if(unlikely(nla_put_u64_64bit(skb, SCID_GENL_ATTR_VA, wxw->va, SCID_GENL_ATTR_PAD))) {
 		scid_err("unable to put va in skb");
 		return false;
 	}

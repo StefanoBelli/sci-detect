@@ -6,8 +6,8 @@
 const struct nla_policy global_policy[SCID_GENL_MAX_NR_ATTRS + 1] = {
 	[SCID_GENL_ATTR_ARRAY_NR_ELEMS] = { .type = NLA_U32 },
 	[SCID_GENL_ATTR_ARRAY] = { .type = NLA_NESTED },
-	[SCID_GENL_ATTR_VA] = { .type = NLA_UINT },
-	[SCID_GENL_ATTR_PFN] = { .type = NLA_UINT },
+	[SCID_GENL_ATTR_VA] = { .type = NLA_U64 },
+	[SCID_GENL_ATTR_PFN] = { .type = NLA_U64 },
 	[SCID_GENL_ATTR_PID] = { .type = NLA_S32 },
 	[SCID_GENL_ATTR_EVT_TYPE] = { .type = NLA_U32 },
 };
@@ -29,10 +29,10 @@ int __scid_wrapper_event_wxwarning(cmd_handler_fpt user_handler,
 		evt.pid = nla_get_s32(attrs[SCID_GENL_ATTR_PID]);
 
 	if(attrs[SCID_GENL_ATTR_PFN])
-		evt.pfn = nla_get_uint(attrs[SCID_GENL_ATTR_PFN]);
+		evt.pfn = nla_get_u64(attrs[SCID_GENL_ATTR_PFN]);
 
 	if(attrs[SCID_GENL_ATTR_VA])
-		evt.va = nla_get_uint(attrs[SCID_GENL_ATTR_VA]);
+		evt.va = nla_get_u64(attrs[SCID_GENL_ATTR_VA]);
 
 	user_handler(&evt, uargs);
 

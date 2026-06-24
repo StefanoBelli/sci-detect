@@ -8,8 +8,10 @@
 
 /* these attrs may be reused, their interpretation
  * depends on the cmd */
-enum scid_genl_attrs : unsigned int {
+enum scid_genl_attrs {
 	__SCID_GENL_ATTR_UNSPEC,
+
+	SCID_GENL_ATTR_PAD,
 
 	SCID_GENL_ATTR_ARRAY,
 	SCID_GENL_ATTR_ARRAY_NR_ELEMS,
