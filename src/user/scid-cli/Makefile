@@ -14,11 +14,18 @@ cli: $(SCID_CLI_OUT)
 
 $(SCID_CLI_OUT): $(SCID_CLI_OBJS) | lib
 	@echo -e "\tLINK $@"
-	@$(CC) $(CFLAGS) -L$(LIBSCID_DIR) -l$(LIBSCID_LNK) $^ -o $@ 
+	@$(CC) \
+		$(CFLAGS) \
+		-L$(LIBSCID_DIR) -l$(LIBSCID_LNK) \
+		$^ -o $@ 
 
 $(SCID_CLI_OBJS): %.o: %.c
 	@echo -e "\tCC $<"
-	@$(CC) $(CFLAGS) -c -I$(SCID_SHARED_HEADER) -I$(LIBSCID_HDRS) -o $@ $<
+	@$(CC) \
+		$(CFLAGS) -c \
+		-L$(LIBSCID_DIR) -l$(LIBSCID_LNK) \
+		-I$(SCID_SHARED_HEADER) -I$(LIBSCID_HDRS) \
+		-o $@ $<
 
 clean:
 	rm $(SCID_CLI_OBJS)
