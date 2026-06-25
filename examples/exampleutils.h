@@ -59,8 +59,9 @@
 			exit(EXIT_FAILURE); \
 		} \
 		\
-		int rv; \
-		if((rv=write(_____fd____, __DROPC_STR, strlen(__DROPC_STR))) != strlen(__DROPC_STR)) { \
+		ssize_t dropc_len = strlen(__DROPC_STR); \
+		\
+		if(write(_____fd____, __DROPC_STR, dropc_len) != dropc_len) { \
 			perror("flush_page_cache's write"); \
 			close(_____fd____); \
 			exit(EXIT_FAILURE); \
