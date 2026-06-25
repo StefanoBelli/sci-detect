@@ -1,4 +1,4 @@
-/* ftm for vfork */
+/* ftm for sync */
 #define _XOPEN_SOURCE 500
 
 #include "exampleutils.h"
@@ -8,6 +8,8 @@ int main()
 	int fd;
 	char* mem;
 	pid_t child_pid;
+
+	flush_page_cache();
 
 	fd = open("res/file", O_RDWR, S_IRUSR | S_IWUSR);
 	if(fd < 0) {
@@ -19,7 +21,7 @@ int main()
 			NULL, 
 			PAGE_SIZE, 
 			PROT_READ | PROT_WRITE, 
-			MAP_PRIVATE, 
+			MAP_SHARED, 
 			fd, 0);
 	if(mem == MAP_FAILED) {
 		perror("mmap");
@@ -28,20 +30,21 @@ int main()
 
 	*mem = x86_opcode_ret;
 
-	child_pid = vfork();
+	child_pid = fork();
 	if(!child_pid) {
+		if(mprotect(mem, PAGE_SIZE, PROT_READ | PROT_EXEC)) {
+			perror("mprotect");
+			exit(EXIT_FAILURE);
+		}
+
 		check_scid_bcast_wxwarning(
 				mem
 				,
-				if(mprotect(mem, PAGE_SIZE, PROT_READ | PROT_EXEC)) {
-					perror("mprotect");
-					exit(EXIT_FAILURE);
-				}
+				((void(*)(void))mem)();
 				,
 				,
 		);
 
-		((void(*)(void))mem)();
 		exit(EXIT_SUCCESS);
 	} else if(child_pid < 0) {
 		perror("fork");

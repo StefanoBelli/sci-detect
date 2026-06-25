@@ -1,18 +1,15 @@
-#include <sys/stat.h>
-#include <fcntl.h>
-
 #include "exampleutils.h"
-
-#define SHM_NAME "example-shm"
-#define SHM_OFLAGS O_RDWR
-#define SHM_MODE 0700
 
 int main()
 {
 	char *mem;
 	int shm_fd;
 
-	shm_fd = shm_open(SHM_NAME, SHM_OFLAGS, SHM_MODE);
+	shm_fd = shm_open(
+			POSIX_SHM_NAME, 
+			POSIX_SHM_OFLAGS & POSIX_NO_EXCL_CREAT, 
+			POSIX_SHM_MODE);
+
 	if(shm_fd < 0) {
 		perror("shm_open");
 		return EXIT_FAILURE;
@@ -23,7 +20,7 @@ int main()
 			MAP_SHARED, shm_fd, 0);
 	if(mem == MAP_FAILED) {
 		perror("mmap");
-		shm_unlink(SHM_NAME);
+		shm_unlink(POSIX_SHM_NAME);
 		return EXIT_FAILURE;
 	}
 
@@ -35,7 +32,7 @@ int main()
 			,
 	);
 
-	shm_unlink(SHM_NAME);
+	shm_unlink(POSIX_SHM_NAME);
 
 	return EXIT_SUCCESS;
 }

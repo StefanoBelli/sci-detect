@@ -1,17 +1,69 @@
 #ifndef EXAMPLE_UTILS_H
 #define EXAMPLE_UTILS_H
 
+/* don't put feature test macros here,
+ * put them in each translation unit to avoid
+ * confusion
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <fcntl.h>
+#include <sys/stat.h>
 #include <sys/wait.h>
 #include <sys/mman.h>
+#include <sys/shm.h>
+
+/* sysv shm common defs */
+
+#define SYSV_SHM_KEY 0xdeadbeef
+#define SYSV_SHM_SIZE PAGE_SIZE
+#define SYSV_SHM_FLG (IPC_CREAT | IPC_EXCL)
+
+#define SYSV_NO_EXCL_CREAT ~(IPC_CREAT | IPC_EXCL)
+
+/* posix shm common defs */
+
+#define POSIX_SHM_NAME "example-shm"
+#define POSIX_SHM_OFLAGS (O_RDWR | O_CREAT | O_EXCL)
+#define POSIX_SHM_MODE 0700
+
+#define POSIX_NO_EXCL_CREAT ~(O_CREAT | O_EXCL)
 
 #ifdef EXAMPLE_CHECK_WITH_LIBSCID
 #include <scid.h>
 #endif
 
 #define __unused __attribute__((__unused__))
+
+/*
+ * this may be required when MAP_SHARED is used
+ * in conjunction with file-backed memory to do
+ * the examples correctly (expected behaviour,
+ * documented in docs/)
+ */
+
+/* this may be a regular subroutine, macro avoid the need to
+ * specify ftm for each TU */
+#define flush_page_cache() \
+	do { \
+		sync(); \
+		\
+		int _____fd____ = open("/proc/sys/vm/drop_caches", O_WRONLY, 0); \
+		if(_____fd____ < 0) { \
+			perror("flush_page_cache's open"); \
+			exit(EXIT_FAILURE); \
+		} \
+		\
+		if(write(_____fd____, "1\n", sizeof("1\n") != sizeof("1\n"))) { \
+			perror("write"); \
+			close(_____fd____); \
+			exit(EXIT_FAILURE); \
+		} \
+		\
+		close(_____fd____); \
+	} while(0)
 
 #define full_membar() \
 	__asm__ __volatile__("mfence;" ::: "memory")
@@ -65,7 +117,7 @@ struct __recvd_event {
 	} event;
 };
 
-static void __event_wxwarning_cmdh(const void *in, void *out)
+__unused static void __event_wxwarning_cmdh(const void *in, void *out)
 {
 	const struct wxwarning_event *event = in;
 	struct __recvd_event *uevent = out;
@@ -77,7 +129,7 @@ static void __event_wxwarning_cmdh(const void *in, void *out)
 	uevent->event.wxw.va = event->va;
 }
 
-static void *__scid_setup()
+__unused static void *__scid_setup()
 {
 	void *desc;
 	int new_err;
@@ -98,7 +150,7 @@ static void *__scid_setup()
 	return desc;
 }
 
-static inline void __scid_terminate(void *desc)
+__unused static inline void __scid_terminate(void *desc)
 {
 	scid_del_socket(desc);
 }

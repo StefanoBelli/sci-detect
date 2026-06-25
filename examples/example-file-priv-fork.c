@@ -1,7 +1,3 @@
-/* ftm for open and flags */
-#define _POSIX_C_SOURCE 200809L
-
-#include <fcntl.h>
 #include "exampleutils.h"
 
 int main()
