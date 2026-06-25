@@ -46,6 +46,8 @@
 
 /* this may be a regular subroutine, macro avoid the need to
  * specify ftm for each TU */
+#define __DROPC_STR "1\n"
+
 #define flush_page_cache() \
 	do { \
 		sync(); \
@@ -56,13 +58,16 @@
 			exit(EXIT_FAILURE); \
 		} \
 		\
-		if(write(_____fd____, "1\n", sizeof("1\n") != sizeof("1\n"))) { \
+		if(write(_____fd____, __DROPC_STR, sizeof(__DROPC_STR)) != sizeof(__DROPC_STR)) { \
 			perror("flush_page_cache's write"); \
 			close(_____fd____); \
 			exit(EXIT_FAILURE); \
 		} \
 		\
 		close(_____fd____); \
+		\
+		puts("NOTE: page cache flushed correctly"); \
+		\
 	} while(0)
 
 #define full_membar() \
