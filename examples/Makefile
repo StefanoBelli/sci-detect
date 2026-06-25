@@ -23,7 +23,10 @@ EXAMPLES= \
 	   example-shm-sysv-noncorr-2.example \
 	   example-file-priv-fork.example \
 	   example-file-priv-vfork.example \
-	   example-file-shared-fork.example
+	   example-file-shared-fork.example \
+	   example-file-shared-vfork.example \
+	   example-file-shared-noncorr-1.example \
+	   example-file-shared-noncorr-2.example
 
 
 valid_build_types = libscid-check without-libscid-check

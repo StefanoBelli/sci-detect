@@ -33,17 +33,16 @@ int main()
 					perror("mprotect");
 					shmdt(mem);
 					shmctl(shmid, IPC_RMID, NULL);
-					exit(EXIT_FAILURE);
+					_exit(EXIT_FAILURE);
 				}
-				,
 				,
 		);
 
 		((void(*)(void))mem)();
 
-		exit(EXIT_SUCCESS);
+		_exit(EXIT_SUCCESS);
 	} else if(child_pid < 0) {
-		perror("fork");
+		perror("vfork");
 		shmdt(mem);
 		shmctl(shmid, IPC_RMID, NULL);
 		return EXIT_FAILURE;

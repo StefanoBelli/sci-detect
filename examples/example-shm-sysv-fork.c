@@ -30,7 +30,7 @@ int main()
 			perror("mprotect");
 			shmdt(mem);
 			shmctl(shmid, IPC_RMID, NULL);
-			exit(EXIT_FAILURE);
+			_exit(EXIT_FAILURE);
 		}
 
 		/* lazy PTE change */
@@ -39,10 +39,9 @@ int main()
 				,
 				((void(*)(void))mem)();
 				,
-				,
 		);
 
-		exit(EXIT_SUCCESS);
+		_exit(EXIT_SUCCESS);
 	} else if(child_pid < 0) {
 		perror("fork");
 		shmdt(mem);

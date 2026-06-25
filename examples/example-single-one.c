@@ -16,7 +16,6 @@ int main()
 				,
 				spurious_byte_memwrite(page_nr(1), 'a');
 				,
-				,
 				);
 
 		munmap(mem, PAGE_SIZE);
@@ -40,7 +39,6 @@ int main()
 					perror("mprotect");
 					exit(EXIT_FAILURE);
 				}
-				,
 				,
 				);
 
@@ -74,7 +72,6 @@ int main()
 					perror("mprotect");
 					exit(EXIT_FAILURE);
 				}
-				,
 				,
 				);
 
@@ -118,7 +115,6 @@ int main()
 					perror("mprotect");
 					exit(EXIT_FAILURE);
 				}
-				,
 				,
 				);
 

@@ -30,16 +30,15 @@ int main()
 				,
 				if(mprotect(mem, PAGE_SIZE, PROT_READ | PROT_EXEC)) {
 					perror("mprotect");
-					exit(EXIT_FAILURE);
+					_exit(EXIT_FAILURE);
 				}
-				,
 				,
 		);
 		
 		((void(*)(void))mem)();
-		exit(EXIT_SUCCESS);
+		_exit(EXIT_SUCCESS);
 	} else if(child_pid < 0) {
-		perror("fork");
+		perror("vfork");
 		return EXIT_FAILURE;
 	} else
 		wait_for_child(child_pid);

@@ -24,11 +24,11 @@ int main()
 			,
 			((void(*)(void))mem)();
 			,
-			,
 	);
 
 	shmdt(mem);
 	shmctl(shmid, IPC_RMID, NULL);
 
+	example_passed();
 	return EXIT_SUCCESS;
 }

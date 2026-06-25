@@ -35,7 +35,6 @@ int main()
 					exit(EXIT_FAILURE);
 				}
 				,
-				,
 		);
 
 		((void(*)(void))mem)();

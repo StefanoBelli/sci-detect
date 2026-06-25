@@ -42,16 +42,15 @@ int main()
 				if(mprotect(mem, PAGE_SIZE, PROT_EXEC)) {
 					perror("mprotect");
 					shm_unlink(POSIX_SHM_NAME);
-					exit(EXIT_FAILURE);
+					_exit(EXIT_FAILURE);
 				}
-				,
 				,
 		);
 		
 		((void(*)(void))mem)();
-		exit(EXIT_SUCCESS);
+		_exit(EXIT_SUCCESS);
 	} else if(child_pid < 0) {
-		perror("fork");
+		perror("vfork");
 		shm_unlink(POSIX_SHM_NAME);
 		return EXIT_FAILURE;
 	} else {

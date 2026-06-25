@@ -40,7 +40,7 @@ int main()
 		if(mprotect(mem, PAGE_SIZE, PROT_EXEC)) {
 			perror("mprotect");
 			shm_unlink(POSIX_SHM_NAME);
-			exit(EXIT_FAILURE);
+			_exit(EXIT_FAILURE);
 		}
 
 		/* once execution happens for real it gets detected :) */
@@ -49,10 +49,9 @@ int main()
 				,
 				((void(*)(void))mem)();
 				,
-				,
 		);
 
-		exit(EXIT_SUCCESS);
+		_exit(EXIT_SUCCESS);
 	} else if(child_pid < 0) {
 		perror("fork");
 		shm_unlink(POSIX_SHM_NAME);
