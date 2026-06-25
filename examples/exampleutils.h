@@ -16,6 +16,8 @@
 #include <sys/mman.h>
 #include <sys/shm.h>
 
+#include "examplemremap.h"
+
 /* sysv shm common defs */
 
 #define SYSV_SHM_KEY 0xdeadbeef
@@ -167,7 +169,8 @@ __unused static inline void __scid_terminate(void *desc)
 	if((_evt).type == WXWARNING) { \
 	 	struct wxwarning_event *wxw = &(_evt).event.wxw; \
 	 	if(wxw->va != ((unsigned long) (_va)) || wxw->pid != getpid()) { \
-	 		if(!--nr_retry) { \
+	 		fprintf(stderr, "FAILED attempt (remaining retries: %d)\n", --nr_retry); \
+	 		if(!nr_retry) { \
 	 			example_failed(); \
 	 			_exit(EXIT_FAILURE); \
 	 		} \
@@ -206,7 +209,7 @@ __unused static inline void __scid_terminate(void *desc)
 	puts("OK! Example passed!")
 
 #define example_failed() \
-	fputs("FAIL! Example failed!", stderr)
+	fputs("FAIL! Example failed!\n", stderr)
 
 #else /* !EXAMPLE_CHECK_WITH_LIBSCID */
 
@@ -234,7 +237,7 @@ __unused static inline void __scid_terminate(void *desc)
 		} \
 		\
 		if(!WIFEXITED(status) || WEXITSTATUS(status)) { \
-			fputs("child did not end well... bye bye :(", stderr); \
+			fputs("child did not end well... bye bye :(\n", stderr); \
 			exit(EXIT_FAILURE); \
 		} \
 	} while(0)

@@ -26,7 +26,27 @@ EXAMPLES= \
 	   example-file-shared-noncorr-1.example \
 	   example-file-shared-noncorr-2.example \
 	   example-file-shared-fork.example \
-	   example-file-shared-vfork.example
+	   example-file-shared-vfork.example \
+	   example-fork-mremap-child.example \
+	   example-fork-mremap-parent.example \
+	   example-fork-mremap-dontunmap-parent.example \
+	   example-fork-mremap-dontunmap-child.example \
+	   example-fork-mremap-extend-child.example \
+	   example-vfork-mremap-child.example \
+	   example-vfork-mremap-parent.example \
+	   example-vfork-mremap-dontunmap-child.example \
+	   example-vfork-mremap-dontunmap-parent.example \
+	   example-vfork-mremap-extend-child.example \
+	   example-shm-anon-mremap-parent-fork.example \
+	   example-shm-anon-mremap-child-fork.example \
+	   example-shm-anon-mremap-dontunmap-child-fork.example \
+	   example-shm-posix-mremap-fork.example \
+	   example-shm-posix-mremap-extend-fork.example \
+	   example-shm-sysv-mremap-fork.example \
+	   example-file-shared-mremap-fork.example \
+	   example-file-shared-mremap-extend-vfork.example \
+	   example-file-priv-mremap-fork.example \
+	   example-file-priv-mremap-extend-vfork.example
 
 
 valid_build_types = libscid-check without-libscid-check
