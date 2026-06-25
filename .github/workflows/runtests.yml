@@ -38,6 +38,8 @@ jobs:
       run: sudo dmesg
     - name: Make libscid and scid CLI
       run: make user
+    - name: drop cache
+      run: sync && echo 1 | sudo tee /proc/sys/vm/drop_caches
     - name: Run examples
       run: sudo make run-examples
     - name: Clear dmesg
