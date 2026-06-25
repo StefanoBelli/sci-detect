@@ -7,6 +7,7 @@
  */
 
 #include <stdio.h>
+#include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -58,7 +59,8 @@
 			exit(EXIT_FAILURE); \
 		} \
 		\
-		if(write(_____fd____, __DROPC_STR, sizeof(__DROPC_STR)) != sizeof(__DROPC_STR)) { \
+		int rv; \
+		if((rv=write(_____fd____, __DROPC_STR, strlen(__DROPC_STR))) != strlen(__DROPC_STR)) { \
 			perror("flush_page_cache's write"); \
 			close(_____fd____); \
 			exit(EXIT_FAILURE); \

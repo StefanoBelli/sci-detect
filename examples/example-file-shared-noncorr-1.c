@@ -28,6 +28,8 @@ int main()
 
 	*mem = x86_opcode_ret;
 
+	puts("i am here");
+
 	close(fd);
 	return EXIT_SUCCESS;
 }
