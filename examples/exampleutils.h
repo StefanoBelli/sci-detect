@@ -243,7 +243,7 @@ __unused static inline void __scid_terminate(void *desc)
 	} while(0)
 
 #ifdef EXAMPLE_MLOCK_ALL
-static void __maybe_mlock_all_addr_space(void)
+__unused static void __maybe_mlock_all_addr_space(void)
 {
 	if(mlockall(MCL_CURRENT | MCL_FUTURE)) {
 		perror("mlockall");
@@ -253,7 +253,7 @@ static void __maybe_mlock_all_addr_space(void)
 	puts("MLOCK_ALL: successfully locked the address space");
 }
 #else /* !EXAMPLE_MLOCK_ALL */
-static void __maybe_mlock_all_addr_space(void)
+__unused static void __maybe_mlock_all_addr_space(void)
 {
 }
 #endif /* EXAMPLE_MLOCK_ALL */

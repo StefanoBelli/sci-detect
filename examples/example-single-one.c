@@ -1,3 +1,6 @@
+/* ftm for madvise */
+#define _DEFAULT_SOURCE
+
 /* ftm for sync */
 #define _XOPEN_SOURCE 500
 
@@ -456,6 +459,69 @@ int main()
 		shmctl(shmid, IPC_RMID, NULL);
 
 		munmap(mem, PAGE_SIZE);
+	}
+
+	/* example 13 */
+	{
+		char *mem = mmap(
+				NULL, 
+				3 * PAGE_SIZE, 
+				PROT_EXEC, 
+				MAP_ANONYMOUS | MAP_PRIVATE, 
+				-1, 0);
+
+		if(mprotect(page_nr(1), PAGE_SIZE, PROT_READ | PROT_WRITE)) {
+			perror("mprotect");
+			exit(EXIT_FAILURE);
+		}
+
+		if(madvise(page_nr(1), PAGE_SIZE, MADV_POPULATE_READ | MADV_POPULATE_WRITE)) {
+			perror("madvise");
+			exit(EXIT_FAILURE);
+		}
+
+		spurious_byte_memread(ch, page_nr(1));
+		
+		check_scid_bcast_wxwarning(
+				page_nr(1)
+				,
+				if(mprotect(page_nr(1), PAGE_SIZE, PROT_WRITE | PROT_EXEC)) {
+					perror("mprotect");
+					exit(EXIT_FAILURE);
+				}
+				,
+		);
+
+		spurious_byte_memwrite(page_nr(1), x86_opcode_ret);
+		((void(*)(void)) mem)();
+
+		if(mprotect(page_nr(2), PAGE_SIZE, PROT_READ | PROT_WRITE | PROT_EXEC)) {
+			perror("mprotect");
+			exit(EXIT_FAILURE);
+		}
+
+		check_scid_bcast_wxwarning(
+				page_nr(2)
+				,
+				spurious_byte_memwrite(page_nr(2), x86_opcode_ret);
+				,
+		);
+
+		if(mprotect(page_nr(3), PAGE_SIZE, PROT_WRITE | PROT_EXEC | PROT_READ)) {
+			perror("mprotect");
+			exit(EXIT_FAILURE);
+		}
+
+		check_scid_bcast_wxwarning(
+				page_nr(3)
+				,
+				if(madvise(page_nr(3), PAGE_SIZE, MADV_POPULATE_READ | MADV_POPULATE_WRITE)) {
+					perror("madvise");
+					exit(EXIT_FAILURE);
+				}
+				,
+				);
+		munmap(mem, 3 * PAGE_SIZE);
 	}
 
 	example_passed();

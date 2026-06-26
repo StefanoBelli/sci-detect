@@ -46,7 +46,12 @@ EXAMPLES= \
 	   example-file-shared-mremap-fork.example \
 	   example-file-shared-mremap-extend-vfork.example \
 	   example-file-priv-mremap-fork.example \
-	   example-file-priv-mremap-extend-vfork.example
+	   example-file-priv-mremap-extend-vfork.example \
+	   example-fork-prefault.example \
+	   example-vfork-prefault.example \
+	   example-shm-anon-fork-prefault.example \
+	   example-shm-posix-vfork-prefault.example \
+	   example-shm-sysv-mremap-fork-prefault.example
 
 
 valid_mlock_all = yes no
