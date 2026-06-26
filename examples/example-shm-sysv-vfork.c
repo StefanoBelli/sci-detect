@@ -9,6 +9,8 @@ int main()
 	pid_t child_pid;
 	int shmid;
 
+	__maybe_mlock_all_addr_space();
+
 	shmid = shmget(SYSV_SHM_KEY, SYSV_SHM_SIZE, SYSV_SHM_FLG);
 	if(shmid < 0) {
 		perror("shmget");
@@ -26,6 +28,8 @@ int main()
 
 	child_pid = vfork();
 	if(!child_pid) {
+		__maybe_mlock_all_addr_space();
+
 		check_scid_bcast_wxwarning(
 				mem
 				,

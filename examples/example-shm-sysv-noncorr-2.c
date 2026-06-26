@@ -5,12 +5,31 @@ int main()
 	char *mem;
 	int shmid;
 
+	__maybe_mlock_all_addr_space();
+
 	shmid = shmget(SYSV_SHM_KEY, SYSV_SHM_SIZE, SYSV_SHM_FLG & SYSV_NO_EXCL_CREAT);
 	if(shmid < 0) {
 		perror("shmget");
 		return EXIT_FAILURE;
 	}
 
+#ifdef EXAMPLE_MLOCK_ALL
+	check_scid_bcast_wxwarning(
+			mem
+			,
+			mem = shmat(shmid, NULL, SHM_EXEC);
+			if(mem == (void*) -1) {
+				perror("shmat");
+				shmdt(mem);
+				shmctl(shmid, IPC_RMID, NULL);
+				return EXIT_FAILURE;
+			}
+			,
+	);
+
+	((void(*)(void))mem)();
+
+#else
 	mem = shmat(shmid, NULL, SHM_EXEC);
 	if(mem == (void*) -1) {
 		perror("shmat");
@@ -25,6 +44,7 @@ int main()
 			((void(*)(void))mem)();
 			,
 	);
+#endif
 
 	shmdt(mem);
 	shmctl(shmid, IPC_RMID, NULL);

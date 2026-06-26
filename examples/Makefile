@@ -49,6 +49,15 @@ EXAMPLES= \
 	   example-file-priv-mremap-extend-vfork.example
 
 
+valid_mlock_all = yes no
+MLOCK_ALL ?= no
+
+ifneq ($(filter $(MLOCK_ALL), $(valid_mlock_all)),)
+    $(info MLOCK_ALL=$(MLOCK_ALL) ok)
+else
+    $(error MLOCK_ALL=$(MLOCK_ALL) is invalid)
+endif
+
 valid_build_types = libscid-check without-libscid-check
 BUILD_TYPE ?= libscid-check
 
@@ -61,6 +70,10 @@ endif
 ifeq ($(BUILD_TYPE), libscid-check)
 	CFLAGS += -DEXAMPLE_CHECK_WITH_LIBSCID
 endif 
+
+ifeq ($(MLOCK_ALL), yes)
+	CFLAGS += -DEXAMPLE_MLOCK_ALL
+endif
 
 all: $(EXAMPLES)
 

@@ -43,5 +43,8 @@ tests-clean:
 run-examples:
 	make -C examples run-examples
 
+run-mlocked-examples:
+	make -C examples MLOCK_ALL=yes run-examples
+
 examples-clean:
 	make -C examples clean

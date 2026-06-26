@@ -13,6 +13,8 @@ int main()
 	pid_t child_pid;
 
 	flush_page_cache();
+	
+	__maybe_mlock_all_addr_space();
 
 	fd = open("res/file", O_RDWR, S_IRUSR | S_IWUSR);
 	if(fd < 0) {
@@ -36,6 +38,8 @@ int main()
 
 	child_pid = vfork();
 	if(!child_pid) {
+		__maybe_mlock_all_addr_space();
+
 		check_scid_bcast_wxwarning(
 				new_mem
 				,

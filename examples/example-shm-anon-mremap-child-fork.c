@@ -8,6 +8,8 @@ int main()
 	char* mem;
 	pid_t child_pid;
 
+	__maybe_mlock_all_addr_space();
+
 	mem = mmap(
 			NULL, 
 			PAGE_SIZE, 
@@ -23,8 +25,23 @@ int main()
 
 	child_pid = fork();
 	if(!child_pid) {
+		__maybe_mlock_all_addr_space();
+
 		void *new_mem = __mremap_move(mem, 1);
 
+#ifdef EXAMPLE_MLOCK_ALL
+		check_scid_bcast_wxwarning(
+				new_mem
+				,
+				if(mprotect(new_mem, PAGE_SIZE, PROT_READ | PROT_EXEC)) {
+					perror("mprotect");
+					exit(EXIT_FAILURE);
+				}
+				,
+		);
+
+		((void(*)(void))new_mem)();
+#else
 		/* again, this will just change the VMA, but not the PTE
 		 * because there is the shmem_anon vmops (shmem_anon_vm_ops)
 		 */
@@ -40,6 +57,7 @@ int main()
 				((void(*)(void))new_mem)();
 				,
 		);
+#endif
 
 		exit(EXIT_SUCCESS);
 	} else if(child_pid < 0) {

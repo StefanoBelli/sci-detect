@@ -7,6 +7,8 @@ int main()
 {
 	char* mem;
 	pid_t child_pid;
+	
+	__maybe_mlock_all_addr_space();
 
 	mem = mmap(
 			NULL, 
@@ -24,6 +26,8 @@ int main()
 
 	child_pid = fork();
 	if(!child_pid) {
+		__maybe_mlock_all_addr_space();
+
 		check_scid_bcast_wxwarning(
 				new_mem
 				,

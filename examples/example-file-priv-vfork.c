@@ -5,6 +5,8 @@
 
 int main()
 {
+	__maybe_mlock_all_addr_space();
+
 	int fd;
 	char* mem;
 	pid_t child_pid;
@@ -30,6 +32,8 @@ int main()
 
 	child_pid = vfork();
 	if(!child_pid) {
+		__maybe_mlock_all_addr_space();
+
 		check_scid_bcast_wxwarning(
 				mem
 				,

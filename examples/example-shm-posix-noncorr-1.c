@@ -8,6 +8,8 @@ int main()
 	char *mem;
 	int shm_fd;
 
+	__maybe_mlock_all_addr_space();
+
 	shm_fd = shm_open(POSIX_SHM_NAME, POSIX_SHM_OFLAGS, POSIX_SHM_MODE);
 	if(shm_fd < 0) {
 		perror("shm_open");

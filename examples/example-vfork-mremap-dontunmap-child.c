@@ -8,6 +8,8 @@ int main()
 	char* mem;
 	pid_t child_pid;
 
+	__maybe_mlock_all_addr_space();
+
 	mem = mmap(
 			NULL, 
 			PAGE_SIZE, 
@@ -23,6 +25,8 @@ int main()
 
 	child_pid = vfork();
 	if(!child_pid) {
+		__maybe_mlock_all_addr_space();
+
 		char *new_mem = __mremap_move_dontunmap(mem, 1);
 		check_scid_bcast_wxwarning(
 				new_mem

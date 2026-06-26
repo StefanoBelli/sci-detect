@@ -9,6 +9,8 @@ int main()
 	pid_t child_pid;
 	int shmid;
 
+	__maybe_mlock_all_addr_space();
+
 	shmid = shmget(SYSV_SHM_KEY, SYSV_SHM_SIZE, SYSV_SHM_FLG);
 	if(shmid < 0) {
 		perror("shmget");
@@ -27,6 +29,23 @@ int main()
 
 	child_pid = fork();
 	if(!child_pid) {
+		__maybe_mlock_all_addr_space();
+
+#ifdef EXAMPLE_MLOCK_ALL
+		check_scid_bcast_wxwarning(
+				new_mem
+				,
+				if(mprotect(new_mem, PAGE_SIZE, PROT_READ | PROT_EXEC)) {
+					perror("mprotect");
+					shmdt(new_mem);
+					shmctl(shmid, IPC_RMID, NULL);
+					exit(EXIT_FAILURE);
+				}
+				,
+		);
+
+		((void(*)(void))new_mem)();
+#else
 		/* again, this will just change the VMA, but not the PTE
 		 * because there is the shmem_anon vmops (shmem_anon_vm_ops)
 		 */
@@ -34,7 +53,7 @@ int main()
 			perror("mprotect");
 			shmdt(new_mem);
 			shmctl(shmid, IPC_RMID, NULL);
-			_exit(EXIT_FAILURE);
+			exit(EXIT_FAILURE);
 		}
 
 		/* lazy PTE change */
@@ -44,8 +63,9 @@ int main()
 				((void(*)(void))new_mem)();
 				,
 		);
+#endif
 
-		_exit(EXIT_SUCCESS);
+		exit(EXIT_SUCCESS);
 	} else if(child_pid < 0) {
 		perror("fork");
 		shmdt(new_mem);

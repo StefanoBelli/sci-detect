@@ -11,6 +11,8 @@ int main()
 	pid_t child_pid;
 	int shm_fd;
 
+	__maybe_mlock_all_addr_space();
+
 	shm_fd = shm_open(POSIX_SHM_NAME, POSIX_SHM_OFLAGS, POSIX_SHM_MODE);
 	if(shm_fd < 0) {
 		perror("shm_open");
@@ -43,6 +45,35 @@ int main()
 	child_pid = fork();
 	if(!child_pid) {
 
+		__maybe_mlock_all_addr_space();
+
+#ifdef EXAMPLE_MLOCK_ALL
+		check_scid_bcast_wxwarning(
+				new_mem
+				,
+				if(mprotect(new_mem, PAGE_SIZE, PROT_EXEC)) {
+					perror("mprotect");
+					shm_unlink(POSIX_SHM_NAME);
+					_exit(EXIT_FAILURE);
+				}
+				,
+		);
+
+		((void(*)(void))new_mem)();
+
+		check_scid_bcast_wxwarning(
+				new_mem + (2 * PAGE_SIZE)
+				,
+				if(mprotect(new_mem + (2 * PAGE_SIZE), PAGE_SIZE, PROT_WRITE | PROT_EXEC)) {
+					perror("mprotect");
+					shm_unlink(POSIX_SHM_NAME);
+					_exit(EXIT_FAILURE);
+				}
+				,
+		);
+
+		*(new_mem + (2 * PAGE_SIZE)) = x86_opcode_ret;
+#else
 		/* with shm (with all VM_SHARED vmas?) kernel will do a
 		 * "lazy protection bits adjustment" (essentially leaving
 		 * them off and turning them on when faulting if VMA prot 
@@ -74,6 +105,7 @@ int main()
 				*(new_mem + (2 * PAGE_SIZE)) = x86_opcode_ret;
 				,
 		);
+#endif
 
 		_exit(EXIT_SUCCESS);
 	} else if(child_pid < 0) {

@@ -40,6 +40,10 @@ jobs:
       run: make user
     - name: Run examples
       run: sudo make run-examples
+    - name: Clean examples
+      run: sudo make examples-clean
+    - name: Run mlocked examples
+      run: sudo make run-mlocked-examples
     - name: Clear dmesg
       run: sudo dmesg --clear
     - name: Teardown kernel module

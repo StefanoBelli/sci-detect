@@ -9,6 +9,8 @@ int main()
 	pid_t child_pid;
 	int shm_fd;
 
+	__maybe_mlock_all_addr_space();
+
 	shm_fd = shm_open(POSIX_SHM_NAME, POSIX_SHM_OFLAGS, POSIX_SHM_MODE);
 	if(shm_fd < 0) {
 		perror("shm_open");
@@ -32,6 +34,8 @@ int main()
 
 	child_pid = vfork();
 	if(!child_pid) {
+
+		__maybe_mlock_all_addr_space();
 
 		/* here, mprotect may be able to change PTE directly because
 		 * the address space is shared! (same mm as parent, no copy)

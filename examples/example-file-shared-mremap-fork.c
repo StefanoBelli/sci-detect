@@ -14,6 +14,8 @@ int main()
 
 	flush_page_cache();
 
+	__maybe_mlock_all_addr_space();
+
 	fd = open("res/file", O_RDWR, S_IRUSR | S_IWUSR);
 	if(fd < 0) {
 		perror("open");
@@ -36,6 +38,21 @@ int main()
 
 	child_pid = fork();
 	if(!child_pid) {
+		__maybe_mlock_all_addr_space();
+
+#ifdef EXAMPLE_MLOCK_ALL
+		check_scid_bcast_wxwarning(
+				new_mem
+				,
+				if(mprotect(new_mem, PAGE_SIZE, PROT_READ | PROT_EXEC)) {
+					perror("mprotect");
+					exit(EXIT_FAILURE);
+				}
+				,
+		);
+
+		((void(*)(void))new_mem)();
+#else
 		if(mprotect(new_mem, PAGE_SIZE, PROT_READ | PROT_EXEC)) {
 			perror("mprotect");
 			exit(EXIT_FAILURE);
@@ -47,6 +64,7 @@ int main()
 				((void(*)(void))new_mem)();
 				,
 		);
+#endif
 
 		exit(EXIT_SUCCESS);
 	} else if(child_pid < 0) {

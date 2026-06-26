@@ -8,6 +8,8 @@ int main()
 	char* mem;
 	pid_t child_pid;
 
+	__maybe_mlock_all_addr_space();
+
 	mem = mmap(
 			NULL, 
 			PAGE_SIZE, 
@@ -23,6 +25,8 @@ int main()
 
 	child_pid = fork();
 	if(!child_pid) {
+		__maybe_mlock_all_addr_space();
+
 		char *_addr = __mremap_shrink_or_extend(mem, 1, 3);
 
 		check_scid_bcast_wxwarning(

@@ -11,6 +11,8 @@ int main()
 	pid_t child_pid;
 	int shm_fd;
 
+	__maybe_mlock_all_addr_space();
+
 	shm_fd = shm_open(POSIX_SHM_NAME, POSIX_SHM_OFLAGS, POSIX_SHM_MODE);
 	if(shm_fd < 0) {
 		perror("shm_open");
@@ -34,8 +36,24 @@ int main()
 
 	child_pid = fork();
 	if(!child_pid) {
+		__maybe_mlock_all_addr_space();
+
 		char * new_mem = __mremap_move(mem, 1);
 
+#ifdef EXAMPLE_MLOCK_ALL
+		check_scid_bcast_wxwarning(
+				new_mem
+				,
+				if(mprotect(new_mem, PAGE_SIZE, PROT_EXEC)) {
+					perror("mprotect");
+					shm_unlink(POSIX_SHM_NAME);
+					exit(EXIT_FAILURE);
+				}
+				,
+		);
+
+		((void(*)(void))new_mem)();
+#else
 		/* with shm (with all VM_SHARED vmas?) kernel will do a
 		 * "lazy protection bits adjustment" (essentially leaving
 		 * them off and turning them on when faulting if VMA prot 
@@ -44,7 +62,7 @@ int main()
 		if(mprotect(new_mem, PAGE_SIZE, PROT_EXEC)) {
 			perror("mprotect");
 			shm_unlink(POSIX_SHM_NAME);
-			_exit(EXIT_FAILURE);
+			exit(EXIT_FAILURE);
 		}
 
 		/* once execution happens for real it gets detected :) */
@@ -54,8 +72,8 @@ int main()
 				((void(*)(void))new_mem)();
 				,
 		);
-
-		_exit(EXIT_SUCCESS);
+#endif
+		exit(EXIT_SUCCESS);
 	} else if(child_pid < 0) {
 		perror("fork");
 		shm_unlink(POSIX_SHM_NAME);

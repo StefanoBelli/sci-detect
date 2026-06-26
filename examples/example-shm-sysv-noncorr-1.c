@@ -5,6 +5,8 @@ int main()
 	char *mem;
 	int shmid;
 
+	__maybe_mlock_all_addr_space();
+
 	shmid = shmget(SYSV_SHM_KEY, SYSV_SHM_SIZE, SYSV_SHM_FLG);
 	if(shmid < 0) {
 		perror("shmget");
