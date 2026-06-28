@@ -27,7 +27,13 @@ TESTS= \
 	   test-shm-anon-prefault.test \
 	   test-shm-posix-prefault.test \
 	   test-shm-sysv-prefault.test \
-	   test-cpr-anon-private.test 
+	   test-cpr-anon-private.test  \
+	   test-cpr-anon-shared.test \
+	   test-cpr-posix-shared.test \
+	   test-cpr-sysv-shared.test \
+	   test-cpr-file-shared.test \
+	   test-cpr-file-private.test \
+	   test-fuf-anon-private.test
 	   #test-shm-file-shared-prefault.test \
 	   test-shm-file-private-prefault.test 
 

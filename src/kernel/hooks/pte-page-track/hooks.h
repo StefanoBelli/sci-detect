@@ -28,5 +28,9 @@ extern struct kprobe filemap_map_pages__kp;
 /* fuf.c */
 extern struct kprobe free_unref_folios__kp;
 
+#ifdef SCID_CONFIG_TESTING
+extern struct kprobe free_pages_and_swap_cache__kp;
+#endif
+
 /* cpr.c */
 extern struct kretprobe change_pte_range__krp;

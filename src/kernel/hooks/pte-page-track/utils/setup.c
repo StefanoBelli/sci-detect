@@ -17,6 +17,11 @@ static struct kprobe *kps[] = {
 	&filemap_map_pages__kp,
 	&finish_mkwrite_fault__kp,
 	&free_unref_folios__kp,
+
+#ifdef SCID_CONFIG_TESTING
+	&free_pages_and_swap_cache__kp,
+#endif
+
 };
 
 #ifdef SCID_CONFIG_TESTING
@@ -87,15 +92,20 @@ static const struct subsys_regi_args ppt_suts[] = {
 	{
 		.name = "pte-page-track-fuf-hook",
 		.kvt = {
-			ATOMICALLY_INCREMENTED_KEY("called"),
+			ATOMICALLY_INCREMENTED_KEY("entry"),
 
 			END_OF_KVS
 		}
 	}
+};
 
+extern void free_all_fuf_test_list(void);
+
+static const struct post_testing_teardown_action ttd_actions[] = {
+	TTD_ACTION(free_all_fuf_test_list),
 };
 
 #endif 
 
 /* don't touch */
-GENERATE_SETUP_AND_TEARDOWN_CODE(pte_page_track, kps, krps, ppt_suts);
+GENERATE_SETUP_AND_TEARDOWN_CODE(pte_page_track, kps, krps, ppt_suts, ttd_actions);

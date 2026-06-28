@@ -1,10 +1,15 @@
 #include "testutils.h"
 #include <sys/mman.h>
+#include <sys/shm.h>
 
 #define SUBSYS_NAME "pte-page-track-cpr-hook"
 #define ENTRY_KEY "entry"
 #define RETURNOK_KEY "return-ok"
 #define PAGESOK_KEY "pages-ok"
+
+#define TEST_SHM_SYSV_KEY 0xdeadbeef
+#define TEST_SHM_SYSV_SIZE (10 * PAGE_SIZE)
+#define TEST_SHM_SYSV_FLG (IPC_CREAT | IPC_EXCL)
 
 #define RESET_ALL() \
 	reset_value_testing_for_me(SUBSYS_NAME, ENTRY_KEY); \
@@ -20,15 +25,15 @@ int main()
 	start_value_testing_for_me(SUBSYS_NAME, RETURNOK_KEY);
 	start_value_testing_for_me(SUBSYS_NAME, PAGESOK_KEY);
 
+	int shmid = shmget(
+			TEST_SHM_SYSV_KEY, TEST_SHM_SYSV_SIZE, TEST_SHM_SYSV_FLG);
+
+	die_if(shmid < 0);
+
 	/* do nothing - cpr must not be called */
 	{
-		/* PREPARING: do the mmap */
-		char *mem = (char*) mmap(
-				NULL, 10 * PAGE_SIZE, 
-				PROT_READ | PROT_WRITE, 
-				MAP_PRIVATE | MAP_ANONYMOUS, 
-				-1, 0);
-		die_if(mem == MAP_FAILED);
+		char *mem = shmat(shmid, NULL, 0);
+		die_if(mem == (void*) -1);
 
 		{
 			int entry = query_int_value_testing_for_me(SUBSYS_NAME, ENTRY_KEY);
@@ -40,20 +45,15 @@ int main()
 			test_int_eq_hard(pagesok, 0);
 		}
 
-		munmap(mem, 10 * PAGE_SIZE);
+		shmdt(mem);
 	}
 
 	RESET_ALL();
 
 	/* first access read - cpr must not be called */
 	{
-		/* PREPARING: do the mmap */
-		char *mem = (char*) mmap(
-				NULL, 10 * PAGE_SIZE, 
-				PROT_READ | PROT_WRITE, 
-				MAP_PRIVATE | MAP_ANONYMOUS, 
-				-1, 0);
-		die_if(mem == MAP_FAILED);
+		char *mem = shmat(shmid, NULL, 0);
+		die_if(mem == (void*) -1);
 
 		{
 			spurious_byte_memread(ch, page_nr(1));
@@ -67,20 +67,15 @@ int main()
 			test_int_eq_hard(pagesok, 0);
 		}
 
-		munmap(mem, 10 * PAGE_SIZE);
+		shmdt(mem);
 	}
 
 	RESET_ALL();
 
 	/* first access write - cpr must not be called */
 	{
-		/* PREPARING: do the mmap */
-		char *mem = (char*) mmap(
-				NULL, 10 * PAGE_SIZE, 
-				PROT_READ | PROT_WRITE, 
-				MAP_PRIVATE | MAP_ANONYMOUS, 
-				-1, 0);
-		die_if(mem == MAP_FAILED);
+		char *mem = shmat(shmid, NULL, 0);
+		die_if(mem == (void*) -1);
 
 		{
 			spurious_byte_memwrite(page_nr(1), 'a');
@@ -94,20 +89,15 @@ int main()
 			test_int_eq_hard(pagesok, 0);
 		}
 
-		munmap(mem, 10 * PAGE_SIZE);
+		shmdt(mem);
 	}
 
 	RESET_ALL();
 
 	/* first access via read syscall - cpr must not be called */
 	{
-		/* PREPARING: do the mmap */
-		char *mem = (char*) mmap(
-				NULL, 10 * PAGE_SIZE, 
-				PROT_READ | PROT_WRITE, 
-				MAP_PRIVATE | MAP_ANONYMOUS, 
-				-1, 0);
-		die_if(mem == MAP_FAILED);
+		char *mem = shmat(shmid, NULL, 0);
+		die_if(mem == (void*) -1);
 
 		{
 			die_if(trigger_syscall_pageread(page_nr(1), 10));
@@ -121,20 +111,15 @@ int main()
 			test_int_eq_hard(pagesok, 0);
 		}
 
-		munmap(mem, 10 * PAGE_SIZE);
+		shmdt(mem);
 	}
 
 	RESET_ALL();
 
 	/* first access via write syscall - cpr must not be called */
 	{
-		/* PREPARING: do the mmap */
-		char *mem = (char*) mmap(
-				NULL, 10 * PAGE_SIZE, 
-				PROT_READ | PROT_WRITE, 
-				MAP_PRIVATE | MAP_ANONYMOUS, 
-				-1, 0);
-		die_if(mem == MAP_FAILED);
+		char *mem = shmat(shmid, NULL, 0);
+		die_if(mem == (void*) -1);
 
 		{
 			die_if(trigger_syscall_pagewrite(page_nr(1), 10));
@@ -148,18 +133,13 @@ int main()
 			test_int_eq_hard(pagesok, 0);
 		}
 
-		munmap(mem, 10 * PAGE_SIZE);
+		shmdt(mem);
 	}
 
 	/* do nothing, so do mprotect - cpr will be called, but nothing changes (no mapped page) */
 	{
-		/* PREPARING: do the mmap */
-		char *mem = (char*) mmap(
-				NULL, 10 * PAGE_SIZE, 
-				PROT_READ | PROT_WRITE, 
-				MAP_PRIVATE | MAP_ANONYMOUS, 
-				-1, 0);
-		die_if(mem == MAP_FAILED);
+		char *mem = shmat(shmid, NULL, 0);
+		die_if(mem == (void*) -1);
 
 		{
 			die_if(mprotect(page_nr(1), PAGE_SIZE, PROT_READ | PROT_WRITE | PROT_EXEC));
@@ -173,20 +153,15 @@ int main()
 			test_int_eq_hard(pagesok, 0);
 		}
 
-		munmap(mem, 10 * PAGE_SIZE);
+		shmdt(mem);
 	}
 
 	RESET_ALL();
 
 	/* first access read - cpr will be called, change takes effect (zeropage is mapped)*/
 	{
-		/* PREPARING: do the mmap */
-		char *mem = (char*) mmap(
-				NULL, 10 * PAGE_SIZE, 
-				PROT_READ | PROT_WRITE, 
-				MAP_PRIVATE | MAP_ANONYMOUS, 
-				-1, 0);
-		die_if(mem == MAP_FAILED);
+		char *mem = shmat(shmid, NULL, 0);
+		die_if(mem == (void*) -1);
 
 		{
 			spurious_byte_memread(ch, page_nr(1));
@@ -201,20 +176,15 @@ int main()
 			test_int_eq_hard(pagesok, 1);
 		}
 
-		munmap(mem, 10 * PAGE_SIZE);
+		shmdt(mem);
 	}
 
 	RESET_ALL();
 
 	/* first access write - cpr will be called, change takes effect (own page is mapped) */
 	{
-		/* PREPARING: do the mmap */
-		char *mem = (char*) mmap(
-				NULL, 10 * PAGE_SIZE, 
-				PROT_READ | PROT_WRITE, 
-				MAP_PRIVATE | MAP_ANONYMOUS, 
-				-1, 0);
-		die_if(mem == MAP_FAILED);
+		char *mem = shmat(shmid, NULL, 0);
+		die_if(mem == (void*) -1);
 
 		{
 			spurious_byte_memwrite(page_nr(1), 'a');
@@ -229,7 +199,7 @@ int main()
 			test_int_eq_hard(pagesok, 1);
 		}
 
-		munmap(mem, 10 * PAGE_SIZE);
+		shmdt(mem);
 	}
 
 	RESET_ALL();
@@ -237,13 +207,8 @@ int main()
 	/* first access via read syscall - cpr will be called but nothing changes 
 	 * syscall fixup code optimizations: just return 0, no PTE will be setup (no zeropage)*/
 	{
-		/* PREPARING: do the mmap */
-		char *mem = (char*) mmap(
-				NULL, 10 * PAGE_SIZE, 
-				PROT_READ | PROT_WRITE, 
-				MAP_PRIVATE | MAP_ANONYMOUS, 
-				-1, 0);
-		die_if(mem == MAP_FAILED);
+		char *mem = shmat(shmid, NULL, 0);
+		die_if(mem == (void*) -1);
 
 		{
 			die_if(trigger_syscall_pageread(page_nr(1), 10));
@@ -258,20 +223,15 @@ int main()
 			test_int_eq_hard(pagesok, 0);
 		}
 
-		munmap(mem, 10 * PAGE_SIZE);
+		shmdt(mem);
 	}
 
 	RESET_ALL();
 
 	/* first access via write syscall - cpr will be called, PTE must be setup */
 	{
-		/* PREPARING: do the mmap */
-		char *mem = (char*) mmap(
-				NULL, 10 * PAGE_SIZE, 
-				PROT_READ | PROT_WRITE, 
-				MAP_PRIVATE | MAP_ANONYMOUS, 
-				-1, 0);
-		die_if(mem == MAP_FAILED);
+		char *mem = shmat(shmid, NULL, 0);
+		die_if(mem == (void*) -1);
 
 		{
 			die_if(trigger_syscall_pagewrite(page_nr(1), 10));
@@ -286,7 +246,7 @@ int main()
 			test_int_eq_hard(pagesok, 1);
 		}
 
-		munmap(mem, 10 * PAGE_SIZE);
+		shmdt(mem);
 	}
 
 	RESET_ALL();
@@ -294,6 +254,7 @@ int main()
 	test_passed();
 
 __finish:
+	shmctl(shmid, IPC_RMID, NULL);
 	stop_value_testing_for_me(SUBSYS_NAME, ENTRY_KEY);
 	stop_value_testing_for_me(SUBSYS_NAME, RETURNOK_KEY);
 	stop_value_testing_for_me(SUBSYS_NAME, PAGESOK_KEY);

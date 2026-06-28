@@ -6,6 +6,10 @@
 #define RETURNOK_KEY "return-ok"
 #define PAGESOK_KEY "pages-ok"
 
+#define TEST_SHM_POSIX_NAME "example-shm"
+#define TEST_SHM_POSIX_OFLAG O_CREAT | O_RDWR
+#define TEST_SHM_POSIX_MODE 0700
+
 #define RESET_ALL() \
 	reset_value_testing_for_me(SUBSYS_NAME, ENTRY_KEY); \
 	reset_value_testing_for_me(SUBSYS_NAME, RETURNOK_KEY); \
@@ -20,14 +24,21 @@ int main()
 	start_value_testing_for_me(SUBSYS_NAME, RETURNOK_KEY);
 	start_value_testing_for_me(SUBSYS_NAME, PAGESOK_KEY);
 
+	int fd = shm_open(
+			TEST_SHM_POSIX_NAME, TEST_SHM_POSIX_OFLAG, TEST_SHM_POSIX_MODE);
+
+	die_if(fd < 0);
+
+	die_if(ftruncate(fd, 10 * PAGE_SIZE));
+
 	/* do nothing - cpr must not be called */
 	{
 		/* PREPARING: do the mmap */
 		char *mem = (char*) mmap(
 				NULL, 10 * PAGE_SIZE, 
 				PROT_READ | PROT_WRITE, 
-				MAP_PRIVATE | MAP_ANONYMOUS, 
-				-1, 0);
+				MAP_SHARED, 
+				fd, 0);
 		die_if(mem == MAP_FAILED);
 
 		{
@@ -51,8 +62,8 @@ int main()
 		char *mem = (char*) mmap(
 				NULL, 10 * PAGE_SIZE, 
 				PROT_READ | PROT_WRITE, 
-				MAP_PRIVATE | MAP_ANONYMOUS, 
-				-1, 0);
+				MAP_SHARED, 
+				fd, 0);
 		die_if(mem == MAP_FAILED);
 
 		{
@@ -78,8 +89,8 @@ int main()
 		char *mem = (char*) mmap(
 				NULL, 10 * PAGE_SIZE, 
 				PROT_READ | PROT_WRITE, 
-				MAP_PRIVATE | MAP_ANONYMOUS, 
-				-1, 0);
+				MAP_SHARED, 
+				fd, 0);
 		die_if(mem == MAP_FAILED);
 
 		{
@@ -105,8 +116,8 @@ int main()
 		char *mem = (char*) mmap(
 				NULL, 10 * PAGE_SIZE, 
 				PROT_READ | PROT_WRITE, 
-				MAP_PRIVATE | MAP_ANONYMOUS, 
-				-1, 0);
+				MAP_SHARED, 
+				fd, 0);
 		die_if(mem == MAP_FAILED);
 
 		{
@@ -132,8 +143,8 @@ int main()
 		char *mem = (char*) mmap(
 				NULL, 10 * PAGE_SIZE, 
 				PROT_READ | PROT_WRITE, 
-				MAP_PRIVATE | MAP_ANONYMOUS, 
-				-1, 0);
+				MAP_SHARED, 
+				fd, 0);
 		die_if(mem == MAP_FAILED);
 
 		{
@@ -157,8 +168,8 @@ int main()
 		char *mem = (char*) mmap(
 				NULL, 10 * PAGE_SIZE, 
 				PROT_READ | PROT_WRITE, 
-				MAP_PRIVATE | MAP_ANONYMOUS, 
-				-1, 0);
+				MAP_SHARED, 
+				fd, 0);
 		die_if(mem == MAP_FAILED);
 
 		{
@@ -184,8 +195,8 @@ int main()
 		char *mem = (char*) mmap(
 				NULL, 10 * PAGE_SIZE, 
 				PROT_READ | PROT_WRITE, 
-				MAP_PRIVATE | MAP_ANONYMOUS, 
-				-1, 0);
+				MAP_SHARED, 
+				fd, 0);
 		die_if(mem == MAP_FAILED);
 
 		{
@@ -212,8 +223,8 @@ int main()
 		char *mem = (char*) mmap(
 				NULL, 10 * PAGE_SIZE, 
 				PROT_READ | PROT_WRITE, 
-				MAP_PRIVATE | MAP_ANONYMOUS, 
-				-1, 0);
+				MAP_SHARED, 
+				fd, 0);
 		die_if(mem == MAP_FAILED);
 
 		{
@@ -241,8 +252,8 @@ int main()
 		char *mem = (char*) mmap(
 				NULL, 10 * PAGE_SIZE, 
 				PROT_READ | PROT_WRITE, 
-				MAP_PRIVATE | MAP_ANONYMOUS, 
-				-1, 0);
+				MAP_SHARED, 
+				fd, 0);
 		die_if(mem == MAP_FAILED);
 
 		{
@@ -269,8 +280,8 @@ int main()
 		char *mem = (char*) mmap(
 				NULL, 10 * PAGE_SIZE, 
 				PROT_READ | PROT_WRITE, 
-				MAP_PRIVATE | MAP_ANONYMOUS, 
-				-1, 0);
+				MAP_SHARED, 
+				fd, 0);
 		die_if(mem == MAP_FAILED);
 
 		{
@@ -294,6 +305,7 @@ int main()
 	test_passed();
 
 __finish:
+	shm_unlink(TEST_SHM_POSIX_NAME);
 	stop_value_testing_for_me(SUBSYS_NAME, ENTRY_KEY);
 	stop_value_testing_for_me(SUBSYS_NAME, RETURNOK_KEY);
 	stop_value_testing_for_me(SUBSYS_NAME, PAGESOK_KEY);

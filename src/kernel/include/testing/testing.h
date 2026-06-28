@@ -104,10 +104,42 @@ bool testing_register_subsys(const struct subsys_regi_args *args);
  */
 int __do_testing_setval(const char *subsys_name, const char *key, void *args);
 
-#define __testing_setval(name, key, args) \
+/**
+ * __do_testing_is_sut_key - check if a key of a subsys is under active
+ * monitoring. Caller needs to define a RCU critical section.
+ *
+ * @subsys_name: name of the subsys
+ * @key: the key to check for
+ * @kvp: ptr to returned kvpair, may be NULL if unused
+ *
+ * Returns: 0 if ok, < 0 if any error
+ */
+int __do_testing_is_sut_key(const char *subsys_name, const char* key, void *kvp);
+
+/**
+ * __do_testing_is_sut_key_rcu - placed a RCU critical section for you
+ *
+ * @n: the subsys name
+ * @k: the key
+ * @v: the kvp ptr
+ *
+ * Returns: 0 if ok, < 0 if any error
+ */
+#define __do_testing_is_sut_key_rcu(n, k, v) \
+	({ \
+	 	int err; \
+	 	\
+		rcu_read_lock(); \
+		err = __do_testing_is_sut_key((n), (k), (v)); \
+		rcu_read_unlock(); \
+		\
+		err; \
+	 })
+
+#define __testing_errwrapper(__kall) \
 	({ \
 		int ret; \
-		ret = __do_testing_setval((name), (key), (args)); \
+		ret = __kall; \
 		if(ret == TESTING_SETVAL_NOTASK) \
 			scid_err("not in process context!"); \
 		else if(ret == TESTING_SETVAL_NOSUT) \
@@ -119,11 +151,19 @@ int __do_testing_setval(const char *subsys_name, const char *key, void *args);
 		ret; \
 	})
 
+#define __testing_setval(n, k, a) \
+	__testing_errwrapper( \
+			__do_testing_setval((n), (k), (a)))
+
+#define __testing_is_sut_key(n, k, v) \
+	__testing_errwrapper( \
+			__do_testing_is_sut_key_rcu((n), (k), (v)))
 
 /* since this is called in hooks continuously, avoid the fn call when 
  * testing is disabled, compiler should even optimize the branch
  */
 #define testing_setval __testing_setval
+#define testing_is_sut_key __testing_is_sut_key
 #else
 #define testing_setval(x, y, z) ({0;})
 #endif

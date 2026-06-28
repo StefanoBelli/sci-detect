@@ -644,10 +644,11 @@ void teardown_testing(void)
 }
 
 #ifdef SCID_CONFIG_TESTING
-int __do_testing_setval(
+
+int __do_testing_is_sut_key(
 		const char *subsys_name, 
-		const char *key, 
-		void *args)
+		const char* key,
+		void *kvp)
 {
 	if(!in_task())
 		return TESTING_SETVAL_NOTASK;
@@ -667,47 +668,58 @@ int __do_testing_setval(
 
 	pid_t vpid_thr = task_pid_vnr(current);
 
-	rcu_read_lock();
-
 	struct subsys_testing_instance *sti = 
 		__subsys_testing_instance_search(vpid_thr, &sut->testing_inst);
 
-	if(!sti) {
-		rcu_read_unlock();
+	if(!sti)
 		return TESTING_SETVAL_NOINST;
-	}
 
-	struct subsys_kvpair *kvp;
+	struct subsys_kvpair *__kvp;
 	bool kvp_found = false;
 
-	list_for_each_entry(kvp, &sti->kv_pairs, kvp_head) {
-		if(!strcmp(key, kvp->key)) {
+	list_for_each_entry(__kvp, &sti->kv_pairs, kvp_head) {
+		if(!strcmp(key, __kvp->key)) {
 			kvp_found = true;
 			break;
 		}
 	}
 
-	if(!kvp_found) {
-		rcu_read_unlock();
+	if(!kvp_found)
 		return TESTING_SETVAL_NOKEY;
-	}
 
-	bool has_started = READ_ONCE(kvp->started);
+	if(kvp)
+		*((struct subsys_kvpair**)kvp) = __kvp;
+
+	bool has_started = READ_ONCE(__kvp->started);
 	smp_mb();
 
-	if(!has_started) {
-		rcu_read_unlock();
+	if(!has_started)
 		return TESTING_SETVAL_NOTSTARTED;
-	}
 
-	int final_rv = 0;
+	return 0;
+}
+
+int __do_testing_setval(
+		const char *subsys_name, 
+		const char *key, 
+		void *args)
+{
+	int ret;
+	struct subsys_kvpair *kvp;
+
+	rcu_read_lock();
+
+	ret = __do_testing_is_sut_key(subsys_name, key, &kvp);
+	if(ret) 
+		goto __finish;
 
 	if(kvp->kv_ops->set_value)
 		kvp->kv_ops->set_value(kvp->value, args, kvp->value_size);
 	else
-		final_rv = TESTING_SETVAL_NOKVOP;
+		ret = TESTING_SETVAL_NOKVOP;
 
+__finish:
 	rcu_read_unlock();
-	return final_rv;
+	return ret;
 }
 #endif

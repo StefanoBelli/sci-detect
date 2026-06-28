@@ -40,12 +40,23 @@ void __base_teardown_hooks(struct __base_setup_hooks_args*);
 
 #ifdef SCID_CONFIG_TESTING
 
+struct post_testing_teardown_action {
+	const char* name;
+	void (*action)(void);
+};
+
+#define TTD_ACTION(fun) \
+	(struct post_testing_teardown_action) { \
+		.name = #fun, \
+		.action = fun, \
+	}
+
 #include <testing/testing.h>
 #include <logging.h>
 
 #define __size_type typeof(sizeof(0))
 
-#define GENERATE_SETUP_AND_TEARDOWN_CODE(_hooksgroup_, _kps_, _krps_, _tests_arr_) \
+#define GENERATE_SETUP_AND_TEARDOWN_CODE(_hooksgroup_, _kps_, _krps_, _tests_arr_, _post_ttd_actions_) \
 	static_assert( \
 			__builtin_types_compatible_p( \
 				typeof((_tests_arr_)), \
@@ -70,6 +81,24 @@ void __base_teardown_hooks(struct __base_setup_hooks_args*);
 		return 0; \
 	} \
 	\
+	static inline void __hooksgroup_post_ttd_actions( \
+		const struct post_testing_teardown_action *actions, \
+		__size_type nr_actions, \
+		const char* hooksgroup) \
+	{ \
+		if(!nr_actions) { \
+			scid_infof("no post-testing-teardown actions found " \
+					"for hooksgroup %s (they're %ld)", hooksgroup, nr_actions); \
+			return; \
+		} \
+		\
+		for(__size_type i = 0; i < nr_actions; i++) { \
+			scid_infof("running post-testing-teardown action " \
+					"(%s/%s)", hooksgroup, actions[i].name); \
+			actions[i].action(); \
+		} \
+	} \
+	\
 	SETUP_HOOKSGROUP_SIGNATURE(_hooksgroup_); \
 	TEARDOWN_HOOKSGROUP_SIGNATURE(_hooksgroup_); \
 	\
@@ -85,9 +114,11 @@ void __base_teardown_hooks(struct __base_setup_hooks_args*);
 	TEARDOWN_HOOKSGROUP_SIGNATURE(_hooksgroup_) \
 	{ \
 		__base_teardown_hooks(&bsha); \
+		__size_type nr_post_ttd_actions = __static_array_size((_post_ttd_actions_),[0],); \
+		__hooksgroup_post_ttd_actions((_post_ttd_actions_), nr_post_ttd_actions, #_hooksgroup_); \
 	}
 #else
-#define GENERATE_SETUP_AND_TEARDOWN_CODE(_hooksgroup_, _kps_, _krps_, __unused) \
+#define GENERATE_SETUP_AND_TEARDOWN_CODE(_hooksgroup_, _kps_, _krps_, ...) \
 	SETUP_HOOKSGROUP_SIGNATURE(_hooksgroup_); \
 	TEARDOWN_HOOKSGROUP_SIGNATURE(_hooksgroup_); \
 	\

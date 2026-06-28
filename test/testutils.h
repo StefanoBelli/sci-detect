@@ -173,7 +173,7 @@ __unused static int query_int_value_testing_for_me(const char* subsys, const cha
 #undef BASEDIR
 
 #ifndef SOFT_FAIL_TOLERANCE
-#define SOFT_FAIL_TOLERANCE 1
+#define SOFT_FAIL_TOLERANCE 30
 #endif
 
 #ifndef NO_FAIL

@@ -26,7 +26,7 @@ int main()
 		char *mem = (char*) mmap(
 				NULL, 10 * PAGE_SIZE, 
 				PROT_READ | PROT_WRITE, 
-				MAP_PRIVATE | MAP_ANONYMOUS, 
+				MAP_SHARED | MAP_ANONYMOUS, 
 				-1, 0);
 		die_if(mem == MAP_FAILED);
 
@@ -51,7 +51,7 @@ int main()
 		char *mem = (char*) mmap(
 				NULL, 10 * PAGE_SIZE, 
 				PROT_READ | PROT_WRITE, 
-				MAP_PRIVATE | MAP_ANONYMOUS, 
+				MAP_SHARED | MAP_ANONYMOUS, 
 				-1, 0);
 		die_if(mem == MAP_FAILED);
 
@@ -78,7 +78,7 @@ int main()
 		char *mem = (char*) mmap(
 				NULL, 10 * PAGE_SIZE, 
 				PROT_READ | PROT_WRITE, 
-				MAP_PRIVATE | MAP_ANONYMOUS, 
+				MAP_SHARED | MAP_ANONYMOUS, 
 				-1, 0);
 		die_if(mem == MAP_FAILED);
 
@@ -105,7 +105,7 @@ int main()
 		char *mem = (char*) mmap(
 				NULL, 10 * PAGE_SIZE, 
 				PROT_READ | PROT_WRITE, 
-				MAP_PRIVATE | MAP_ANONYMOUS, 
+				MAP_SHARED | MAP_ANONYMOUS, 
 				-1, 0);
 		die_if(mem == MAP_FAILED);
 
@@ -132,7 +132,7 @@ int main()
 		char *mem = (char*) mmap(
 				NULL, 10 * PAGE_SIZE, 
 				PROT_READ | PROT_WRITE, 
-				MAP_PRIVATE | MAP_ANONYMOUS, 
+				MAP_SHARED | MAP_ANONYMOUS, 
 				-1, 0);
 		die_if(mem == MAP_FAILED);
 
@@ -157,7 +157,7 @@ int main()
 		char *mem = (char*) mmap(
 				NULL, 10 * PAGE_SIZE, 
 				PROT_READ | PROT_WRITE, 
-				MAP_PRIVATE | MAP_ANONYMOUS, 
+				MAP_SHARED | MAP_ANONYMOUS, 
 				-1, 0);
 		die_if(mem == MAP_FAILED);
 
@@ -184,7 +184,7 @@ int main()
 		char *mem = (char*) mmap(
 				NULL, 10 * PAGE_SIZE, 
 				PROT_READ | PROT_WRITE, 
-				MAP_PRIVATE | MAP_ANONYMOUS, 
+				MAP_SHARED | MAP_ANONYMOUS, 
 				-1, 0);
 		die_if(mem == MAP_FAILED);
 
@@ -212,7 +212,7 @@ int main()
 		char *mem = (char*) mmap(
 				NULL, 10 * PAGE_SIZE, 
 				PROT_READ | PROT_WRITE, 
-				MAP_PRIVATE | MAP_ANONYMOUS, 
+				MAP_SHARED | MAP_ANONYMOUS, 
 				-1, 0);
 		die_if(mem == MAP_FAILED);
 
@@ -241,7 +241,7 @@ int main()
 		char *mem = (char*) mmap(
 				NULL, 10 * PAGE_SIZE, 
 				PROT_READ | PROT_WRITE, 
-				MAP_PRIVATE | MAP_ANONYMOUS, 
+				MAP_SHARED | MAP_ANONYMOUS, 
 				-1, 0);
 		die_if(mem == MAP_FAILED);
 
@@ -269,7 +269,7 @@ int main()
 		char *mem = (char*) mmap(
 				NULL, 10 * PAGE_SIZE, 
 				PROT_READ | PROT_WRITE, 
-				MAP_PRIVATE | MAP_ANONYMOUS, 
+				MAP_SHARED | MAP_ANONYMOUS, 
 				-1, 0);
 		die_if(mem == MAP_FAILED);
 

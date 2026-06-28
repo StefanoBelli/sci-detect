@@ -19,3 +19,5 @@ modules.order
 test/*.test
 examples/*.example
 *.swp
+
+loader
