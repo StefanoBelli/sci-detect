@@ -32,7 +32,7 @@ jobs:
     - name: Setup kernel module
       run: sudo make module-mount
     - name: Finally, run tests
-      run: sudo make BUILD_TYPE=no-fail run-tests
+      run: sudo make run-tests
     - name: Show dmesg
       if: always()
       run: sudo dmesg
