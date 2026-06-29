@@ -37,10 +37,10 @@ TESTS= \
 	   test-fuf-anon-shared.test \
 	   test-fuf-sysv-shared.test \
 	   test-fuf-posix-shared.test \
-	   test-fuf-file-private.test \
-	   test-fuf-file-shared.test 
-	   #test-shm-file-shared-prefault.test \
-	   test-shm-file-private-prefault.test 
+	   #test-fuf-file-private.test 
+	   #test-fuf-file-shared.test 
+	   #test-shm-file-shared-prefault.test
+	   #test-shm-file-private-prefault.test 
 
 valid_build_types = normal no-fail
 BUILD_TYPE ?= normal

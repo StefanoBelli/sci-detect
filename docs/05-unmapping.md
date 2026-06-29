@@ -211,6 +211,15 @@ And thus, it is not possible to do ```free_unref_folios``` on the ```current``` 
 
 **How I discovered this**: by placing ```BUG()``` in the ```free_unref_folios``` hook, to get the call trace to discover where it got called (saw ```__folio_batch_add_and_move```)
 
+**For file-backed memory**: see also 07-testing-and-examples.md. Kernel
+has no reason to free a page cache frame, mirroring file content: it would
+mean degrading performance for no reason (unless memory pressure), 
+contrary to anonymous or shared pages, file content may be inspected later 
+on and it is always useful. Even if there's no "active user" of the folio 
+in page cache. Tests may be done by repeatedly doing 
+```sync; echo 1 > /proc/sys/vm/drop_caches```, otherwise you may wait forever,
+for the folio to be freed, especially if in a scarcely-used machine.
+
 **Sources**:
  - https://richardweiyang-2.gitbook.io/kernel-exploring/nei-cun-guan-li/00-index-1/04-pfra
  - https://www.kernel.org/doc/gorman/html/understand/understand013.html#toc72 "Manipulating LRU lists" for the old ```pagevec``` brief explaination

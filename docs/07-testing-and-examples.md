@@ -62,7 +62,18 @@ Quindi la recv, che è bloccante, rimane in attesa senza mai ricevere nulla.
  tempo e dipende dal workload del sistema. Eventualmente si può tentare di "stimolare" il kernel a liberare questi folio magari eseguendo qualche comando dalla shell, l'importante è che 
  ```free_unref_folios``` venga, prima o poi, utilizzato.
 
- * Per i file, la page cache ha impatto sul tempo notevole su tempo esecuzione tests
+ * Per i file, la page cache ha impatto sul tempo notevole su tempo esecuzione 
+ tests: bisogna attendere che il sistema liberi il frame in page cache 
+ *(il kernel non ha un reale motivo di farlo se non c'è memory pressure, 
+ al contrario di pagine anonime e/o memoria condivisa, il contenuto del file
+ può essere sempre "meaningful" e utile, non ha senso quindi svuotare la page
+ cache se la memoria non è sotto pressione, anche se non c'è nessun reale
+ utilizzatore del folio, potrebbe esserci un consultatore del file in futuro)* 
+ oppure provare a "stimolarlo" usando 
+ ```sync; echo 1 > /proc/sys/vm/drop_caches``` ripetutamente 
+ per far progredire il test. I test relativi all'hook
+ ```free_unref_folios```, in particolare verso i file (file-shared e
+ file-private) vengono commentati.
 
  * Per i test su ```free_unref_folios``` hook, la key "entry" è inutilizzata in realtà. E' zero se ```free_unref_folios``` non arriva a essere invocato dallo stesso kernel control path che fa ```munmap```,
  fuf viene eseguito da altro thread (per forza, il thread corrente è stopped). Se e maggiore di zero, significa che ```free_unref_folios``` è stata invocata direttamente dal thread current in maniera 
