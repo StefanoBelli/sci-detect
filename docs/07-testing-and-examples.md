@@ -40,10 +40,11 @@ Quindi la recv, che è bloccante, rimane in attesa senza mai ricevere nulla.
  In generale, sia con ```MAP_POPULATE``` che ```madvise``` si arriva, passando per ```get_user_pages``` (gup), a
  ```handle_mm_fault``` e quindi ```handle_pte_fault```, simulando un page fault software anticipato, quindi gli hook intercettano.
 
- * **```brk/sbrk```** e SELinux: non faccio l'esempio perchè SELinux (o altri MAC) potrebbero impedire ```PROT_EXEC``` (```VM_MAYEXEC``` disabilitato sull'heap):
+ * **```brk/sbrk```** e SELinux: non faccio l'esempio perchè SELinux (o altri MAC) potrebbero impedire ```PROT_EXEC``` (tramite i security hooks):
    - ```security_file_mprotect``` chiamato da ```do_mprotect_pkey``` (https://elixir.bootlin.com/linux/v7.1.2/source/mm/mprotect.c#L953)
    - ```selinux_file_mprotect``` impl LSM, vedere controllo EXEC su start_brk, brk (https://elixir.bootlin.com/linux/v7.1.2/source/security/selinux/hooks.c#L4098)
    - in sintesi, ```mprotect(*X)``` su area anonima privata espansa con ```brk/sbrk``` da "Permesso negato"
+   - Per la memoria anonima, il security hook ```file_mprotect``` ha ptr a file NULL
 
 ## Testing
 
