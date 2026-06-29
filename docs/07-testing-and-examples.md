@@ -61,3 +61,10 @@ Quindi la recv, che è bloccante, rimane in attesa senza mai ricevere nulla.
  folio. Quando tutti i folio che hanno causato il ```SIGSTOP``` stanno per essere liberati, invia ```SIGCONT``` a quel thread (può farlo anche il thread ```current``` stesso). Il test è quindi basato sul
  tempo e dipende dal workload del sistema. Eventualmente si può tentare di "stimolare" il kernel a liberare questi folio magari eseguendo qualche comando dalla shell, l'importante è che 
  ```free_unref_folios``` venga, prima o poi, utilizzato.
+
+ * Per i file, la page cache ha impatto sul tempo notevole su tempo esecuzione tests
+
+ * Per i test su ```free_unref_folios``` hook, la key "entry" è inutilizzata in realtà. E' zero se ```free_unref_folios``` non arriva a essere invocato dallo stesso kernel control path che fa ```munmap```,
+ fuf viene eseguito da altro thread (per forza, il thread corrente è stopped). Se e maggiore di zero, significa che ```free_unref_folios``` è stata invocata direttamente dal thread current in maniera 
+ sincrona, e quindi le pagine fisiche liberate immediatamente dallo stesso kcp. Il thread di test non è mai andato in SIGSTOP. Di fatto, entry utilizzata per capire se il test sta cercando di testare
+ l'unmapping o meno (vedere il codice).
