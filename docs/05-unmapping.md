@@ -122,3 +122,96 @@ or earlier (see ```zap_pte_range``` and similar) if ```force_flush``` is enforce
  - delayed rmaps removal are pending, and active batch is not local batch.
  - number of batches in the ```mmu_gather``` reached its max (```MAX_GATHER_BATCH_COUNT```)
  - memory pressure (```__get_free_pages(GFP_NOWAIT) returns NULL```)
+
+## Why the folio refcnt may be greater than 0? And cause the ```current``` kernel control path (```sys_munmap```) not to free the physical page? This impacts testing!
+
+In particular, this question arises when we do the unmap of a ```MAP_ANONYMOUS | MAP_PRIVATE``` page (or whatever page that we know we were the only one actively referencing it, before the unmap),
+causing the page to not being freed immediately (sync. wrt. ```sys_munmap```).
+
+Suppose classical one process, made of one thread (the distinction between the two is very thin) setup, we do ```mmap```, access the page in write mode and then ```munmap```. As a result:
+ * the PTE is "zapped" (process can't access the memory anymore)
+ * before the return to user mode the TLB must be flushed
+ * **the hw pte-referenced physical page may not be immediately returned to the buddy allocator**
+
+So, why? 
+
+Well, Linux has the concept of ```struct folio_batch``` (before the introduction of folios, they were known as ```struct pagevec```), which is a "container" (linked list, but we don't care) of folios
+on which the kernel does operations, see above for one example (```free_pages_and_swap_cache``` collects folios in batch and calls ```folios_put_refs``` on it).
+
+The most important thing those batches do is that they **accumulate** folios before moving them to the LRU lists of the kernel (used by PFRA to determine which folios to evict first). 
+Why is that? Because using these lists requires holding a global lock (wrt the multiple LRU lists) which severely impacts performance.
+
+The lock is ```struct lruvec::lru_lock``` which is a spinlock that protects the ```struct lru_lock::lists[NR_LRU_LISTS]```, 
+see https://elixir.bootlin.com/linux/v7.1.2/source/include/linux/mmzone.h#L757 .
+
+As an optimization, instead of doing the LRU operation for each folio immediately and requiring **for each folio** to get the ```lru_lock```, we accumulate a certain number of folios in a batch 
+and do that operation on those folios once the batch gets full. The advantage here is that the lock is held once for (for example) 15 folios, instead of holding/releasing it for 15 times
+(impacts on CPU caches) for every single folio.
+
+Given the background, lets get more into the details: the kernel defines a ```struct cpu_fbatches``` (see https://elixir.bootlin.com/linux/v7.1.2/source/mm/swap.c#L50), and a per-CPU variable of
+that type (symbol name ```cpu_fbatches```, see https://elixir.bootlin.com/linux/v7.1.2/source/mm/swap.c#L68). This means that for each CPU the kernel holds a **set of batches of folios**.
+
+Those multiple batches are required because in there we collect folios for which we will do the same particular operation once the batch gets full. This involves moving the i-th folio contained in
+the batch, into a LRU list.
+
+The core function that does that is ```folio_batch_move_lru``` (https://elixir.bootlin.com/linux/v7.1.2/source/mm/swap.c#L158): this gets the correct ```lruvec```, holds the ```lru_lock```, and
+for each folio in the passed ```folio_batch``` does the ```move_fn``` operation passed as callback, "moving" the folio to the target LRU list, and, in the end, emptying the per-CPU ```folio_batch```.
+
+ * Calls ```folio_lruvec_relock_irqsave``` (https://elixir.bootlin.com/linux/v7.1.2/source/include/linux/memcontrol.h#L1519). 
+
+   - Again, this calls ```folio_lruvec_lock_irqsave``` (https://elixir.bootlin.com/linux/v7.1.2/source/mm/memcontrol.c#L1443) which gets the competent ```struct lruvec``` for the folio
+(recall that ```struct lruvec``` contains the multiple LRU lists) and holds that ```lruvec```'s ```lru_lock``` once and for all folios in that batch (hopefully, see source).
+
+ * After doing the move-to-LRU operation this flags the folio as belonging to an LRU.
+
+ * After the ```folio_batch``` has been completely scanned, it will release the ```lruvec```'s ```lru_lock``` (if effectively held) and, more importantly, it does **```folios_put```** of the whole
+ ```folio_batch``` passed in.
+
+The ```folios_put``` function calls ```folios_put_refs(fbatch, NULL)```, causing the decrement by one of each ```folio``` in the ```folio_batch``` and the **reinitialization**/**emptying** of the 
+passed per-CPU ```folio_batch```. 
+
+Before seeing the operations of ```folios_put_batch``` let's get back to the "wrapper" of the core function: **```__folio_batch_add_and_move```** https://elixir.bootlin.com/linux/v7.1.2/source/mm/swap.c#L182:
+ 
+ * It receives as parameter the per-CPU ```folio_batch``` being one of the ```cpu_fbatches```, the ```folio``` on which we shall do the LRU operation and the ```move_fn``` callback.
+
+ * It does a **```folio_get(folio)```**, **thus incrementing the refcount** of the **```folio```** (**THIS IS IMPORTANT**).
+
+ * It gets the ```local_lock``` of the per-CPU ```cpu_fbatches```, protecting all the ```folio_batch```es in that per-CPU variable of type ```struct cpu_fbatches``` (multiple interleaved kernel contol paths
+ on the same CPU, preemption enabled, bla bla... so a lock protecting data structures is needed). It may disable interrupts, but we don't care about that.
+
+ * It adds (and will succeed 100%) the ```folio``` to the per-CPU ```folio_batch``` passed in to the fn. What happens is that:
+   - if the ```folio_batch_add``` function returns 0 this means that after this last insertion, the per-CPU fbatch is full: DRAINING of the batch is necessary right now, 
+   by calling the core fn ```folio_batch_move_lru```
+
+   - otherwise, do nothing and keep the ```folio``` in that per-CPU batch, when it gets full, it also gets drained as explained above.
+
+ * Release the previously-taken, ```folio_batch```-protecting, ```local_lock``` of per-CPU ```cpu_fbatches``` data structure, also reenable irqs if previously disabled.
+
+```__folio_batch_add_and_move``` is called using the macro ```folio_batch_add_and_move``` (https://elixir.bootlin.com/linux/v7.1.2/source/mm/swap.c#L204) which allows to make code more readable (for
+example here: https://elixir.bootlin.com/linux/v7.1.2/source/mm/swap.c#L339). Per-CPU batches are named as the ```move_fn```s.
+
+**RECALL THAT WHILE THE ```folio``` is in the per-CPU ```folio_batch```, its refcount is greater than 0!!**
+
+Now, lets get back-on-track with **```folios_put_refs```**, which was also described in previous section. Lets not forget this context: here it gets called by ```folio_batch_move_lru```. The job
+of ```folios_put_refs``` here is to decrement the refcount by 1 of each ```folio``` of the drained ```folio_batch``` because it was ```folio_get```-ted before (see ```__folio_batch_add_and_move```), that is,
+when inserting that ```folio``` in that ```folio_batch```, and since this ```folio``` is not in the per-CPU ```folio_batch``` anymore, its refcount can be decremented. If the ```folio``` refcnt gets down to 0,
+```free_unref_folios``` is called to free all ```folio```s of that batch such that its refcnt is 0.
+
+**Observation**: the ```folio``` being inserted in the LRU doesn't increment its reference count. Why is that? By looking at the code of ```folios_put_refs```, and 
+in particular when it calls ```__page_cache_release``` (https://elixir.bootlin.com/linux/v7.1.2/source/mm/swap.c#L73), the reference count is already down to 0.
+
+**The moral of the story**: when doing the ```munmap``` of anonymous private page (as explained above, in prev. sections), it may happen that after the ```folios_put_refs``` (called by 
+```free_pages_and_swap_cache```), one or more refcount of the folios of the in-place built ```folio_batch``` (**not** the per-CPU ones!!!! **But** the ```free_pages_and_swap_cache``` created one) 
+is **NOT** 0 because it may be temporarily sitting in
+a **per-CPU** ```folio_batch``` (```cpu_fbatches```), waiting for that batch to be drained, when it gets full. 
+And thus, it is not possible to do ```free_unref_folios``` on the ```current``` task's control path which called
+```munmap``` "synchronously".
+
+**Impact on testing**: see 07-testing-and-examples.md
+
+**How I discovered this**: by placing ```BUG()``` in the ```free_unref_folios``` hook, to get the call trace to discover where it got called (saw ```__folio_batch_add_and_move```)
+
+**Sources**:
+ - https://richardweiyang-2.gitbook.io/kernel-exploring/nei-cun-guan-li/00-index-1/04-pfra
+ - https://www.kernel.org/doc/gorman/html/understand/understand013.html#toc72 "Manipulating LRU lists" for the old ```pagevec``` brief explaination
+ - Reading the kernel source itself (mm/swap.c mostly)
