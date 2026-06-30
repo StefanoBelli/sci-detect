@@ -123,6 +123,18 @@ long scid_poll_forever(void* desc, void* args, int *loop);
  */
 long scid_cmd_get_last_events(void *desc, void *args);
 
+/**
+ * scid_cmd_is_tracked_page - do a is_tracked_page cmd and await for
+ * the response
+ *
+ * @desc: the descriptor
+ * @args: args to be passed to the command response handler callback
+ * @pfn: the pfn to look for
+ *
+ * Returns: 0 if ok, not 0 othw
+ */
+long scid_cmd_is_tracked_page(void *desc, void *args, unsigned long pfn);
+
 /* these are passed as input to command callback handlers */
 
 struct wxwarning_event {
@@ -143,6 +155,13 @@ struct last_event {
 struct all_last_events {
 	struct last_event *evts;
 	uint32_t nr;
+};
+
+struct is_tracked_page {
+	uint64_t pfn;
+	uint32_t pfn_found;
+	int32_t page_writable;
+	int32_t page_executable;
 };
 
 #endif

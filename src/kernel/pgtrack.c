@@ -18,12 +18,6 @@
 			scid_errf("unknown error: %d", err); \
 	} while(0)
 
-typedef s64 perm_type;
-
-#define PERM_WRITE_BIT 1
-#define PERM_EXEC_BIT 2
-#define PERM_BITS 3
-
 #define build_perms(w, e) \
 ({ \
 	 perm_type perm = 0; \
@@ -36,11 +30,6 @@ typedef s64 perm_type;
 	 \
 	 perm; \
 })
-
-struct page_status {
-	struct page *page;
-	atomic64_t perms;
-};
 
 static struct xarray good_pages;
 static struct xarray bad_pages;
@@ -81,20 +70,27 @@ static inline struct page_status *__lookup_pfn(unsigned long pfn, struct xarray 
 	struct page_status *status = NULL;
 
 	status = xa_load(&bad_pages, pfn);
-	*lookedup_from = &bad_pages;
+	
+	if(likely(lookedup_from))
+		*lookedup_from = &bad_pages;
 
 	if(!status) {
 		status = xa_load(&good_pages, pfn);
-		*lookedup_from = &good_pages;
+
+		if(likely(lookedup_from))
+			*lookedup_from = &good_pages;
 	}
 
 	return status;
 }
 
+struct page_status *lookup_pfn_pgtrack(unsigned long pfn)
+{
+	return __lookup_pfn(pfn, NULL);
+}
+
 /*
- * ---SOME NOTES---
- *
- * Q: Why there is no need of any kind of reference counting or RCU?
+ * ---WHY NO KREF OR RCU IN pg_track CODE?---
  *
  *  * pg_track is being used by every hook that adds/changes page state,
  * all those hooks are called in process context, and it is either 
@@ -116,6 +112,27 @@ static inline struct page_status *__lookup_pfn(unsigned long pfn, struct xarray 
  * and no free_unref_folios will be called while doing operations on the
  * xarrays with pg_track. REMEMBER: THE ISSUE ***WOULD*** BE WITH FREEING
  * MEMORY, AND NOT "CONCURRENCY".
+ *
+ * pte_offset_map_lock protects PTEs (see PTE split locks): suppose
+ * we have two threads: A and B of one process (that is, sharing the same
+ * address space)
+ *
+ * RECALL: pg_track is called with PTE split lock held by calling thread.
+ *
+ * A enters the page fault handler, regarding page P.
+ * While B, in parallel does a munmap on that specific page P.
+ *
+ * Since the various kprobes in the PF handler ensure that they have the
+ * PTE lock, **and** zap_pte_range acquries that same lock we can substantially
+ * have 2 situations:
+ *
+ *  - thread A gets the lock first, the PTE is still valid, tracks page successfully,
+ *  when thread B, later on, gets the lock, it invalidates the PTE and decrements the
+ *  folio refcount, in the end, free_unref_folios will get called, causing the page
+ *  untracking
+ *
+ *  -thread B gets the lock first, does zap the PTE entry. Thread A then gets the lock and
+ *  sees the PTE entry being invalid, gives up, no page tracking happens.
  *
  * ---ON THE CREAT FLAG---
  *
@@ -210,8 +227,11 @@ __retry:
 			__pgtrack_log_err_code(err);
 
 		/* we published it correctly, retry to adjust permissions */
-		} else
+		} else {
+			/* new_pgstatus is held */
+			kref_init(&new_pgstatus->kref);
 			goto __retry;
+		}
 	}
 }
 
@@ -222,6 +242,8 @@ __retry:
  * page is still not returned to the buddy allocator. This means that
  * the page won't be used again, until freed. So we can do the 2-steps 
  * xa_erase """non-atomically"""
+ *
+ * Also refer to the pg_track comment.
  */
 bool pg_untrack(struct page *page)
 {
@@ -233,7 +255,23 @@ bool pg_untrack(struct page *page)
 		return false;
 
 	xa_erase(&bad_pages, pfn);
-	kmem_cache_free(page_status_cachep, pgstatus);
+
+	/* we may put this before this last xa_erase... */
+	page_status_put(pgstatus);
 
 	return true;
+}
+
+static void __page_status_free_rcuh_fn(struct rcu_head *rcu)
+{
+	struct page_status *pgs = container_of(rcu, struct page_status, rcu);
+
+	kmem_cache_free(page_status_cachep, pgs);
+}
+
+void __page_status_release_fn(struct kref *kref)
+{
+	struct page_status *pgs = container_of(kref, struct page_status, kref);
+
+	call_rcu(&pgs->rcu, __page_status_free_rcuh_fn);
 }

@@ -9,7 +9,9 @@
 #include <netlink/pgtrack/setup.h>
 #include <user/scid-netlink-defs.h>
 #include <netlink.h>
+#include <pgtrack.h>
 #include <logging.h>
+#include <resolve_syms/rmap_walk.h>
 
 /* nr of queued events in the kfifo */
 #define NR_QUEUED_EVENTS 10
@@ -367,9 +369,141 @@ __failure_nlfree:
 	return -EMSGSIZE;
 }
 
-int pgtrack_genl_is_tracked_page_doit(struct sk_buff *, struct genl_info *)
+static bool __do_is_tracked_page_perms(struct sk_buff *skb, struct page_status *pgs)
 {
-	return 0;
+	perm_type perm = atomic64_read(&pgs->perms);
+
+	s32 writable = perm & PERM_WRITE_BIT;
+	s32 executable = perm & PERM_EXEC_BIT;
+
+	if(unlikely(nla_put_s32(
+					skb, SCID_GENL_ATTR_PAGE_WRITABLE, writable))) {
+		scid_err("unable to put writable in skb");
+		return false;
+	}
+
+	if(unlikely(nla_put_s32(
+					skb, SCID_GENL_ATTR_PAGE_EXECUTABLE, executable))) {
+		scid_err("unable to put writable in skb");
+		return false;
+	}
+
+	return true;
+}
+
+static bool __do_is_tracked_page_found(struct sk_buff *skb, u32 pfn, u32 found)
+{
+	if(unlikely(nla_put_u64_64bit(
+					skb, SCID_GENL_ATTR_PFN, pfn, SCID_GENL_ATTR_PAD))) {
+		scid_err("unable to put pfn in skb");
+		return false;
+	}
+
+	if(unlikely(nla_put_u32(
+					skb, SCID_GENL_ATTR_PFN_FOUND, found))) {
+		scid_err("unable to put pfn found in skb");
+		return false;
+	}
+
+	return true;
+}
+
+static bool __do_is_tracked_page_rmap_one(
+		struct folio *folio, struct vm_area_struct *vma, unsigned long addr, void *arg)
+{
+	struct task_struct *tsk;
+
+	for_each_process(tsk) {
+		if(vma->vm_mm == tsk->mm) {
+			scid_infof("got it! %d", task_pid_vnr(tsk));
+		}
+	}
+
+	return true;
+}
+
+static bool __do_is_tracked_page_pids(struct sk_buff *skb, struct page_status *pgs)
+{
+	struct rmap_walk_control rwc = {
+		.rmap_one = __do_is_tracked_page_rmap_one,
+		.arg = skb,
+	};
+
+	struct folio *folio = page_folio(pgs->page);
+
+	folio_lock(folio);
+	THUNK(rmap_walk)(folio, &rwc);
+	folio_unlock(folio);
+
+	return true;
+}
+
+static int __do_is_tracked_page(
+		struct genl_info *info, u64 pfn, u32 found, struct page_status *pgs)
+{
+	struct sk_buff *skb;
+	void *hdr;
+
+	skb = genlmsg_new(GENLMSG_DEFAULT_SIZE, GFP_KERNEL);
+	if(unlikely(!skb)) {
+		scid_err("unable to get new skb");
+		return -ENOMEM;
+	}
+
+	hdr = genlmsg_put(skb, info->snd_portid, info->snd_seq, &genl_fam, 0, info->genlhdr->cmd);
+	if(unlikely(!hdr)) {
+		scid_err("unable to build hdr");
+		goto __failure_nlfree;
+	}
+
+	if(unlikely(!__do_is_tracked_page_found(skb, pfn, found)))
+		goto __failure_cancel_nlfree;
+
+	if(!found)
+		goto __end_ok;
+
+	if(unlikely(!__do_is_tracked_page_perms(skb, pgs)))
+		goto __failure_cancel_nlfree;
+
+	if(unlikely(!__do_is_tracked_page_pids(skb, pgs)))
+		goto __failure_cancel_nlfree;
+
+__end_ok:
+	genlmsg_end(skb, hdr);
+	return genlmsg_reply(skb, info);
+
+__failure_cancel_nlfree:
+	genlmsg_cancel(skb, hdr);
+__failure_nlfree:
+	nlmsg_free(skb);
+	return -EMSGSIZE;
+}
+
+int pgtrack_genl_is_tracked_page_doit(
+		__always_unused struct sk_buff *in_skb, struct genl_info *info)
+{
+	struct nlattr *in_pfn_attr = info->attrs[SCID_GENL_ATTR_PFN];
+	u64 in_pfn;
+	int rv;
+
+	if(in_pfn_attr)
+		in_pfn = nla_get_u64(in_pfn_attr);
+	else {
+		scid_warn("is_tracked_page cmd without pfn as input :/");
+		return 0;
+	}
+
+	rcu_read_lock();
+	struct page_status *pgs = lookup_pfn_pgtrack(in_pfn);
+	bool invalid = !pgs || !try_page_status_get(pgs);
+	rcu_read_unlock();
+
+	rv = __do_is_tracked_page(info, in_pfn, !invalid, pgs);
+
+	if(likely(!invalid))
+		page_status_put(pgs);
+
+	return rv;
 }
 
 struct init_event_wxwarning_args {

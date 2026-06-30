@@ -36,7 +36,7 @@ TESTS= \
 	   test-fuf-anon-private.test \
 	   test-fuf-anon-shared.test \
 	   test-fuf-sysv-shared.test \
-	   test-fuf-posix-shared.test \
+	   test-fuf-posix-shared.test 
 	   #test-fuf-file-private.test 
 	   #test-fuf-file-shared.test 
 	   #test-shm-file-shared-prefault.test

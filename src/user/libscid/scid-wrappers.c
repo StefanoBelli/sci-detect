@@ -10,7 +10,16 @@ const struct nla_policy global_policy[SCID_GENL_MAX_NR_ATTRS + 1] = {
 	[SCID_GENL_ATTR_PFN] = { .type = NLA_U64 },
 	[SCID_GENL_ATTR_PID] = { .type = NLA_S32 },
 	[SCID_GENL_ATTR_EVT_TYPE] = { .type = NLA_U32 },
+	[SCID_GENL_ATTR_PFN_FOUND] = { .type = NLA_U32 },
+	[SCID_GENL_ATTR_PAGE_WRITABLE] = { .type = NLA_S32 },
+	[SCID_GENL_ATTR_PAGE_EXECUTABLE] = { .type = NLA_S32 },
 };
+
+#define __nla_assign_or_skip(var, attr, type) \
+	if((attr)) \
+		(var) = nla_get_##type((attr)); \
+	else \
+		return NL_SKIP
 
 /*
  * response wrappers
@@ -22,17 +31,11 @@ int __scid_wrapper_event_wxwarning(cmd_handler_fpt user_handler,
 		struct nlattr **attrs, void *uargs)
 {
 	struct wxwarning_event evt;
-
 	memset(&evt, 0, sizeof(evt));
 
-	if(attrs[SCID_GENL_ATTR_PID])
-		evt.pid = nla_get_s32(attrs[SCID_GENL_ATTR_PID]);
-
-	if(attrs[SCID_GENL_ATTR_PFN])
-		evt.pfn = nla_get_u64(attrs[SCID_GENL_ATTR_PFN]);
-
-	if(attrs[SCID_GENL_ATTR_VA])
-		evt.va = nla_get_u64(attrs[SCID_GENL_ATTR_VA]);
+	__nla_assign_or_skip(evt.pid, attrs[SCID_GENL_ATTR_PID], s32);
+	__nla_assign_or_skip(evt.pfn, attrs[SCID_GENL_ATTR_PFN], u64);
+	__nla_assign_or_skip(evt.va, attrs[SCID_GENL_ATTR_VA], u64);
 
 	user_handler(&evt, uargs);
 
@@ -146,6 +149,28 @@ __finish_onlyfree:
 	return rv;
 }
 
+/* is_tracked_page */
+
+int __scid_wrapper_is_tracked_page(cmd_handler_fpt user_handler,
+		struct nlattr **attrs, void *uargs)
+{
+	struct is_tracked_page itp;
+	memset(&itp, 0, sizeof(itp));
+
+	__nla_assign_or_skip(itp.pfn, attrs[SCID_GENL_ATTR_PFN], u64);
+	__nla_assign_or_skip(itp.pfn_found, attrs[SCID_GENL_ATTR_PFN_FOUND], u32);
+
+	if(!itp.pfn_found)
+		goto __call_uhandler;
+
+	__nla_assign_or_skip(itp.page_writable, attrs[SCID_GENL_ATTR_PAGE_WRITABLE], s32);
+	__nla_assign_or_skip(itp.page_executable, attrs[SCID_GENL_ATTR_PAGE_EXECUTABLE], s32);
+
+__call_uhandler:
+	user_handler(&itp, uargs);
+	return NL_OK;
+}
+
 #define __static_array_size(x) (sizeof(x) / sizeof(typeof(x[0])))
 
 /*
@@ -159,6 +184,10 @@ const struct cmd_reg_info __static_regi_defs[] = {
 	{
 		.cmd = SCID_GENL_CMD_GET_LAST_EVENTS,
 		.wrapper_handler = __scid_wrapper_get_last_events,
+	},
+	{
+		.cmd = SCID_GENL_CMD_IS_TRACKED_PAGE,
+		.wrapper_handler = __scid_wrapper_is_tracked_page,
 	}
 };
 

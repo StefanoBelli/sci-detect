@@ -14,7 +14,7 @@
 	static const struct nla_policy 	\
 	__NLA_POLICY_SYM(name)[SCID_GENL_MAX_NR_ATTRS + 1]
 
-__DECLARE_NLA_POLICY(is_tracked_page) = {
+__DECLARE_NLA_POLICY(pfn_only_policy) = {
 	[SCID_GENL_ATTR_PFN] = { .type = NLA_U64 },
 };
 
@@ -37,7 +37,7 @@ static const struct genl_ops genl_ops[] = {
 		.cmd = SCID_GENL_CMD_IS_TRACKED_PAGE,
 		.flags = GENL_ADMIN_PERM,
 		.doit = pgtrack_genl_is_tracked_page_doit,
-		.policy = __NLA_POLICY_SYM(is_tracked_page),
+		.policy = __NLA_POLICY_SYM(pfn_only_policy),
 	}
 
 };

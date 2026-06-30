@@ -2,12 +2,36 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <errno.h>
 #include <getopt.h>
 #include <scid.h>
 
 #include "scid-cli-macros.h"
 
-static const char *short_opts = "bupfg";
+/* some utils */
+
+static const char* bool_to_str(unsigned long t)
+{
+	return t ? "true" : "false";
+}
+
+static unsigned long to_ul(const char* s)
+{
+	errno = 0;
+	char *endptr = NULL;
+
+	unsigned long rv = strtoul(s, &endptr, 10);
+	if(errno) {
+		perror("strtoul");
+		exit(EXIT_FAILURE);
+	}
+
+	return rv;
+}
+
+/* args for the cli */
+
+static const char *short_opts = "bupfgt";
 
 static const struct option opts[] = {
 	{ "sub-bcast", no_argument, NULL, 'b' },
@@ -15,7 +39,10 @@ static const struct option opts[] = {
 	{ "poll-one", no_argument, NULL, 'p' },
 	{ "poll-forever", no_argument, NULL, 'f' },
 	{ "get-last-events", no_argument, NULL, 'g' },
+	{ "is-tracked-page", required_argument, NULL, 't' }
 };
+
+/* impls */
 
 static void sub_bcast(void *desc)
 {
@@ -42,6 +69,11 @@ static void poll_forever(void *desc)
 static void get_last_events(void *desc)
 {
 	die_if_sciderr(scid_cmd_get_last_events, desc, NULL);
+}
+
+static void is_tracked_page(void *desc, unsigned long pfn)
+{
+	die_if_sciderr(scid_cmd_is_tracked_page, desc, NULL, pfn);
 }
 
 static void wxwarning_pretty_print(const struct wxwarning_event *wxw)
@@ -71,6 +103,24 @@ static void get_last_events_handler(const void *args, __unused void *uargs)
 	}
 }
 
+static void is_tracked_page_handler(const void *args, __unused void *uargs)
+{
+	const struct is_tracked_page *itp = args;
+
+	printf("page: pfn=%ld, found=%s", 
+			itp->pfn, 
+			bool_to_str(itp->pfn_found));
+
+	if(!itp->pfn_found) {
+		puts("");
+		return;
+	}
+
+	printf(", writable=%s, executable=%s\n", 
+			bool_to_str(itp->page_writable), 
+			bool_to_str(itp->page_executable));
+}
+
 static void register_all_handlers(void *desc)
 {
 	die_if_sciderr(
@@ -80,6 +130,10 @@ static void register_all_handlers(void *desc)
 	die_if_sciderr(
 			scid_regi_cmd, 
 				desc, SCID_GENL_CMD_EVENT_WXWARNING, wxwarning_event_handler);
+
+	die_if_sciderr(
+			scid_regi_cmd, 
+				desc, SCID_GENL_CMD_IS_TRACKED_PAGE, is_tracked_page_handler);
 }
 
 int main(int argc, char **argv)
@@ -113,6 +167,9 @@ int main(int argc, char **argv)
 				break;
 			case 'g':
 				get_last_events(desc);
+				break;
+			case 't':
+				is_tracked_page(desc, to_ul(optarg));
 				break;
 		}
 	}
