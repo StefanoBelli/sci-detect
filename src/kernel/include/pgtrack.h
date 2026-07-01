@@ -84,6 +84,54 @@ static inline void page_status_put(struct page_status* pgs)
 struct page_status *lookup_pfn_pgtrack(unsigned long pfn);
 
 /**
+ * lookup_bad_pfn_pgtrack - lookup a bad pfn and get its descriptor
+ * Define a RCU critical section around this call
+ *
+ * @pfn: the pfn to lookup for
+ *
+ * Returns: the page_status descriptor or NULL
+ */
+struct page_status *lookup_bad_pfn_pgtrack(unsigned long pfn);
+
+/**
+ * foreach_pfn_cb - callback type for the foreach functions
+ *
+ * @pfn: current iteration pfn
+ * @pgs: current iteration pgs
+ * @args: user-supplied args
+ *
+ * Returns: true if you want to continue looping, false othw.
+ */
+typedef bool (*foreach_pfn_cb)(
+		unsigned long pfn, 
+		struct page_status* pgs, 
+		void *args);
+
+/**
+ * foreach_pfn_pgtrack - get all the tracked pages
+ *
+ * If you only look for the pfn, no RCU or kref is needed.
+ *
+ * @start: the starting pfn/index
+ * @cb: the callback to be called
+ * @args: arguments forwarded to your callback
+ */
+void foreach_pfn_pgtrack(
+		unsigned long start, foreach_pfn_cb cb, void *args);
+
+/**
+ * foreach_bad_pfn_pgtrack - get all the tracked WX-pages
+ *
+ * If you only look for the pfn, no RCU or kref is needed.
+ *
+ * @start: the starting pfn/index
+ * @cb: the callback to be called
+ * @args: arguments forwarded to your callback
+ */
+void foreach_bad_pfn_pgtrack(
+		unsigned long start, foreach_pfn_cb cb, void *args);
+
+/**
  * setup_pgtrack - setup page tracking
  *
  * Returns: 0 if ok, -1 otherwise

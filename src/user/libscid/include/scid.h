@@ -5,6 +5,7 @@
 #include <scid-netlink-defs.h>
 
 #include <stdint.h>
+#include <sys/types.h>
 
 #define SCID_NL_SKALLOC_FAILURE (-1)
 #define SCID_NL_SKCONN_FAILURE (-2)
@@ -135,6 +136,52 @@ long scid_cmd_get_last_events(void *desc, void *args);
  */
 long scid_cmd_is_tracked_page(void *desc, void *args, unsigned long pfn);
 
+/**
+ * scid_cmd_get_all_tracked_pages - do a get_all_tracked_pages cmd, await for
+ * the dump
+ *
+ * @desc: the descriptor
+ * @args: args to be passed to the command response handler callback
+ *
+ * Returns: 0 if ok, not 0 othw
+ */
+long scid_cmd_get_all_tracked_pages(void *desc, void *args);
+
+/**
+ * scid_cmd_get_all_tracked_wx_pages - do a get_all_tracked_wx_pages cmd, await
+ * for the dump
+ *
+ * @desc: the descriptor
+ * @args: args to be passed to the command response handler callback
+ *
+ * Returns: 0 if ok, not 0 othw
+ */
+long scid_cmd_get_all_tracked_wx_pages(void *desc, void *args);
+
+/**
+ * scid_cmd_get_one_last_event - do a get_one_last_event cmd and await for
+ * the response
+ *
+ * @desc: the descriptor
+ * @args: args to be passed to the command response handler callback
+ * @idx: the event idx 
+ *
+ * Returns: 0 if ok, not 0 othw
+ */
+long scid_cmd_get_one_last_event(void *desc, void *args, uint32_t idx);
+
+/**
+ * scid_cmd_get_one_last_event - do a get_cur_page_snapshot cmd and await for
+ * the response
+ *
+ * @desc: the descriptor
+ * @args: args to be passed to the command response handler callback
+ * @pfn: the page pfn to look for
+ *
+ * Returns: 0 if ok, not 0 othw
+ */
+long scid_cmd_get_cur_page_snapshot(void *desc, void *args, unsigned long pfn);
+
 /* these are passed as input to command callback handlers */
 
 struct wxwarning_event {
@@ -162,6 +209,12 @@ struct is_tracked_page {
 	uint32_t pfn_found;
 	int32_t page_writable;
 	int32_t page_executable;
+	pid_t *pids;
+	uint32_t nr_pids;
 };
+
+#if defined(__x86_64__) || defined(__i386__)
+#	define SCID_PAGE_SIZE 4096
+#endif
 
 #endif

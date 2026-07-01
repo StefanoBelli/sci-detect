@@ -9,6 +9,8 @@
 
 #include <linux/types.h>
 
+struct snapshot_event;
+
 /**
  * bcast_pgtrack_event_wxwarning - broadcast WX page frame detection warning
  *
@@ -20,6 +22,13 @@
  */
 bool bcast_pgtrack_event_wxwarning(unsigned long pfn, pid_t pid, unsigned long va);
 
-//bool bcast_pgtrack_event_pagecontent();
+/**
+ * bcast_pgtrack_event_snapshot - broadcast a snapshot made on a WX page
+ *
+ * @snap: ptr to current page's snapshot_event
+ *
+ * Returns: true if everything ok, false otherwise
+ */
+bool bcast_pgtrack_event_snapshot(const struct snapshot_event *snap);
 
 #endif

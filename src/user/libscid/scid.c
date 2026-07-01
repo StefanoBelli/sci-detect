@@ -264,9 +264,10 @@ long scid_poll_forever(void *desc, void *args, int *loop)
 	return 0;
 }
 
-long __scid_send_cmd(
+static long __scid_send_cmd_with_hdrflgs(
 		void *desc, uint8_t cmd, void *args, 
-		cmd_attrs_add_cb cb_put_attrs, const void* cb_attrs_args)
+		cmd_attrs_add_cb cb_put_attrs, 
+		const void* cb_attrs_args, int hdrflgs)
 {
 	long rv;
 	struct scid_nl_sk *_desc = desc;
@@ -277,7 +278,9 @@ long __scid_send_cmd(
 	if(!msg)
 		return SCID_NL_MSG_ALLOC_FAILURE;
 
-	hdr = genlmsg_put(msg, NL_AUTO_PID, NL_AUTO_SEQ, _desc->family_id, 0, 0, cmd, 0);
+	hdr = genlmsg_put(
+			msg, NL_AUTO_PID, NL_AUTO_SEQ, _desc->family_id, 
+			0, NLM_F_REQUEST | hdrflgs, cmd, SCID_GENL_VERSION);
 	if(!hdr) {
 		nlmsg_free(msg);
 		return SCID_NL_MSG_HDRPUT_FAILURE;
@@ -304,3 +307,16 @@ long __scid_send_cmd(
 	return 0;
 }
 
+long __scid_send_cmd(
+		void *desc, uint8_t cmd, void *args, 
+		cmd_attrs_add_cb cb_put_attrs, const void* cb_attrs_args)
+{
+	return __scid_send_cmd_with_hdrflgs(desc, cmd, args, cb_put_attrs, cb_attrs_args, 0);
+}
+
+long __scid_send_dump_cmd(
+		void *desc, uint8_t cmd, void *args, 
+		cmd_attrs_add_cb cb_put_attrs, const void* cb_attrs_args)
+{
+	return __scid_send_cmd_with_hdrflgs(desc, cmd, args, cb_put_attrs, cb_attrs_args, NLM_F_DUMP);
+}

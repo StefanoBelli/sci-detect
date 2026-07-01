@@ -18,6 +18,10 @@ __DECLARE_NLA_POLICY(pfn_only_policy) = {
 	[SCID_GENL_ATTR_PFN] = { .type = NLA_U64 },
 };
 
+__DECLARE_NLA_POLICY(idx_only_policy) = {
+	[SCID_GENL_ATTR_GENIDX] = { .type = NLA_U32 },
+};
+
 static const struct genl_multicast_group genl_mcgrp[] = {
 	{
 		.name = SCID_GENL_MCGRP_NAME,
@@ -32,14 +36,41 @@ static const struct genl_ops genl_ops[] = {
 		.doit = pgtrack_genl_get_last_events_doit,
 		.policy = NULL,
 	},
-	
+
 	{
 		.cmd = SCID_GENL_CMD_IS_TRACKED_PAGE,
 		.flags = GENL_ADMIN_PERM,
 		.doit = pgtrack_genl_is_tracked_page_doit,
 		.policy = __NLA_POLICY_SYM(pfn_only_policy),
-	}
+	},
 
+	{
+		.cmd = SCID_GENL_CMD_GET_ALL_TRACKED_PAGES,
+		.flags = GENL_ADMIN_PERM,
+		.dumpit = pgtrack_genl_get_all_tracked_pages_dumpit,
+		.policy = NULL,
+	},
+
+	{
+		.cmd = SCID_GENL_CMD_GET_ALL_TRACKED_WX_PAGES,
+		.flags = GENL_ADMIN_PERM,
+		.dumpit = pgtrack_genl_get_all_tracked_wx_pages_dumpit,
+		.policy = NULL,
+	},
+
+	{
+		.cmd = SCID_GENL_CMD_GET_ONE_LAST_EVENT,
+		.flags = GENL_ADMIN_PERM,
+		.doit = pgtrack_genl_get_one_last_event_doit,
+		.policy = __NLA_POLICY_SYM(idx_only_policy),
+	},
+
+	{
+		.cmd = SCID_GENL_CMD_GET_CUR_PAGE_SNAPSHOT,
+		.flags = GENL_ADMIN_PERM,
+		.doit = pgtrack_genl_get_cur_page_snapshot_doit,
+		.policy = __NLA_POLICY_SYM(pfn_only_policy),
+	},
 };
 
 struct genl_family genl_fam = {

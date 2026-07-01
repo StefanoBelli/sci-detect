@@ -13,6 +13,14 @@ const struct nla_policy global_policy[SCID_GENL_MAX_NR_ATTRS + 1] = {
 	[SCID_GENL_ATTR_PFN_FOUND] = { .type = NLA_U32 },
 	[SCID_GENL_ATTR_PAGE_WRITABLE] = { .type = NLA_S32 },
 	[SCID_GENL_ATTR_PAGE_EXECUTABLE] = { .type = NLA_S32 },
+	[SCID_GENL_ATTR_GENIDX] = { .type = NLA_U32 },
+	[SCID_GENL_ATTR_PAGE_SNAPSHOT_SEQ] = { .type = NLA_U32 },
+	[SCID_GENL_ATTR_PAGE_SNAPSHOT_DATETIME] = { .type = NLA_U64 },
+	[SCID_GENL_ATTR_PAGE_SNAPSHOT] = { 
+		.type = NLA_BINARY, 
+		.minlen = SCID_PAGE_SIZE, 
+		.maxlen = SCID_PAGE_SIZE,
+	},
 };
 
 #define __nla_assign_or_skip(var, attr, type) \
@@ -27,7 +35,7 @@ const struct nla_policy global_policy[SCID_GENL_MAX_NR_ATTRS + 1] = {
 
 /* wxwarning event (broadcasted) */
 
-int __scid_wrapper_event_wxwarning(cmd_handler_fpt user_handler,
+static int __scid_wrapper_event_wxwarning(cmd_handler_fpt user_handler,
 		struct nlattr **attrs, void *uargs)
 {
 	struct wxwarning_event evt;
@@ -39,6 +47,14 @@ int __scid_wrapper_event_wxwarning(cmd_handler_fpt user_handler,
 
 	user_handler(&evt, uargs);
 
+	return NL_OK;
+}
+
+/* snapshot event (broadcasted) */
+
+static int __scid_wrapper_event_snapshot(cmd_handler_fpt user_handler,
+		struct nlattr **attrs, void *uargs)
+{
 	return NL_OK;
 }
 
@@ -80,7 +96,7 @@ static int populate_last_evt_wxwarning(struct last_event *evt, struct nlattr *at
 	return NL_OK;
 }
 
-int __scid_wrapper_get_last_events(cmd_handler_fpt user_handler,
+static int __scid_wrapper_get_last_events(cmd_handler_fpt user_handler,
 		struct nlattr **attrs, void *uargs)
 {
 	int rv = NL_OK;
@@ -90,10 +106,7 @@ int __scid_wrapper_get_last_events(cmd_handler_fpt user_handler,
 
 	memset(&all_evts, 0, sizeof(all_evts));
 
-	if(!attrs[SCID_GENL_ATTR_ARRAY_NR_ELEMS])
-		return NL_SKIP;
-
-	all_evts.nr = nla_get_u32(attrs[SCID_GENL_ATTR_ARRAY_NR_ELEMS]);
+	__nla_assign_or_skip(all_evts.nr, attrs[SCID_GENL_ATTR_ARRAY_NR_ELEMS], u32);
 
 	if(!attrs[SCID_GENL_ATTR_ARRAY])
 		return NL_SKIP;
@@ -151,10 +164,13 @@ __finish_onlyfree:
 
 /* is_tracked_page */
 
-int __scid_wrapper_is_tracked_page(cmd_handler_fpt user_handler,
+static int __scid_wrapper_is_tracked_page(cmd_handler_fpt user_handler,
 		struct nlattr **attrs, void *uargs)
 {
+	struct nlattr *pos;
+	int rem;
 	struct is_tracked_page itp;
+
 	memset(&itp, 0, sizeof(itp));
 
 	__nla_assign_or_skip(itp.pfn, attrs[SCID_GENL_ATTR_PFN], u64);
@@ -166,8 +182,68 @@ int __scid_wrapper_is_tracked_page(cmd_handler_fpt user_handler,
 	__nla_assign_or_skip(itp.page_writable, attrs[SCID_GENL_ATTR_PAGE_WRITABLE], s32);
 	__nla_assign_or_skip(itp.page_executable, attrs[SCID_GENL_ATTR_PAGE_EXECUTABLE], s32);
 
+	__nla_assign_or_skip(itp.nr_pids, attrs[SCID_GENL_ATTR_ARRAY_NR_ELEMS], u32);
+
+	if(!attrs[SCID_GENL_ATTR_ARRAY])
+		return NL_SKIP;
+
+	itp.pids = malloc(sizeof(pid_t) * itp.nr_pids);
+	if(!itp.pids)
+		return NL_STOP;
+
+	uint32_t i = 0;
+	nla_for_each_nested(pos, attrs[SCID_GENL_ATTR_ARRAY], rem) {
+		if(nla_type(pos) != SCID_GENL_ATTR_PID || i == itp.nr_pids)
+			abort();
+
+		itp.pids[i++] = nla_get_s32(pos);
+	}
+
 __call_uhandler:
 	user_handler(&itp, uargs);
+
+	if(itp.pids)
+		free(itp.pids);
+
+	return NL_OK;
+}
+
+/* get_all_tracked_[wx_]pages */
+
+static inline int __get_all_tracked_pages_base(cmd_handler_fpt user_handler,
+		struct nlattr **attrs, void *uargs)
+{
+	unsigned long pfn;
+	__nla_assign_or_skip(pfn, attrs[SCID_GENL_ATTR_PFN], u64);
+	user_handler((const void*) pfn, uargs);
+	return NL_OK;
+}
+
+static int __scid_wrapper_get_all_tracked_pages(cmd_handler_fpt user_handler,
+		struct nlattr **attrs, void *uargs)
+{
+	return __get_all_tracked_pages_base(user_handler, attrs, uargs);
+}
+
+static int __scid_wrapper_get_all_tracked_wx_pages(cmd_handler_fpt user_handler,
+		struct nlattr **attrs, void *uargs)
+{
+	return __get_all_tracked_pages_base(user_handler, attrs, uargs);
+}
+
+/* get_one_last_event */
+
+static int __scid_wrapper_get_one_last_event(cmd_handler_fpt user_handler,
+		struct nlattr **attrs, void *uargs)
+{
+	return NL_OK;
+}
+
+/* get_cur_page_snapshot */
+
+static int __scid_wrapper_get_cur_page_snapshot(cmd_handler_fpt user_handler,
+		struct nlattr **attrs, void *uargs)
+{
 	return NL_OK;
 }
 
@@ -182,13 +258,33 @@ const struct cmd_reg_info __static_regi_defs[] = {
 		.wrapper_handler = __scid_wrapper_event_wxwarning,
 	},
 	{
+		.cmd = SCID_GENL_CMD_EVENT_SNAPSHOT,
+		.wrapper_handler = __scid_wrapper_event_snapshot,
+	},
+	{
 		.cmd = SCID_GENL_CMD_GET_LAST_EVENTS,
 		.wrapper_handler = __scid_wrapper_get_last_events,
 	},
 	{
 		.cmd = SCID_GENL_CMD_IS_TRACKED_PAGE,
 		.wrapper_handler = __scid_wrapper_is_tracked_page,
-	}
+	},
+	{
+		.cmd = SCID_GENL_CMD_GET_ALL_TRACKED_PAGES,
+		.wrapper_handler = __scid_wrapper_get_all_tracked_pages,
+	},
+	{
+		.cmd = SCID_GENL_CMD_GET_ALL_TRACKED_WX_PAGES,
+		.wrapper_handler = __scid_wrapper_get_all_tracked_wx_pages,
+	},
+	{
+		.cmd = SCID_GENL_CMD_GET_ONE_LAST_EVENT,
+		.wrapper_handler = __scid_wrapper_get_one_last_event,
+	},
+	{
+		.cmd = SCID_GENL_CMD_GET_CUR_PAGE_SNAPSHOT,
+		.wrapper_handler = __scid_wrapper_get_cur_page_snapshot,
+	},
 };
 
 const uint8_t NR_STATIC_REGI_DEFS = __static_array_size(__static_regi_defs); 	

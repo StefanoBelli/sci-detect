@@ -70,15 +70,11 @@ static inline struct page_status *__lookup_pfn(unsigned long pfn, struct xarray 
 	struct page_status *status = NULL;
 
 	status = xa_load(&bad_pages, pfn);
-	
-	if(likely(lookedup_from))
-		*lookedup_from = &bad_pages;
+	*lookedup_from = &bad_pages;
 
 	if(!status) {
 		status = xa_load(&good_pages, pfn);
-
-		if(likely(lookedup_from))
-			*lookedup_from = &good_pages;
+		*lookedup_from = &good_pages;
 	}
 
 	return status;
@@ -86,7 +82,35 @@ static inline struct page_status *__lookup_pfn(unsigned long pfn, struct xarray 
 
 struct page_status *lookup_pfn_pgtrack(unsigned long pfn)
 {
-	return __lookup_pfn(pfn, NULL);
+	return xa_load(&good_pages, pfn);
+}
+
+struct page_status *lookup_bad_pfn_pgtrack(unsigned long pfn)
+{
+	return xa_load(&bad_pages, pfn);
+}
+
+static inline void __foreach_pgtrack(
+		struct xarray *xa, unsigned long start_idx, 
+		foreach_pfn_cb cb, void *uargs)
+{
+	unsigned long cur_idx;
+	struct page_status *cur_pgs;
+
+	xa_for_each_start(xa, cur_idx, cur_pgs, start_idx) {
+		if(!cb(cur_idx, cur_pgs, uargs))
+			return;
+	}
+}
+
+void foreach_pfn_pgtrack(unsigned long start, foreach_pfn_cb cb, void* args)
+{
+	__foreach_pgtrack(&good_pages, start, cb, args);
+}
+
+void foreach_bad_pfn_pgtrack(unsigned long start, foreach_pfn_cb cb, void* args)
+{
+	__foreach_pgtrack(&bad_pages, start, cb, args);
 }
 
 /*

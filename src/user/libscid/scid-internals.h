@@ -26,4 +26,8 @@ extern long __scid_send_cmd(
 		void*, uint8_t, void*, 
 		cmd_attrs_add_cb, const void*);
 
+extern long __scid_send_dump_cmd(
+		void *, uint8_t, void *, 
+		cmd_attrs_add_cb, const void*);
+
 #endif

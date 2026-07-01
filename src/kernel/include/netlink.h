@@ -1,6 +1,8 @@
 #ifndef SCID_NETLINK_H
 #define SCID_NETLINK_H
 
+#include <net/genetlink.h>
+
 extern struct genl_family genl_fam;
 
 /**

@@ -12,7 +12,13 @@ $(modname)-objs += \
 	\
 	netlink.o \
 	\
-		netlink/pgtrack-genl.o \
+		netlink/pgtrack-genl-setup.o \
+		netlink/pgtrack-genl-gle.o \
+		netlink/pgtrack-genl-itp.o \
+		netlink/pgtrack-genl-events.o \
+		netlink/pgtrack-genl-gatp.o \
+		netlink/pgtrack-genl-gcps.o \
+		netlink/pgtrack-genl-gole.o \
 	\
 	hooks.o \
 	\
