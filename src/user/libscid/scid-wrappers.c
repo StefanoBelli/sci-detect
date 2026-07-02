@@ -233,10 +233,40 @@ static int __scid_wrapper_get_all_tracked_wx_pages(cmd_handler_fpt user_handler,
 
 /* get_one_last_event */
 
+static int __gole_populate_wxwarning_event(struct wxwarning_event *evt, struct nlattr **attrs)
+{
+	__nla_assign_or_skip(evt->pfn, attrs[SCID_GENL_ATTR_PFN], u64);
+	__nla_assign_or_skip(evt->pid, attrs[SCID_GENL_ATTR_PID], s32);
+	__nla_assign_or_skip(evt->va, attrs[SCID_GENL_ATTR_VA], u64);
+
+	return NL_OK;
+}
+
 static int __scid_wrapper_get_one_last_event(cmd_handler_fpt user_handler,
 		struct nlattr **attrs, void *uargs)
 {
-	return NL_OK;
+	struct last_event lev;
+	int rv = NL_OK;
+	
+	__nla_assign_or_skip(lev.type, attrs[SCID_GENL_ATTR_EVT_TYPE], u32);
+
+	size_t datasize = lev.type == WXWARNING ? sizeof(struct wxwarning_event) : 0;
+
+	lev.data = malloc(datasize);
+	if(!lev.data)
+		return NL_STOP;
+
+	switch(lev.type) {
+		case WXWARNING:
+			rv = __gole_populate_wxwarning_event(lev.data, attrs);
+			break;
+	}
+
+	if(rv == NL_OK)
+		user_handler(&lev, uargs);
+
+	free(lev.data);
+	return rv;
 }
 
 /* get_cur_page_snapshot */

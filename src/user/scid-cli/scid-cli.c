@@ -150,7 +150,12 @@ static void get_all_tracked_wx_pages_handler(const void *args, __unused void *ua
 
 static void get_one_last_event_handler(const void *args, __unused void *uargs)
 {
+	const struct last_event *le = args;
 
+	if(le->type == WXWARNING) {
+		printf("wx page detection\n\t");
+		wxwarning_pretty_print(le->data);
+	}
 }
 
 static void get_cur_page_snapshot_handler(const void *args, __unused void *uargs)

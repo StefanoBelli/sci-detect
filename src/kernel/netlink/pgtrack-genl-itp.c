@@ -174,7 +174,7 @@ int pgtrack_genl_is_tracked_page_doit(
 		in_pfn = nla_get_u64(in_pfn_attr);
 	else {
 		scid_warn("is_tracked_page cmd without pfn as input :/");
-		return 0;
+		return -ENOKEY;
 	}
 
 	rcu_read_lock();

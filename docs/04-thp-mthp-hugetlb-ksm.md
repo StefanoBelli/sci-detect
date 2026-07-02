@@ -71,3 +71,35 @@ However, the sysadmin may choose to allow them up to a certain number.
  * https://access.redhat.com/solutions/46111
  * https://publish.obsidian.md/mm/Transparent+Huge+Pages+(THP)
 
+===
+
+# Kernel Samepage Merging (KSM)
+
+It's a feature of the Linux kernel, present in it since 2.6.32, enabled by CONFIG_KSM=y.
+
+KSM is a memory-saving de-duplication feature, KSM was originally developed for use with KVM,
+but it can be useful to any application which generates many instances of the same data.
+
+Basically the ksmd daemon periodically scans memory, looking for pages with same perms and same
+content. PTEs pointing those different pages are pointed towards a unique "shared" common page,
+in CoW.
+
+KSM only merges anonymous (private) pages, never pagecache (file) pages. 
+KSM’s merged pages were originally locked into kernel memory, 
+but can now be swapped out just like other user pages
+
+KSM **only** operates on those areas of address space which an application has advised to be 
+likely candidates for merging, by using the madvise(2) system call:
+
+```int madvise(addr, length, MADV_MERGEABLE)```
+```int madvise(addr, length, MADV_UNMERGEABLE)```
+
+The KSM daemon is controlled by sysfs files in /sys/kernel/mm/ksm/, 
+readable by all but writable only by root.
+
+To check if KSM is enabled: /sys/kernel/mm/ksm/run
+
+### Adoption
+
+Not widely used by common distros. Anyway, user who wants to profit from memory-saving
+feature of KSM must use ```madvise```, even if ksm is enabled.

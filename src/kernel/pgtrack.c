@@ -35,6 +35,8 @@ static struct xarray good_pages;
 static struct xarray bad_pages;
 static struct kmem_cache *page_status_cachep;
 
+static void free_pgs(struct page_status *pgs);
+
 int setup_pgtrack(void)
 {
 	xa_init(&good_pages);
@@ -57,12 +59,17 @@ void teardown_pgtrack(void)
 	struct page_status *entry;
 
 	xa_for_each(&good_pages, pfn, entry)
-		kmem_cache_free(page_status_cachep, entry);
+		free_pgs(entry);
 
 	kmem_cache_destroy(page_status_cachep);
 
 	xa_destroy(&good_pages);
 	xa_destroy(&bad_pages);
+}
+
+static void free_pgs(struct page_status *pgs)
+{
+	kmem_cache_free(page_status_cachep, pgs);
 }
 
 static inline struct page_status *__lookup_pfn(unsigned long pfn, struct xarray **lookedup_from)
@@ -289,13 +296,11 @@ bool pg_untrack(struct page *page)
 static void __page_status_free_rcuh_fn(struct rcu_head *rcu)
 {
 	struct page_status *pgs = container_of(rcu, struct page_status, rcu);
-
-	kmem_cache_free(page_status_cachep, pgs);
+	free_pgs(pgs);
 }
 
 void __page_status_release_fn(struct kref *kref)
 {
 	struct page_status *pgs = container_of(kref, struct page_status, kref);
-
 	call_rcu(&pgs->rcu, __page_status_free_rcuh_fn);
 }
