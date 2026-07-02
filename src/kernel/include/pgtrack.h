@@ -4,6 +4,9 @@
 #include <linux/mm_types.h>
 #include <linux/kref.h>
 #include <linux/rcupdate.h>
+#include <linux/spinlock.h>
+
+#include <pgsnap.h>
 
 /**
  * you may not always need to both define a RCU
@@ -41,7 +44,8 @@
 struct page_status {
 	struct page *page;
 	atomic64_t perms;
-
+	spinlock_t snapshot_lock;
+	struct page_snap *snapshot;
 	struct kref kref;
 	struct rcu_head rcu;
 };
@@ -84,16 +88,6 @@ static inline void page_status_put(struct page_status* pgs)
 struct page_status *lookup_pfn_pgtrack(unsigned long pfn);
 
 /**
- * lookup_bad_pfn_pgtrack - lookup a bad pfn and get its descriptor
- * Define a RCU critical section around this call
- *
- * @pfn: the pfn to lookup for
- *
- * Returns: the page_status descriptor or NULL
- */
-struct page_status *lookup_bad_pfn_pgtrack(unsigned long pfn);
-
-/**
  * foreach_pfn_cb - callback type for the foreach functions
  *
  * @pfn: current iteration pfn
@@ -117,18 +111,6 @@ typedef bool (*foreach_pfn_cb)(
  * @args: arguments forwarded to your callback
  */
 void foreach_pfn_pgtrack(
-		unsigned long start, foreach_pfn_cb cb, void *args);
-
-/**
- * foreach_bad_pfn_pgtrack - get all the tracked WX-pages
- *
- * If you only look for the pfn, no RCU or kref is needed.
- *
- * @start: the starting pfn/index
- * @cb: the callback to be called
- * @args: arguments forwarded to your callback
- */
-void foreach_bad_pfn_pgtrack(
 		unsigned long start, foreach_pfn_cb cb, void *args);
 
 /**
@@ -160,9 +142,12 @@ void teardown_pgtrack(void);
  * @has_exec: is it a exec-enabled page?
  * @creat: create new entry if it doesn't exist?
  * @va: the starting va that caused state change (via fault or whatever)
+ * @flags: the fault_flags included in vm_fault
  *
  */
-void pg_track(struct page *page, bool has_write, bool has_exec, bool creat, unsigned long va);
+void pg_track(
+		struct page *page, bool has_write, bool has_exec, 
+		bool creat, unsigned long va, enum fault_flag flags);
 
 /**
  * pg_untrack - stop tracking a page, use carefully

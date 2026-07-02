@@ -90,6 +90,7 @@ static int change_pte_range__hkrphook(
 	struct pg_track_forward_args pgt_args = {
 		.creat = false,
 		.va = addr,
+		.flags = 0,
 	};
 
 	do {

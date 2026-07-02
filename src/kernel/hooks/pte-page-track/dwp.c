@@ -234,6 +234,7 @@ static void ____do_wpr_inspect_pte_after(struct vm_fault *vmf)
 	struct pg_track_forward_args pgt_args = {
 		.creat = true,
 		.va = vmf->real_address,
+		.flags = vmf->flags,
 	};
 
 	if(!add_one_page(

@@ -14,8 +14,8 @@ const struct nla_policy global_policy[SCID_GENL_MAX_NR_ATTRS + 1] = {
 	[SCID_GENL_ATTR_PAGE_WRITABLE] = { .type = NLA_S32 },
 	[SCID_GENL_ATTR_PAGE_EXECUTABLE] = { .type = NLA_S32 },
 	[SCID_GENL_ATTR_GENIDX] = { .type = NLA_U32 },
-	[SCID_GENL_ATTR_PAGE_SNAPSHOT_SEQ] = { .type = NLA_U32 },
-	[SCID_GENL_ATTR_PAGE_SNAPSHOT_DATETIME] = { .type = NLA_U64 },
+	[SCID_GENL_ATTR_PAGE_SNAPSHOT_SEQ] = { .type = NLA_U64 },
+	[SCID_GENL_ATTR_PAGE_SNAPSHOT_DATETIME] = { .type = NLA_S64 },
 	[SCID_GENL_ATTR_PAGE_SNAPSHOT] = { 
 		.type = NLA_BINARY, 
 		.minlen = SCID_PAGE_SIZE, 
@@ -302,10 +302,6 @@ const struct cmd_reg_info __static_regi_defs[] = {
 	{
 		.cmd = SCID_GENL_CMD_GET_ALL_TRACKED_PAGES,
 		.wrapper_handler = __scid_wrapper_get_all_tracked_pages,
-	},
-	{
-		.cmd = SCID_GENL_CMD_GET_ALL_TRACKED_WX_PAGES,
-		.wrapper_handler = __scid_wrapper_get_all_tracked_wx_pages,
 	},
 	{
 		.cmd = SCID_GENL_CMD_GET_ONE_LAST_EVENT,

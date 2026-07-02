@@ -44,7 +44,7 @@ static bool __pfn_iter(
 	return true;
 }
 
-static int __get_all_tracked_pages_dump(
+static inline int __get_all_tracked_pages_dump(
 		foreach_pgtrack_fn foreach_pgtrack, 
 		struct sk_buff *skb, 
 		struct netlink_callback *nlcb,
@@ -69,12 +69,4 @@ int pgtrack_genl_get_all_tracked_pages_dumpit(
 	return __get_all_tracked_pages_dump(
 			foreach_pfn_pgtrack, skb, nlcb, 
 			SCID_GENL_CMD_GET_ALL_TRACKED_PAGES);
-}
-
-int pgtrack_genl_get_all_tracked_wx_pages_dumpit(
-		struct sk_buff *skb, struct netlink_callback *nlcb)
-{
-	return __get_all_tracked_pages_dump(
-			foreach_bad_pfn_pgtrack, skb, nlcb, 
-			SCID_GENL_CMD_GET_ALL_TRACKED_WX_PAGES);
 }

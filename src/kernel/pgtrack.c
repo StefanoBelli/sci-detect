@@ -31,16 +31,14 @@
 	 perm; \
 })
 
-static struct xarray good_pages;
-static struct xarray bad_pages;
+static struct xarray pages;
 static struct kmem_cache *page_status_cachep;
 
 static void free_pgs(struct page_status *pgs);
 
 int setup_pgtrack(void)
 {
-	xa_init(&good_pages);
-	xa_init(&bad_pages);
+	xa_init(&pages);
 
 	page_status_cachep = kmem_cache_create(
 			"page_status_cachep", 
@@ -58,66 +56,33 @@ void teardown_pgtrack(void)
 	unsigned long pfn;
 	struct page_status *entry;
 
-	xa_for_each(&good_pages, pfn, entry)
+	xa_for_each(&pages, pfn, entry)
 		free_pgs(entry);
 
 	kmem_cache_destroy(page_status_cachep);
-
-	xa_destroy(&good_pages);
-	xa_destroy(&bad_pages);
+	xa_destroy(&pages);
 }
 
 static void free_pgs(struct page_status *pgs)
 {
+	free_page_snap(pgs);
 	kmem_cache_free(page_status_cachep, pgs);
-}
-
-static inline struct page_status *__lookup_pfn(unsigned long pfn, struct xarray **lookedup_from)
-{
-	struct page_status *status = NULL;
-
-	status = xa_load(&bad_pages, pfn);
-	*lookedup_from = &bad_pages;
-
-	if(!status) {
-		status = xa_load(&good_pages, pfn);
-		*lookedup_from = &good_pages;
-	}
-
-	return status;
 }
 
 struct page_status *lookup_pfn_pgtrack(unsigned long pfn)
 {
-	return xa_load(&good_pages, pfn);
-}
-
-struct page_status *lookup_bad_pfn_pgtrack(unsigned long pfn)
-{
-	return xa_load(&bad_pages, pfn);
-}
-
-static inline void __foreach_pgtrack(
-		struct xarray *xa, unsigned long start_idx, 
-		foreach_pfn_cb cb, void *uargs)
-{
-	unsigned long cur_idx;
-	struct page_status *cur_pgs;
-
-	xa_for_each_start(xa, cur_idx, cur_pgs, start_idx) {
-		if(!cb(cur_idx, cur_pgs, uargs))
-			return;
-	}
+	return xa_load(&pages, pfn);
 }
 
 void foreach_pfn_pgtrack(unsigned long start, foreach_pfn_cb cb, void* args)
 {
-	__foreach_pgtrack(&good_pages, start, cb, args);
-}
+	unsigned long cur_idx;
+	struct page_status *cur_pgs;
 
-void foreach_bad_pfn_pgtrack(unsigned long start, foreach_pfn_cb cb, void* args)
-{
-	__foreach_pgtrack(&bad_pages, start, cb, args);
+	xa_for_each_start(&pages, cur_idx, cur_pgs, start) {
+		if(!cb(cur_idx, cur_pgs, args))
+			return;
+	}
 }
 
 /*
@@ -169,11 +134,11 @@ void foreach_bad_pfn_pgtrack(unsigned long start, foreach_pfn_cb cb, void* args)
  *
  * every hook that uses pg_track will set creat = true, but the hook that
  * hooks into change_pte_range: that will set creat = false, that is,
- * if page doesn't exist in any xarray, don't create a new entry and put
+ * if page doesn't exist in the xarray, don't create a new entry and put
  * it in. This works because if the page that interests the PTE has not yet
  * been inserted in the xarray, this means that it wasn't captured by other
  * "initial lifecycle" hooks (e.g. user page fault) and are of no interest 
- * for us when mprotecting a non-existant page in the xarrays, they will 
+ * for us when mprotecting a non-existant page in the xarray, they will 
  * get a chance when returned to the buddy allocator...
  *
  * ---ONE MORE THING---
@@ -184,85 +149,63 @@ void foreach_bad_pfn_pgtrack(unsigned long start, foreach_pfn_cb cb, void* args)
  * to use them until they actually get freed (see kernel source)
  * so we can safely do the pg_untrack without worries.
  */
-void pg_track(struct page *page, bool has_write, bool has_exec, bool creat, unsigned long va)
+void pg_track(struct page *page, bool has_write, bool has_exec, 
+		bool creat, unsigned long va, enum fault_flag flags)
 {
-	struct xarray *lookedxa;
 	unsigned long pfn = page_to_pfn(page);
-	struct page_status *pgstatus;
+	struct page_status *pgs;
 
-	/* NOT SURE this may be optimized, leave it like this for now...*/
 __retry:
-	pgstatus = __lookup_pfn(pfn, &lookedxa);
-
-	/* an entry was found */
-	if(pgstatus) {
-
-		/* if it is already in the "bad pages", nothing to do */
-		if(lookedxa == &bad_pages)
-			return;
-
-		/* otherwise, check permissions */
-		perm_type new_perms = build_perms(has_write, has_exec);
-
-		/* read the current value of perms */
-		perm_type old_perms = atomic64_read(&pgstatus->perms);
-
-		/* we either have nothing to do if new_perms == old_perms or old_perms already 
-		 * equals PERM_BITS. This is because perms has been updated but the page_status
-		 * didn't get stored yet in bad_pages */
-		if(new_perms == old_perms || old_perms == PERM_BITS)
-			return;
-
-		/* do an atomic_fetch_or with new perms:
-		 *  - if the aof is neq orig then someone changed perms from under us, nothing to do.
-		 *  - otherwise, since we previously enforced new_perms to be different from old_perms 
-		 *  and old_perms != PERM_BITS then if aof == old_perms then for sure we changed it, and
-		 *  we have to do the xa_store eventually.
-		 */
-		if(atomic64_fetch_or(new_perms, &pgstatus->perms) != old_perms)
-			return;
-
-		/* check if we changed value to PERM_BITS, oh well... bad page */
-		if(atomic64_read(&pgstatus->perms) == PERM_BITS) {
-			bcast_pgtrack_event_wxwarning(pfn, task_pid_vnr(current), va);
-			int err = xa_insert(&bad_pages, pfn, pgstatus, GFP_ATOMIC);
-			__pgtrack_log_err_code(err);
-		}
-	
-	/* unable to find any entry, we must create it */
-	} else {
-		/* this works because... see notes above */
+	pgs = xa_load(&pages, pfn);
+	if(!pgs) {
 		if(!creat)
 			return;
 
 		/* create new page_status, not visible until xa_inserted */
-		struct page_status *new_pgstatus = kmem_cache_alloc(page_status_cachep, GFP_ATOMIC);
-		if(!new_pgstatus) {
+		struct page_status *new_pgs = kmem_cache_alloc(page_status_cachep, GFP_ATOMIC);
+		if(!new_pgs) {
 			__pgtrack_log_err_code(-ENOMEM);
 			return;
 		}
 
-		new_pgstatus->page = page;
-		atomic64_set(&new_pgstatus->perms, 0);
+		/* init */
+		new_pgs->page = page;
+		atomic64_set(&new_pgs->perms, 0);
+		kref_init(&new_pgs->kref);
+		new_pgs->snapshot = NULL;
+		spin_lock_init(&new_pgs->snapshot_lock);
 
-		/* visible from now on */
-		int err = xa_insert(&good_pages, pfn, new_pgstatus, GFP_ATOMIC);
+		/* try to publish it */
+		int err = xa_insert(&pages, pfn, new_pgs, GFP_ATOMIC);
 
-		/* someone xa_inserted before us... retry, adjust permissions, 
-		 * but free our private allocated memory */
+		/* some error happened, let's check */
 		if(err) {
-			kmem_cache_free(page_status_cachep, new_pgstatus);
+			free_pgs(new_pgs);
+
+			/* someone published same pfn under us, retry lookup */
 			if(err == -EBUSY)
 				goto __retry;
-			
-			__pgtrack_log_err_code(err);
 
-		/* we published it correctly, retry to adjust permissions */
-		} else {
-			/* new_pgstatus is held */
-			kref_init(&new_pgstatus->kref);
-			goto __retry;
+			/* whatever other error happened, log it and return now */
+			__pgtrack_log_err_code(err);
+			return;
 		}
+		
+		/* we published it! */
+		pgs = new_pgs;
+	}
+
+	perm_type new_perms = build_perms(has_write, has_exec);
+
+	perm_type old_perms = atomic64_fetch_or(new_perms, &pgs->perms);
+	if(old_perms == PERM_BITS)
+		return;
+
+	/* one thread only will get to execute this */
+	if((new_perms | old_perms) == PERM_BITS) {
+		pid_t pid = task_pid_vnr(current);
+		bcast_pgtrack_event_wxwarning(pfn, pid, va);
+		make_page_snap(pgs, pid, va, flags);
 	}
 }
 
@@ -271,8 +214,7 @@ __retry:
  * Why? This is called from one place only (free_unref_folios hook),
  * the folio/page has reached refcount of 0 (nobody is using it) and
  * page is still not returned to the buddy allocator. This means that
- * the page won't be used again, until freed. So we can do the 2-steps 
- * xa_erase """non-atomically"""
+ * the page won't be used again, until freed.
  *
  * Also refer to the pg_track comment.
  */
@@ -281,11 +223,9 @@ bool pg_untrack(struct page *page)
 	unsigned long pfn = page_to_pfn(page);
 	struct page_status *pgstatus;
 
-	pgstatus = xa_erase(&good_pages, pfn);
+	pgstatus = xa_erase(&pages, pfn);
 	if(!pgstatus)
 		return false;
-
-	xa_erase(&bad_pages, pfn);
 
 	/* we may put this before this last xa_erase... */
 	page_status_put(pgstatus);

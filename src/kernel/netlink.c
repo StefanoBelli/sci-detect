@@ -52,13 +52,6 @@ static const struct genl_ops genl_ops[] = {
 	},
 
 	{
-		.cmd = SCID_GENL_CMD_GET_ALL_TRACKED_WX_PAGES,
-		.flags = GENL_ADMIN_PERM,
-		.dumpit = pgtrack_genl_get_all_tracked_wx_pages_dumpit,
-		.policy = NULL,
-	},
-
-	{
 		.cmd = SCID_GENL_CMD_GET_ONE_LAST_EVENT,
 		.flags = GENL_ADMIN_PERM,
 		.doit = pgtrack_genl_get_one_last_event_doit,

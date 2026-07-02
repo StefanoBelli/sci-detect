@@ -33,14 +33,6 @@ long scid_cmd_get_all_tracked_pages(void *desc, void *args)
 			NULL, NULL);
 }
 
-/* get_all_tracked_wx_pages cmd */
-long scid_cmd_get_all_tracked_wx_pages(void *desc, void *args)
-{
-	return __scid_send_dump_cmd(
-			desc, SCID_GENL_CMD_GET_ALL_TRACKED_WX_PAGES, args,
-			NULL, NULL);
-}
-
 /* get_one_last_event cmd */
 static long __gole_in_attrs_add_cb(struct nl_msg *msg, const void *args)
 {

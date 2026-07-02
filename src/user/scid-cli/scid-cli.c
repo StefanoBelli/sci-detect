@@ -7,7 +7,7 @@
 
 /* args for the cli */
 
-static const char *short_opts = "bupfgtaxos";
+static const char *short_opts = "bupfgtaos";
 
 static const struct option opts[] = {
 	{ "sub-bcast", no_argument, NULL, 'b' },
@@ -17,7 +17,6 @@ static const struct option opts[] = {
 	{ "get-last-events", no_argument, NULL, 'g' },
 	{ "is-tracked-page", required_argument, NULL, 't' },
 	{ "get-all-tracked-pages", no_argument, NULL, 'a' },
-	{ "get-all-tracked-wx-pages", no_argument, NULL, 'x' },
 	{ "get-one-last-event", required_argument, NULL, 'o' },
 	{ "get-cur-page-snapshot", required_argument, NULL, 's' },
 };
@@ -59,11 +58,6 @@ static void is_tracked_page(void *desc, unsigned long pfn)
 static void get_all_tracked_pages(void *desc)
 {
 	die_if_sciderr(scid_cmd_get_all_tracked_pages, desc, NULL);
-}
-
-static void get_all_tracked_wx_pages(void *desc)
-{
-	die_if_sciderr(scid_cmd_get_all_tracked_wx_pages, desc, NULL);
 }
 
 static void get_one_last_event(void *desc, uint32_t idx)
@@ -143,11 +137,6 @@ static void get_all_tracked_pages_handler(const void *args, __unused void *uargs
 	__base_get_all_tracked_pages(args, uargs);
 }
 
-static void get_all_tracked_wx_pages_handler(const void *args, __unused void *uargs)
-{
-	__base_get_all_tracked_pages(args, uargs);
-}
-
 static void get_one_last_event_handler(const void *args, __unused void *uargs)
 {
 	const struct last_event *le = args;
@@ -187,10 +176,6 @@ static void register_all_handlers(void *desc)
 
 	die_if_sciderr(
 			scid_regi_cmd, 
-				desc, SCID_GENL_CMD_GET_ALL_TRACKED_WX_PAGES, get_all_tracked_wx_pages_handler);
-
-	die_if_sciderr(
-			scid_regi_cmd, 
 				desc, SCID_GENL_CMD_GET_ONE_LAST_EVENT, get_one_last_event_handler);
 
 	die_if_sciderr(
@@ -221,9 +206,6 @@ static void dispatch_cmd(void *desc, char c)
 			break;
 		case 'a':
 			get_all_tracked_pages(desc);
-			break;
-		case 'x':
-			get_all_tracked_wx_pages(desc);
 			break;
 		case 'o':
 			get_one_last_event(desc, to_ul(optarg));

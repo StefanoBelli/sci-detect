@@ -5,8 +5,9 @@
 #include <linux/pgtable.h>
 
 struct pg_track_forward_args {
-	bool creat;
 	unsigned long va;
+	enum fault_flag flags;
+	bool creat;
 };
 
 /* user can provide a callback to evaluate pte */

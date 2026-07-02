@@ -41,7 +41,8 @@ bool add_one_page(
 	if(page)
 		*page = pg;
 
-	pg_track(pg, has_wr, has_exec, pgt_args->creat, pgt_args->va);
+	pg_track(pg, has_wr, has_exec, 
+			pgt_args->creat, pgt_args->va, pgt_args->flags);
 
 	return true;
 }

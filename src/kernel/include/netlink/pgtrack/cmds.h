@@ -14,7 +14,6 @@
 int pgtrack_genl_get_last_events_doit(struct sk_buff *, struct genl_info *);
 int pgtrack_genl_is_tracked_page_doit(struct sk_buff *, struct genl_info *);
 int pgtrack_genl_get_all_tracked_pages_dumpit(struct sk_buff *, struct netlink_callback *);
-int pgtrack_genl_get_all_tracked_wx_pages_dumpit(struct sk_buff *, struct netlink_callback *);
 int pgtrack_genl_get_one_last_event_doit(struct sk_buff *, struct genl_info *);
 int pgtrack_genl_get_cur_page_snapshot_doit(struct sk_buff *, struct genl_info *);
 

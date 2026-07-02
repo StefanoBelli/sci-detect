@@ -99,7 +99,7 @@ static inline void __ht_destroy_all(struct vm_fault_list *l)
 
 	hash_for_each_safe(l->ht, bucket_idx, tmp, entry, node) {
 		hlist_del(&entry->node);
-		kfree(entry);
+		kmem_cache_free(vmfs_cachep, entry);
 	}
 }
 

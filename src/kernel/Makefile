@@ -6,6 +6,7 @@ $(modname)-objs += \
 	vmfs.o \
 	resolve_syms.o \
 	pgtrack.o \
+	pgsnap.o \
 	\
 		testing/testing.o \
 		testing/default-kvops.o \

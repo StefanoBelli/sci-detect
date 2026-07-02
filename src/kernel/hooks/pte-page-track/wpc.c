@@ -106,6 +106,7 @@ static int wp_page_copy__hkrphook(
 	struct pg_track_forward_args pgt_args = {
 		.creat = true,
 		.va = vmf->real_address,
+		.flags = vmf->flags,
 	};
 
 	if(!add_pages_byfolio(

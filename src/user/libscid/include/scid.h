@@ -148,17 +148,6 @@ long scid_cmd_is_tracked_page(void *desc, void *args, unsigned long pfn);
 long scid_cmd_get_all_tracked_pages(void *desc, void *args);
 
 /**
- * scid_cmd_get_all_tracked_wx_pages - do a get_all_tracked_wx_pages cmd, await
- * for the dump
- *
- * @desc: the descriptor
- * @args: args to be passed to the command response handler callback
- *
- * Returns: 0 if ok, not 0 othw
- */
-long scid_cmd_get_all_tracked_wx_pages(void *desc, void *args);
-
-/**
  * scid_cmd_get_one_last_event - do a get_one_last_event cmd and await for
  * the response
  *

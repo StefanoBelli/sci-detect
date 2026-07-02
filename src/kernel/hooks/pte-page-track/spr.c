@@ -218,6 +218,7 @@ static int set_pte_range__hkrphook(
 	struct pg_track_forward_args pgt_args = {
 		.creat = true,
 		.va = args->vmf->real_address,
+		.flags = args->vmf->flags,
 	};
 
 	/* sets contiguous pages to continuous linear addrs */
