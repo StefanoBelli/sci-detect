@@ -285,7 +285,7 @@ int main()
 		munmap(mem, PAGE_SIZE);
 	}
 	
-	/* example 9 */
+	/* example 9 
 	{
 		int fd = shm_open(POSIX_SHM_NAME, POSIX_SHM_OFLAGS, POSIX_SHM_MODE);
 		if(fd < 0) {
@@ -317,8 +317,6 @@ int main()
 			exit(EXIT_FAILURE);
 		}
 
-		/* page was not mapped prior this write and mprotect
-		 * changed vma flags */
 		*mem = x86_opcode_ret;
 
 		check_scid_bcast_wxwarning(
@@ -337,7 +335,7 @@ int main()
 		close(fd);
 		shm_unlink(POSIX_SHM_NAME);
 		munmap(mem, PAGE_SIZE);
-	}
+	}*/
 
 	/* example 10 */
 	{

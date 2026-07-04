@@ -124,6 +124,7 @@ struct __recvd_event {
 	enum last_event_type type;
 	union {
 		struct wxwarning_event wxw;
+		struct snapshot_event snap;
 	} event;
 };
 
@@ -139,6 +140,22 @@ __unused static void __event_wxwarning_cmdh(const void *in, void *out)
 	uevent->event.wxw.va = event->va;
 }
 
+__unused static void __event_snapshot_cmdh(const void *in, void *out)
+{
+	const struct snapshot_event *event = in;
+	struct __recvd_event *uevent = out;
+	
+	uevent->type = SNAPSHOT;
+
+	uevent->event.snap.pfn = event->pfn;
+	uevent->event.snap.pid = event->pid;
+	uevent->event.snap.va = event->va;
+	uevent->event.snap.seq = event->seq;
+	uevent->event.snap.datetime = event->datetime;
+	uevent->event.snap.fault = event->fault;
+	memcpy(uevent->event.snap.buffer, event->buffer, SCID_PAGE_SIZE);
+}
+
 __unused static void *__scid_setup()
 {
 	void *desc;
@@ -152,6 +169,12 @@ __unused static void *__scid_setup()
 			desc, 
 			SCID_GENL_CMD_EVENT_WXWARNING, 
 			__event_wxwarning_cmdh);
+	__scid_die_if("scid_regi_cmd", err);
+
+	err = scid_regi_cmd(
+			desc, 
+			SCID_GENL_CMD_EVENT_SNAPSHOT, 
+			__event_snapshot_cmdh);
 	__scid_die_if("scid_regi_cmd", err);
 
 	err = scid_broadcast_subscribe(desc);
@@ -175,20 +198,52 @@ __unused static inline void __scid_terminate(void *desc)
 	 			_exit(EXIT_FAILURE); \
 	 		} \
 	 	} else { \
+	 		wxw_count++; \
 	 		printf("YES! we got the wxwarning!\n" \
 	 				"\t--> pfn: %ld\n" \
 	 				"\t--> pid: %d\n" \
 	 				"\t--> va: 0x%lx\n", \
 	 				wxw->pfn, wxw->pid, wxw->va); \
-	 		break; \
+	 		if(wxw_count == 2) \
+	 			break; \
 	 	} \
-	} \
+	} else if((_evt).type == SNAPSHOT) { \
+		struct snapshot_event *snap = &(_evt).event.snap; \
+		if( \
+				snap->va != ((unsigned long) (_va)) || \
+				snap->pid != getpid() || \
+				snap->seq != 1){ \
+			\
+			char *oldbuf = (_va); \
+			if(snap->fault == SNAPSHOT_WRITE_FAULT) \
+				oldbuf = pre_op_buffer; \
+			\
+			if(memcmp(snap->buffer, oldbuf, SCID_PAGE_SIZE)) { \
+	 			fprintf(stderr, "FAILED attempt (remaining retries: %d)\n", --nr_retry); \
+	 			if(!nr_retry) { \
+	 				example_failed(); \
+	 				_exit(EXIT_FAILURE); \
+	 			} \
+	 		} \
+	 	} else { \
+	 		wxw_count++; \
+	 		printf("YES! we got the snapshot!\n" \
+	 				"\t--> fault: %d\n" \
+	 				"\t--> seq: %ld\n" \
+	 				"\t--> datetime: %ld\n", \
+	 				snap->fault, snap->seq, snap->datetime); \
+	 		if(wxw_count == 2) \
+	 			break; \
+	 	} \
+	}
 
-#define __check_scid_bcast_base(__op, __ret, __test_block__) \
+#define __check_scid_bcast_base(__preop, __op, __ret, __cond_var__, __test_block__) \
 	({ \
 	 	void *desc = __scid_setup(); \
+	 	__preop \
 	 	__op \
 	 	int nr_retry = 3; \
+	 	__cond_var__ \
 	 	while(1) { \
 	 		struct __recvd_event bcasted_event; \
 	 		scid_poll_one_message(desc, &bcasted_event); \
@@ -201,8 +256,11 @@ __unused static inline void __scid_terminate(void *desc)
 
 #define check_scid_bcast_wxwarning(_va, op, ret) \
 	__check_scid_bcast_base( \
+			char pre_op_buffer[SCID_PAGE_SIZE]; \
+			memcpy(pre_op_buffer, (char*) (_va), SCID_PAGE_SIZE);, \
 			op, \
 			ret, \
+			int wxw_count = 0;, \
 			__wxwarning_test_block(bcasted_event, _va))
 
 #define example_passed() \

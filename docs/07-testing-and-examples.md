@@ -46,6 +46,23 @@ Quindi la recv, che è bloccante, rimane in attesa senza mai ricevere nulla.
    - in sintesi, ```mprotect(*X)``` su area anonima privata espansa con ```brk/sbrk``` da "Permesso negato"
    - Per la memoria anonima, il security hook ```file_mprotect``` ha ptr a file NULL
 
+ * Perchè negli esempi gli snapshot confrontati con libscid sono il "pre_op_buffer" (il frame prima dell'op nell'esempio) per fault di tipo write e 
+ il frame "attuale" (_va) negli altri casi (no-fault o exec-fault che non succede mai)? Perchè lo snapshot viene fatto all'accadimento del fault di tipo write:
+ la write non può essere effettuata se non dopo la gestione del page fault da parte del sistema operativo, e il ritorno del controllo allo userspace con la hw pte fixata,
+ quindi il frame snapshottato è quello **prima** della write op. Potremmo semplificare la logica e usare sempre "pre_op_buffer" come buffer di confronto (le read ops o le exec ops
+ non modificano il frame, quindi rimane invariato prima e dopo la op), ma facciamo cosi per coerenza. Il discorso vale ovviamente sempre (per ogni snapshot).
+ 
+ * Perchè negli esempi (in particolare quelli wxwarning) non si vede mai il fault exec? Perchè l'exec è sempre abilitato (altrimenti avremmo SIGSEGV, non ha senso...). 
+ Il "fault exec" arà visibile con esempi di snapshot non-after-wxwarn (ovvero, non iniziali), dove la PTE avrà effettivamente exec bit disabilitato 
+ (o no-exec abilitato, stessa cosa...) e quindi si cattura lo snapshot grazie al fault di instruction fetch ("exec")
+
+ * **IN GENERALE QUINDI, NON E' POSSIBILE LEGGERE/FARE SNAPSHOT DEL FRAME DOPO LA WRITE ATTUALE, OVVERO QUELLA CHE CAUSA IL FAULT, ma sempre la versione del frame PRECEDENTE a quella
+ write. (è inevitabile che sia cosi, vedere fuzionamento del page fault handler: il kernel ritorna controllo a userspace dopo che ha settato bene la PTE e quindi user riprova a fare 
+ la write, ovviamente in modo del tutto trasparente e grazie al supporto dell'hardware)**
+
+   - La cosa positiva è l'alternanza però: se al write disabilito la exec delle altre PTE, catturerò la exec e vedo il contenuto del frame scritto nella write precedente (effettuata
+   concretamente dopo il fault)
+
 ## Testing
 
  * **Soft fail/hard fail**
