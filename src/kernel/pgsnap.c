@@ -5,35 +5,56 @@
 
 #include <pgtrack.h>
 #include <logging.h>
+#include <netlink/pgtrack/events.h>
 
 static struct kmem_cache *page_snap_cachep;
 
-static enum page_snap_fault build_page_snap_fault(enum fault_flag flags)
+#define build_page_snap_fault(flags) \
+	({ \
+	 	enum page_snap_fault _fault; \
+	 	\
+	 	if((flags) & FAULT_FLAG_WRITE) \
+	 		_fault = PAGE_SNAP_WRITE_FAULT; \
+	 	else if((flags) & FAULT_FLAG_INSTRUCTION) \
+	 		_fault = PAGE_SNAP_IFETCH_FAULT; \
+	 	else \
+	 		_fault = PAGE_SNAP_NO_FAULT; \
+	 	\
+	 	_fault; \
+	 })
+
+static struct page_snap* new_page_snap(bool zeroed_snapobj)
 {
-	if(flags & FAULT_FLAG_WRITE)
-		return PAGE_SNAP_WRITE_FAULT;
+	struct page_snap *snap;
 
-	if(flags & FAULT_FLAG_INSTRUCTION)
-		return PAGE_SNAP_IFETCH_FAULT;
+	snap = kmem_cache_alloc(page_snap_cachep, GFP_ATOMIC);
+	if(unlikely(!snap)) {
+		scid_err("memory exhausted");
+		return NULL;
+	}
 
-	return PAGE_SNAP_NO_FAULT;
+	if(unlikely(zeroed_snapobj))
+		memset(snap, 0, sizeof(struct page_snap));
+
+	snap->buffer = (char*) get_zeroed_page(GFP_ATOMIC);
+	if(unlikely(!snap->buffer)) {
+		kmem_cache_free(page_snap_cachep, snap);
+		scid_err("memory exhausted");
+		return NULL;
+	}
+
+	return snap;
 }
 
-#define __checked_dynamic_alloc(__var, __allok_kall, ...) \
-	do { \
-		if(unlikely(!(__var))) { \
-			(__var) = (__allok_kall); \
-			if(unlikely(!(__var))) { \
-				scid_err("memory exhausted"); \
-				goto __unlock; \
-			} \
-			__VA_ARGS__ \
-		} \
-	} while(0)
-
-void make_page_snap(struct page_status *pgs, pid_t pid, unsigned long va, enum fault_flag flags)
+void make_page_snap(struct page_status *pgs, pid_t pid, unsigned long pfn, unsigned long va, enum fault_flag flags)
 {
 	void *src;
+	struct page_snap *my_snap;
+	bool ok = true;
+
+	my_snap = new_page_snap(false);
+	if(!my_snap)
+		return;
 
 	/* 
 	 * critical section may be big, especially on first time,
@@ -42,17 +63,25 @@ void make_page_snap(struct page_status *pgs, pid_t pid, unsigned long va, enum f
 	 */
 	spin_lock(&pgs->snapshot_lock);
 
-	__checked_dynamic_alloc(
-			pgs->snapshot, kmem_cache_alloc(page_snap_cachep, GFP_ATOMIC)
-			,
-			memset(pgs->snapshot, 0, sizeof(struct page_snap));
-	);
+	if(!pgs->snapshot) {
+		pgs->snapshot = new_page_snap(true);
+		if(!pgs->snapshot) {
+			ok = false;
+			goto __unlock;
+		}
+	}
 
-	__checked_dynamic_alloc(
-			pgs->snapshot->buffer, (char*) __get_free_page(GFP_ATOMIC));
-
+	/* some copies are needed, hot hw caches
+	 *
+	 * 2 * PAGE_SIZE + 6 * sizeof(u64) = 8240 B
+	 *
+	 * Considering x86-64 and that structs are padded (processor word)
+	 */
 	src = kmap_local_page(pgs->page);
+
 	memcpy(pgs->snapshot->buffer, src, PAGE_SIZE);
+	memcpy(my_snap->buffer, pgs->snapshot->buffer, PAGE_SIZE);
+
 	kunmap_local(src);
 
 	pgs->snapshot->seq++;
@@ -60,32 +89,60 @@ void make_page_snap(struct page_status *pgs, pid_t pid, unsigned long va, enum f
 	pgs->snapshot->pid = pid;
 	pgs->snapshot->datetime = ktime_get_real_seconds();
 	pgs->snapshot->fault = build_page_snap_fault(flags);
+	pgs->snapshot->pfn = pfn;
+
+	my_snap->seq = pgs->snapshot->seq;
+	my_snap->va = pgs->snapshot->va;
+	my_snap->pid = pgs->snapshot->pid;
+	my_snap->datetime = pgs->snapshot->datetime;
+	my_snap->fault = pgs->snapshot->fault;
+	my_snap->pfn = pgs->snapshot->pfn;
+
+	/* gurantee strict ordering of broadcasting,
+	 * this is fast deferred work!! CS ends very soon...
+	 * 
+	 * transfer "local" snap obj to work
+	 */
+	bcast_pgtrack_event_snapshot(my_snap);
 
 __unlock:
 	spin_unlock(&pgs->snapshot_lock);
+
+	/* if something doesn't go well, we will need
+	 * to take care of page_snap resource freeing
+	 */
+	if(!ok) {
+		del_page_snap(my_snap);
+		return;
+	}
 }
 
 #undef __checked_dynamic_alloc
+#undef build_page_snap_fault
 
-void free_page_snap(struct page_status *pgs)
+void del_page_snap(struct page_snap *snap)
 {
-	/* no need to hold the pgs->snapshot_lock here,
-	 * in case it comes out it is, remember that 
-	 * this is called from a RCU callback (softirq/bh)
-	 * LOCKDEP will complain about deadlock risk. _bh
-	 * variant of spin_lock_* shall be used in
-	 * make_page_snap
-	 */
+	free_page((unsigned long) snap->buffer);
+	snap->buffer = NULL;
+	kmem_cache_free(page_snap_cachep, snap);
+}
 
+/* no need to hold the pgs->snapshot_lock here,
+ * in case it comes out it is, remember that 
+ * this is called from a RCU callback that may be run
+ * from bottom half (bh) context (softirq)
+ *
+ * So, LOCKDEP will complain about deadlock risk. _bh
+ * variant of spin_lock_* shall be used in
+ * make_page_snap to disable bh execution while in the
+ * make_page_snap critical section
+ */
+void free_page_snap_from_pgs(struct page_status *pgs)
+{
 	if(!pgs || !pgs->snapshot)
 		return;
 
-	if(unlikely(pgs->snapshot->buffer)) {
-		free_page((unsigned long) pgs->snapshot->buffer);
-		pgs->snapshot->buffer = NULL;
-	}
-
-	kmem_cache_free(page_snap_cachep, pgs->snapshot);
+	del_page_snap(pgs->snapshot);
 	pgs->snapshot = NULL;
 }
 

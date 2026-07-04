@@ -5,6 +5,8 @@
 #include <netlink/netlink.h>
 #include <netlink/genl/genl.h>
 
+#define __unused __attribute__((__unused__))
+
 typedef int (*internal_cmd_handler_fpt)(
 		cmd_handler_fpt user_handler, 
 		struct nlattr **attrs,

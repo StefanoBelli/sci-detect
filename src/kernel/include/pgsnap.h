@@ -9,7 +9,7 @@
 struct page_status;
 
 /* why the snapshot happened? */
-enum page_snap_fault {
+enum page_snap_fault : u32 {
 	PAGE_SNAP_NO_FAULT,
 	PAGE_SNAP_WRITE_FAULT,
 	PAGE_SNAP_IFETCH_FAULT,
@@ -21,6 +21,7 @@ struct page_snap {
 	unsigned long va;
 	time64_t datetime;
 	u64 seq;
+	unsigned long pfn;
 	pid_t pid;
 	enum page_snap_fault fault;
 };
@@ -42,21 +43,29 @@ struct page_snap {
  *
  * @pgs: the page_status descriptor
  * @pid: the pid
+ * @pfn: the pfn
  * @va: the va
  * @flags: the "flags" in struct vm_fault, or 0 if not from a fault 
  */
 void make_page_snap(
 		struct page_status *pgs, pid_t pid, 
-		unsigned long va, enum fault_flag flags);
+		unsigned long pfn, unsigned long va, enum fault_flag flags);
 
 /**
- * free_page_snap - free pgs' snapshot field
+ * free_page_snap_from_pgs - free pgs' snapshot field
  *
  * Don't try to do this on your own, we know how to do this :)
  *
  * You may also pass pgs = NULL, we check for it.
  */
-void free_page_snap(struct page_status *pgs);
+void free_page_snap_from_pgs(struct page_status *pgs);
+
+/**
+ * del_page_snap - free page_snap
+ *
+ * @snap: the page_snap
+ */
+void del_page_snap(struct page_snap *snap);
 
 /**
  * setup_page_snap - setup page snapshot mechanism

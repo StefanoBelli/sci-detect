@@ -1,32 +1,29 @@
-#include <linux/slab.h>
 #include <linux/compiler.h>
 
 #include <netlink/pgtrack/events.h>
 #include <user/scid-netlink-defs.h>
 #include <netlink.h>
 #include <logging.h>
+#include <pgsnap.h>
+#include <pgtrack.h>
 
 #include "pgtrack-genl-events.h"
 
-/* can be called from atomic context */
-static struct event *alloc_and_init_event(enum event_type type, size_t data_size)
-{
-	const gfp_t gfp = GFP_ATOMIC;
+struct kmem_cache *event_cachep;
+struct kmem_cache *do_event_bcast_work_cachep;
 
+/* can be called from atomic context */
+static inline struct event *alloc_and_init_event(enum event_type type, const void *data)
+{
 	struct event *evt;
 
-	evt = kmalloc(sizeof(struct event), gfp);
+	evt = kmem_cache_alloc(event_cachep, GFP_ATOMIC);
 	if(!evt)
 		goto __failure0;
 
 	evt->type = type;
+	evt->data = data;
 
-	evt->data = kmalloc(data_size, gfp);
-	if(!evt->data) {
-		kfree(evt);
-		goto __failure0;
-	}
-	
 	return evt;
 
 __failure0:
@@ -36,18 +33,24 @@ __failure0:
 
 static void free_event(struct event *evt)
 {
-	if(!evt) {
+	if(unlikely(!evt)) {
 		scid_warn("evt is NULL, check your code");
 		return;
 	}
 
-	if(evt->data) {
-		kfree(evt->data);
+	if(likely(evt->data)) {
+		if(evt->type == EVENT_TYPE_WXWARNING)
+			del_page_wxwarn((struct page_wxwarn*) evt->data);
+		else if(evt->type == EVENT_TYPE_SNAPSHOT)
+			del_page_snap((struct page_snap*) evt->data);
+		else
+			scid_err("unrecognized event type to free!!");
+
 		evt->data = NULL;
 	} else
 		scid_err("data is NULL??");
 
-	kfree(evt);
+	kmem_cache_free(event_cachep, evt);
 }
 
 DECLARE_RWSEM(le_lock);
@@ -87,7 +90,7 @@ __unlock:
 }
 
 static bool __event_to_populate_skb_with_wxwarning(
-		const struct wxwarning_event *wxw, struct sk_buff *skb, 
+		const struct page_wxwarn *wxw, struct sk_buff *skb, 
 		__always_unused const void* args)
 {
 	if(unlikely(nla_put_s32(skb, SCID_GENL_ATTR_PID, wxw->pid))) {
@@ -108,24 +111,79 @@ static bool __event_to_populate_skb_with_wxwarning(
 	return true;
 }
 
+static bool __event_to_populate_skb_with_snapshot(
+		const struct page_snap *snap, struct sk_buff *skb, const void* args)
+{
+	if(unlikely(nla_put_s32(skb, SCID_GENL_ATTR_PID, snap->pid))) {
+		scid_err("unable to put pid in skb");
+		return false;
+	}
+
+	if(unlikely(nla_put_u64_64bit(skb, SCID_GENL_ATTR_PFN, snap->pfn, SCID_GENL_ATTR_PAD))) {
+		scid_err("unable to put pfn in skb");
+		return false;
+	}
+
+	if(unlikely(nla_put_u64_64bit(skb, SCID_GENL_ATTR_VA, snap->va, SCID_GENL_ATTR_PAD))) {
+		scid_err("unable to put va in skb");
+		return false;
+	}
+
+	if(unlikely(nla_put_u64_64bit(skb, SCID_GENL_ATTR_PAGE_SNAPSHOT_DATETIME, 
+					snap->datetime, SCID_GENL_ATTR_PAD))) {
+		scid_err("unable to put datetime in skb");
+		return false;
+	}
+
+	if(unlikely(nla_put_u64_64bit(skb, SCID_GENL_ATTR_PAGE_SNAPSHOT_SEQ, 
+					snap->seq, SCID_GENL_ATTR_PAD))) {
+		scid_err("unable to put seq in skb");
+		return false;
+	}
+
+	if(unlikely(nla_put_u32(skb, SCID_GENL_ATTR_PAGE_SNAPSHOT_FAULT, 
+					snap->fault))) {
+		scid_err("unable to put fault in skb");
+		return false;
+	}
+
+	if(args != EVENT_TO_SKB_GET_EVTS) {
+		if(unlikely(nla_put(skb, SCID_GENL_ATTR_PAGE_SNAPSHOT, 
+						PAGE_SIZE, snap->buffer))) {
+			scid_errf(
+					"unable to put snapshot in skb "
+					"(skb_tailroom=%d < nla_total_size=%d)",
+					skb_tailroom(skb), nla_total_size(PAGE_SIZE));
+			return false;
+		}
+	}
+
+	return true;
+}
+
 bool event_to_populate_skb_with(
 		const struct event *event, struct sk_buff *skb, const void *args)
 {
 	if(event->type == EVENT_TYPE_WXWARNING)
 		return __event_to_populate_skb_with_wxwarning(event->data, skb, args);
+	else if(event->type == EVENT_TYPE_SNAPSHOT)
+		return __event_to_populate_skb_with_snapshot(event->data, skb, args);
+	else
+		scid_warn("unknown event type!!");
 
 	return false;
 }
 
 static inline int __event_nla_total_size(const struct event *event)
 {
-	int size;
-	
-	if(event->type == EVENT_TYPE_WXWARNING)
-		size = 
-			nla_total_size(sizeof(pid_t)) +
-			nla_total_size(sizeof(unsigned long)) + 
-			nla_total_size(sizeof(unsigned long));
+	int size = GENLMSG_DEFAULT_SIZE;
+
+	/* 
+	 * we may find better ways, but let's try to
+	 * avoid specifying nla_total_size(sizeof(field))
+	 */
+	if(event->type == EVENT_TYPE_SNAPSHOT)
+		size += nla_total_size(PAGE_SIZE);
 
 	return size;
 }
@@ -140,9 +198,9 @@ static struct sk_buff* event_to_skb_alloc_one(const struct event *event)
 		return NULL;
 	}
 
-	u8 cmd;
-	if(event->type == EVENT_TYPE_WXWARNING)
-		cmd = SCID_GENL_CMD_EVENT_WXWARNING;
+	u8 cmd = SCID_GENL_CMD_EVENT_WXWARNING;
+	if(event->type == EVENT_TYPE_SNAPSHOT)
+		cmd = SCID_GENL_CMD_EVENT_SNAPSHOT;
 
 	void *hdr = genlmsg_put(skb, 0, 0, &genl_fam, 0, cmd);
 	if(!hdr) {
@@ -181,11 +239,6 @@ static void __do_bcast(const struct event *event)
 		scid_err("unable to do multicast");
 }
 
-struct do_event_bcast_work {
-	struct event *event;
-	struct work_struct work;
-};
-
 static void do_event_bcast(struct work_struct *work)
 {
 	struct do_event_bcast_work *bcast_work = 
@@ -201,23 +254,19 @@ static void do_event_bcast(struct work_struct *work)
 	kfree(bcast_work);
 }
 
-typedef void(*init_event_data_cb)(void *event_data, const void* args);
-
 static bool __bcast_pgtrack_event_common(
-		enum event_type type, size_t size, init_event_data_cb init, const void *args)
+		enum event_type type, const void *data)
 {
 	struct do_event_bcast_work *work;
 	bool queued;
 
-	work = kmalloc(sizeof(struct do_event_bcast_work), GFP_ATOMIC);
+	work = kmem_cache_alloc(do_event_bcast_work_cachep, GFP_ATOMIC);
 	if(!work)
 		goto __failure0;
 
-	work->event = alloc_and_init_event(type, size);
+	work->event = alloc_and_init_event(type, data);
 	if(!work->event)
 		goto __failure1;
-
-	init(work->event->data, args);
 
 	INIT_WORK(&work->work, do_event_bcast);
 
@@ -230,7 +279,7 @@ static bool __bcast_pgtrack_event_common(
 	return queued;
 
 __failure1:
-	kfree(work);
+	kmem_cache_free(do_event_bcast_work_cachep, work);
 __failure0:
 	scid_err("memory exhausted");
 	return false;
@@ -238,46 +287,22 @@ __failure0:
 
 /* events impl */
 
-struct init_event_wxwarning_args {
-	unsigned long pfn;
-	pid_t pid;
-	unsigned long va;
-};
-
-static void init_wxwarning_event(void *event_data, const void *args)
+bool bcast_pgtrack_event_wxwarning(const struct page_wxwarn *wxw)
 {
-	struct wxwarning_event *event = event_data;
-	const struct init_event_wxwarning_args *myargs = args;
-
-	event->pfn = myargs->pfn;
-	event->pid = myargs->pid;
-	event->va = myargs->va;
-}
-
-bool bcast_pgtrack_event_wxwarning(unsigned long pfn, pid_t pid, unsigned long va)
-{
-	bool done;
-	struct init_event_wxwarning_args args;
-
-	args.pfn = pfn;
-	args.pid = pid;
-	args.va = va;
-
-	done = __bcast_pgtrack_event_common(
-			EVENT_TYPE_WXWARNING,
-			sizeof(struct wxwarning_event),
-			init_wxwarning_event,
-			&args);
-
+	bool done = __bcast_pgtrack_event_common(EVENT_TYPE_WXWARNING, wxw);
 	if(!done)
 		scid_err("unable to send out wxwarning event");
 	
 	return done;
 }
 
-bool bcast_pgtrack_event_snapshot(const struct snapshot_event *snap)
+bool bcast_pgtrack_event_snapshot(const struct page_snap *snap)
 {
-	return true;
+	bool done = __bcast_pgtrack_event_common(EVENT_TYPE_SNAPSHOT, snap);
+	if(!done)
+		scid_err("unable to send out snapshot event");
+	
+	return done;
 }
 
 

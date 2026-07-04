@@ -33,6 +33,7 @@
 
 static struct xarray pages;
 static struct kmem_cache *page_status_cachep;
+static struct kmem_cache *page_wxwarn_cachep;
 
 static void free_pgs(struct page_status *pgs);
 
@@ -41,15 +42,38 @@ int setup_pgtrack(void)
 	xa_init(&pages);
 
 	page_status_cachep = kmem_cache_create(
-			"page_status_cachep", 
+			"page_status_cache", 
 			sizeof(struct page_status), 
-			0, 0, NULL);
+			0, 
+			SLAB_HWCACHE_ALIGN | SLAB_ACCOUNT | SLAB_RECLAIM_ACCOUNT, 
+			NULL);
 
 	if(!page_status_cachep)
 		return -ENOMEM;
 
+	page_wxwarn_cachep = kmem_cache_create(
+			"page_wxwarn_cachep",
+			sizeof(struct page_wxwarn),
+			0,
+			SLAB_HWCACHE_ALIGN | SLAB_ACCOUNT | SLAB_RECLAIM_ACCOUNT,
+			NULL);
+
+	if(!page_wxwarn_cachep) {
+		kmem_cache_destroy(page_status_cachep);
+		return -ENOMEM;
+	}
+
 	return 0;
 }
+
+/* 
+ * no need to do any kind of synchronization here,
+ * fixed the initialization and teardown sequence,
+ * when this gets executed no more netlink cmds or
+ * hooks can be run (we can't advance page perm 
+ * state, so we don't need to do any new bcast) 
+ * or are in-flight.
+ */
 
 void teardown_pgtrack(void)
 {
@@ -60,12 +84,36 @@ void teardown_pgtrack(void)
 		free_pgs(entry);
 
 	kmem_cache_destroy(page_status_cachep);
+	kmem_cache_destroy(page_wxwarn_cachep);
 	xa_destroy(&pages);
+}
+
+static inline struct page_wxwarn *new_page_wxwarn(
+		unsigned long pfn, unsigned long va, pid_t pid)
+{
+	struct page_wxwarn *wxw;
+
+	wxw = kmem_cache_alloc(page_wxwarn_cachep, GFP_ATOMIC);
+	if(!wxw) {
+		scid_err("memory exhausted");
+		return NULL;
+	}
+
+	wxw->pfn = pfn;
+	wxw->pid = pid;
+	wxw->va = va;
+
+	return wxw;
+}
+
+void del_page_wxwarn(struct page_wxwarn *wxw)
+{
+	kmem_cache_free(page_wxwarn_cachep, wxw);
 }
 
 static void free_pgs(struct page_status *pgs)
 {
-	free_page_snap(pgs);
+	free_page_snap_from_pgs(pgs);
 	kmem_cache_free(page_status_cachep, pgs);
 }
 
@@ -204,8 +252,14 @@ __retry:
 	/* one thread only will get to execute this */
 	if((new_perms | old_perms) == PERM_BITS) {
 		pid_t pid = task_pid_vnr(current);
-		bcast_pgtrack_event_wxwarning(pfn, pid, va);
-		make_page_snap(pgs, pid, va, flags);
+		struct page_wxwarn *wxw = new_page_wxwarn(pfn, va, pid);
+		if(!wxw)
+			/* fallback to dmesg */
+			scid_warnf("WXWARN for pfn=%ld, va=%ld, pid=%d", pfn, va, pid);
+		else {
+			bcast_pgtrack_event_wxwarning(wxw);
+			make_page_snap(pgs, pid, pfn, va, flags);
+		}
 	}
 }
 

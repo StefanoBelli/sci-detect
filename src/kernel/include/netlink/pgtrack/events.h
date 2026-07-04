@@ -9,26 +9,28 @@
 
 #include <linux/types.h>
 
-struct snapshot_event;
+/* fwd decl, see pgsnap.h */
+struct page_snap;
+
+/* fwd decl, see pgtrack.h */
+struct page_wxwarn;
 
 /**
  * bcast_pgtrack_event_wxwarning - broadcast WX page frame detection warning
  *
- * @pfn: pfn of the WX-detected page
- * @pid: the pid of the task that triggered the WX-detection code
- * @va: the associated virtual address
+ * @wxwarn: ptr to wxwarn, transferring ownership to us
  *
  * Returns: true if everything ok, false otherwise
  */
-bool bcast_pgtrack_event_wxwarning(unsigned long pfn, pid_t pid, unsigned long va);
+bool bcast_pgtrack_event_wxwarning(const struct page_wxwarn *wxwarn);
 
 /**
  * bcast_pgtrack_event_snapshot - broadcast a snapshot made on a WX page
  *
- * @snap: ptr to current page's snapshot_event
+ * @snap: ptr to snap, transferring ownership to us
  *
  * Returns: true if everything ok, false otherwise
  */
-bool bcast_pgtrack_event_snapshot(const struct snapshot_event *snap);
+bool bcast_pgtrack_event_snapshot(const struct page_snap *snap);
 
 #endif

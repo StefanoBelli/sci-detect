@@ -53,8 +53,11 @@ int pgtrack_genl_get_one_last_event_doit(
 	u32 in_idx;
 	struct sk_buff *skb;
 	void *hdr;
+	int skb_size;
 
-	skb = genlmsg_new(GENLMSG_DEFAULT_SIZE, GFP_KERNEL);
+	/* we have to do like this... */
+	skb_size = GENLMSG_DEFAULT_SIZE + nla_total_size(PAGE_SIZE);
+	skb = genlmsg_new(skb_size, GFP_KERNEL);
 	if(!skb) {
 		scid_err("unable to get new skb");
 		return -ENOMEM;

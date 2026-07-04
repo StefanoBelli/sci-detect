@@ -1,6 +1,10 @@
 #ifndef SCID_H
 #define SCID_H
 
+#if defined(__x86_64__) || defined(__i386__)
+#	define SCID_PAGE_SIZE 4096
+#endif
+
 /* this is the user/kernel shared header */
 #include <scid-netlink-defs.h>
 
@@ -179,8 +183,25 @@ struct wxwarning_event {
 	uint64_t va;
 };
 
+enum snapshot_fault : uint32_t {
+	SNAPSHOT_NO_FAULT,
+	SNAPSHOT_WRITE_FAULT,
+	SNAPSHOT_IFETCH_FAULT,
+};
+
+struct snapshot_event {
+	char buffer[SCID_PAGE_SIZE];
+	unsigned long va;
+	int64_t datetime;
+	uint64_t seq;
+	unsigned long pfn;
+	pid_t pid;
+	enum snapshot_fault fault;
+};
+
 enum last_event_type {
 	WXWARNING,
+	SNAPSHOT,
 };
 
 struct last_event {
@@ -201,9 +222,5 @@ struct is_tracked_page {
 	pid_t *pids;
 	uint32_t nr_pids;
 };
-
-#if defined(__x86_64__) || defined(__i386__)
-#	define SCID_PAGE_SIZE 4096
-#endif
 
 #endif

@@ -16,6 +16,7 @@ const struct nla_policy global_policy[SCID_GENL_MAX_NR_ATTRS + 1] = {
 	[SCID_GENL_ATTR_GENIDX] = { .type = NLA_U32 },
 	[SCID_GENL_ATTR_PAGE_SNAPSHOT_SEQ] = { .type = NLA_U64 },
 	[SCID_GENL_ATTR_PAGE_SNAPSHOT_DATETIME] = { .type = NLA_S64 },
+	[SCID_GENL_ATTR_PAGE_SNAPSHOT_FAULT] = { .type = NLA_U32 },
 	[SCID_GENL_ATTR_PAGE_SNAPSHOT] = { 
 		.type = NLA_BINARY, 
 		.minlen = SCID_PAGE_SIZE, 
@@ -24,10 +25,45 @@ const struct nla_policy global_policy[SCID_GENL_MAX_NR_ATTRS + 1] = {
 };
 
 #define __nla_assign_or_skip(var, attr, type) \
+{ \
 	if((attr)) \
 		(var) = nla_get_##type((attr)); \
 	else \
-		return NL_SKIP
+		return NL_SKIP; \
+} 
+
+#define __nla_data_assign_or_skip(ptr, size, attr) \
+{ \
+	if((attr)) \
+		memcpy((ptr), nla_data((attr)), (size)); \
+	else \
+		return NL_SKIP; \
+}
+
+
+static int __populate_wxwarning_event(struct wxwarning_event *evt, struct nlattr **attrs)
+{
+	__nla_assign_or_skip(evt->pfn, attrs[SCID_GENL_ATTR_PFN], u64);
+	__nla_assign_or_skip(evt->pid, attrs[SCID_GENL_ATTR_PID], s32);
+	__nla_assign_or_skip(evt->va, attrs[SCID_GENL_ATTR_VA], u64);
+
+	return NL_OK;
+}
+
+static int __populate_snapshot_event(struct snapshot_event *evt, struct nlattr **attrs)
+{
+	__nla_assign_or_skip(evt->va, attrs[SCID_GENL_ATTR_VA], u64);
+	__nla_assign_or_skip(evt->seq, attrs[SCID_GENL_ATTR_PAGE_SNAPSHOT_SEQ], u64);
+	__nla_assign_or_skip(evt->pid, attrs[SCID_GENL_ATTR_PID], s32);
+	__nla_assign_or_skip(evt->pfn, attrs[SCID_GENL_ATTR_PFN], u64);
+	__nla_assign_or_skip(evt->fault, attrs[SCID_GENL_ATTR_PAGE_SNAPSHOT_FAULT], u32);
+	__nla_assign_or_skip(evt->datetime, attrs[SCID_GENL_ATTR_PAGE_SNAPSHOT_DATETIME], s64);
+
+	/* we expect the buffer to be present */
+	__nla_data_assign_or_skip(evt->buffer, SCID_PAGE_SIZE, attrs[SCID_GENL_ATTR_PAGE_SNAPSHOT]);
+
+	return NL_OK;
+}
 
 /*
  * response wrappers
@@ -38,16 +74,16 @@ const struct nla_policy global_policy[SCID_GENL_MAX_NR_ATTRS + 1] = {
 static int __scid_wrapper_event_wxwarning(cmd_handler_fpt user_handler,
 		struct nlattr **attrs, void *uargs)
 {
+	int rv;
 	struct wxwarning_event evt;
+
 	memset(&evt, 0, sizeof(evt));
 
-	__nla_assign_or_skip(evt.pid, attrs[SCID_GENL_ATTR_PID], s32);
-	__nla_assign_or_skip(evt.pfn, attrs[SCID_GENL_ATTR_PFN], u64);
-	__nla_assign_or_skip(evt.va, attrs[SCID_GENL_ATTR_VA], u64);
+	rv = __populate_wxwarning_event(&evt, attrs);
+	if(rv == NL_OK)
+		user_handler(&evt, uargs);
 
-	user_handler(&evt, uargs);
-
-	return NL_OK;
+	return rv;
 }
 
 /* snapshot event (broadcasted) */
@@ -55,7 +91,16 @@ static int __scid_wrapper_event_wxwarning(cmd_handler_fpt user_handler,
 static int __scid_wrapper_event_snapshot(cmd_handler_fpt user_handler,
 		struct nlattr **attrs, void *uargs)
 {
-	return NL_OK;
+	int rv;
+	struct snapshot_event evt;
+
+	memset(&evt, 0, sizeof(evt));
+
+	rv = __populate_snapshot_event(&evt, attrs);
+	if(rv == NL_OK)
+		user_handler(&evt, uargs);
+
+	return rv;
 }
 
 /* get_last_events cmd */
@@ -92,6 +137,36 @@ static int populate_last_evt_wxwarning(struct last_event *evt, struct nlattr *at
 		wxw->pid = nla_get_s32(attr);
 	else if(nla_type(attr) == SCID_GENL_ATTR_PFN)
 		wxw->pfn = nla_get_u64(attr);
+
+	return NL_OK;
+}
+
+static int populate_last_evt_snapshot(struct last_event *evt, struct nlattr *attr)
+{
+	struct snapshot_event *snap;
+
+	if(!evt->data) {
+		evt->data = malloc(sizeof(struct snapshot_event));
+		if(!evt->data)
+			return NL_STOP;
+	}
+
+	snap = evt->data;
+
+	if(nla_type(attr) == SCID_GENL_ATTR_VA)
+		snap->va = nla_get_u64(attr);
+	else if(nla_type(attr) == SCID_GENL_ATTR_PID)
+		snap->pid = nla_get_s32(attr);
+	else if(nla_type(attr) == SCID_GENL_ATTR_PFN)
+		snap->pfn = nla_get_u64(attr);
+	else if(nla_type(attr) == SCID_GENL_ATTR_PAGE_SNAPSHOT_SEQ)
+		snap->seq = nla_get_u64(attr);
+	else if(nla_type(attr) == SCID_GENL_ATTR_PAGE_SNAPSHOT_FAULT)
+		snap->fault = nla_get_u32(attr);
+	else if(nla_type(attr) == SCID_GENL_ATTR_PAGE_SNAPSHOT_DATETIME)
+		snap->datetime = nla_get_s64(attr);
+
+	/* buffer should not be present when get_last_events */
 
 	return NL_OK;
 }
@@ -148,6 +223,8 @@ static int __scid_wrapper_get_last_events(cmd_handler_fpt user_handler,
 
 		if(i_evt_type == WXWARNING)
 			rv = populate_last_evt_wxwarning(&all_evts.evts[i], pos);
+		else if(i_evt_type == SNAPSHOT)
+			rv = populate_last_evt_snapshot(&all_evts.evts[i], pos);
 
 		if(rv != NL_OK)
 			goto __finish_onlyfree;
@@ -208,9 +285,9 @@ __call_uhandler:
 	return NL_OK;
 }
 
-/* get_all_tracked_[wx_]pages */
+/* get_all_tracked_pages */
 
-static inline int __get_all_tracked_pages_base(cmd_handler_fpt user_handler,
+static int __scid_wrapper_get_all_tracked_pages(cmd_handler_fpt user_handler,
 		struct nlattr **attrs, void *uargs)
 {
 	unsigned long pfn;
@@ -219,28 +296,7 @@ static inline int __get_all_tracked_pages_base(cmd_handler_fpt user_handler,
 	return NL_OK;
 }
 
-static int __scid_wrapper_get_all_tracked_pages(cmd_handler_fpt user_handler,
-		struct nlattr **attrs, void *uargs)
-{
-	return __get_all_tracked_pages_base(user_handler, attrs, uargs);
-}
-
-static int __scid_wrapper_get_all_tracked_wx_pages(cmd_handler_fpt user_handler,
-		struct nlattr **attrs, void *uargs)
-{
-	return __get_all_tracked_pages_base(user_handler, attrs, uargs);
-}
-
 /* get_one_last_event */
-
-static int __gole_populate_wxwarning_event(struct wxwarning_event *evt, struct nlattr **attrs)
-{
-	__nla_assign_or_skip(evt->pfn, attrs[SCID_GENL_ATTR_PFN], u64);
-	__nla_assign_or_skip(evt->pid, attrs[SCID_GENL_ATTR_PID], s32);
-	__nla_assign_or_skip(evt->va, attrs[SCID_GENL_ATTR_VA], u64);
-
-	return NL_OK;
-}
 
 static int __scid_wrapper_get_one_last_event(cmd_handler_fpt user_handler,
 		struct nlattr **attrs, void *uargs)
@@ -250,7 +306,9 @@ static int __scid_wrapper_get_one_last_event(cmd_handler_fpt user_handler,
 	
 	__nla_assign_or_skip(lev.type, attrs[SCID_GENL_ATTR_EVT_TYPE], u32);
 
-	size_t datasize = lev.type == WXWARNING ? sizeof(struct wxwarning_event) : 0;
+	size_t datasize = sizeof(struct wxwarning_event);
+	if(lev.type == SNAPSHOT)
+		datasize = sizeof(struct snapshot_event);
 
 	lev.data = malloc(datasize);
 	if(!lev.data)
@@ -258,7 +316,10 @@ static int __scid_wrapper_get_one_last_event(cmd_handler_fpt user_handler,
 
 	switch(lev.type) {
 		case WXWARNING:
-			rv = __gole_populate_wxwarning_event(lev.data, attrs);
+			rv = __populate_wxwarning_event(lev.data, attrs);
+			break;
+		case SNAPSHOT:
+			rv = __populate_snapshot_event(lev.data, attrs);
 			break;
 	}
 

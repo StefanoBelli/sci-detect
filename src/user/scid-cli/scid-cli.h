@@ -24,6 +24,9 @@
 #define die_if_nlerr(sym, ...) \
 	__die_if(sym, __expand(" (nlerr) : %ld\n", err),  __VA_ARGS__)
 
+#define __static_array_size(x) \
+	(sizeof(x) / sizeof(x[0]))
+
 /* some utils */
 
 static const char* bool_to_str(unsigned long t)

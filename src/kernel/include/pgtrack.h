@@ -8,6 +8,19 @@
 
 #include <pgsnap.h>
 
+struct page_wxwarn {
+	unsigned long pfn;
+	unsigned long va;
+	pid_t pid;
+};
+
+/**
+ * del_page_wxwarn - delete page_wxwarn object
+ *
+ * @wxw: the object
+ */
+void del_page_wxwarn(struct page_wxwarn *wxw);
+
 /**
  * you may not always need to both define a RCU
  * critical section + increment usage counter.
