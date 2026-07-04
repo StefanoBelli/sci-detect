@@ -335,7 +335,34 @@ static int __scid_wrapper_get_one_last_event(cmd_handler_fpt user_handler,
 static int __scid_wrapper_get_cur_page_snapshot(cmd_handler_fpt user_handler,
 		struct nlattr **attrs, void *uargs)
 {
-	return NL_OK;
+	int rv = NL_OK;
+	struct cur_page_snapshot cps;
+	memset(&cps, 0, sizeof(cps));
+
+	__nla_assign_or_skip(cps.pfn, attrs[SCID_GENL_ATTR_PFN], u64);
+	__nla_assign_or_skip(cps.pfn_found, attrs[SCID_GENL_ATTR_PFN_FOUND], u32);
+
+	/* this tells if page is currently being tracked */
+	if(!cps.pfn_found)
+		goto __call_user_handler;
+
+	/* if PAGE_SNAPSHOT_DATETIME attr is carried by the skb, snapshot is present */
+	if(attrs[SCID_GENL_ATTR_PAGE_SNAPSHOT_DATETIME]) {
+		cps.snap = malloc(sizeof(struct snapshot_event));
+		if(!cps.snap)
+			return NL_STOP;
+
+		rv = __populate_snapshot_event(cps.snap, attrs);
+	}
+
+__call_user_handler:
+	if(rv == NL_OK)
+		user_handler(&cps, uargs);
+
+	if(cps.snap)
+		free(cps.snap);
+
+	return rv;
 }
 
 #define __static_array_size(x) (sizeof(x) / sizeof(typeof(x[0])))

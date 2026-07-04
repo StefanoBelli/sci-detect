@@ -248,7 +248,16 @@ static void get_one_last_event_handler(const void *args, __unused void *uargs)
 
 static void get_cur_page_snapshot_handler(const void *args, __unused void *uargs)
 {
+	const struct cur_page_snapshot *cps = args;
+	printf("pfn=%ld, found=%s\n", cps->pfn, bool_to_str(cps->pfn_found));
 
+	if(cps->pfn_found) {
+		if(cps->snap) {
+			printf(" snapshot\n\t");
+			snapshot_pretty_print(cps->snap, 1);
+		} else
+			puts(" no snapshot available");
+	}
 }
 
 static void register_all_handlers(void *desc)

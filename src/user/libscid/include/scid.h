@@ -199,6 +199,12 @@ struct snapshot_event {
 	enum snapshot_fault fault;
 };
 
+struct cur_page_snapshot {
+	uint32_t pfn_found;
+	unsigned long pfn;
+	struct snapshot_event *snap;
+};
+
 enum last_event_type {
 	WXWARNING,
 	SNAPSHOT,

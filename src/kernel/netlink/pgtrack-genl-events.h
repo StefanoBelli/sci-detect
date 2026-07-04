@@ -22,6 +22,9 @@
 /* see below */
 struct event;
 
+/* fwd decl */
+struct page_snap;
+
 extern struct workqueue_struct *bcast_evt_wq;
 extern struct kfifo le;
 extern struct rw_semaphore le_lock;
@@ -65,5 +68,7 @@ struct event {
 	enum event_type type;
 	const void *data;
 };
+
+bool populate_skb_with_page_snap(const struct page_snap *, struct sk_buff *);
 
 #endif

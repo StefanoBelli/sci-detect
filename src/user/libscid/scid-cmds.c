@@ -33,6 +33,10 @@ long scid_cmd_get_all_tracked_pages(void *desc, void *args)
 			NULL, NULL);
 }
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpointer-to-int-cast"
+#pragma GCC diagnostic ignored "-Wint-to-pointer-cast"
+
 /* get_one_last_event cmd */
 static long __gole_in_attrs_add_cb(struct nl_msg *msg, const void *args)
 {
@@ -45,6 +49,8 @@ long scid_cmd_get_one_last_event(void *desc, void *args, uint32_t idx)
 			desc, SCID_GENL_CMD_GET_ONE_LAST_EVENT, args,
 			__gole_in_attrs_add_cb, (const void*) idx);
 }
+
+#pragma GCC diagnostic pop
 
 /* get_cur_page_snapshot cmd */
 static long __gcps_in_attrs_add_cb(struct nl_msg *msg, const void *args)

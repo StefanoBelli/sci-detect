@@ -111,7 +111,7 @@ static bool __event_to_populate_skb_with_wxwarning(
 	return true;
 }
 
-static bool __event_to_populate_skb_with_snapshot(
+static bool __populate_skb_with_page_snap(
 		const struct page_snap *snap, struct sk_buff *skb, const void* args)
 {
 	if(unlikely(nla_put_s32(skb, SCID_GENL_ATTR_PID, snap->pid))) {
@@ -129,7 +129,7 @@ static bool __event_to_populate_skb_with_snapshot(
 		return false;
 	}
 
-	if(unlikely(nla_put_u64_64bit(skb, SCID_GENL_ATTR_PAGE_SNAPSHOT_DATETIME, 
+	if(unlikely(nla_put_s64(skb, SCID_GENL_ATTR_PAGE_SNAPSHOT_DATETIME, 
 					snap->datetime, SCID_GENL_ATTR_PAD))) {
 		scid_err("unable to put datetime in skb");
 		return false;
@@ -159,6 +159,17 @@ static bool __event_to_populate_skb_with_snapshot(
 	}
 
 	return true;
+}
+
+bool populate_skb_with_page_snap(const struct page_snap *snap, struct sk_buff *skb)
+{
+	return __populate_skb_with_page_snap(snap, skb, EVENT_TO_SKB_PEEKONE);
+}
+
+static bool __event_to_populate_skb_with_snapshot(
+		const struct page_snap *snap, struct sk_buff *skb, const void* args)
+{
+	return __populate_skb_with_page_snap(snap, skb, args);
 }
 
 bool event_to_populate_skb_with(
