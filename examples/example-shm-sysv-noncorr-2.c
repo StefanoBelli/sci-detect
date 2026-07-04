@@ -14,7 +14,7 @@ int main()
 	}
 
 #ifdef EXAMPLE_MLOCK_ALL
-	check_scid_bcast_wxwarning(
+	check_scid_bcast_wxwarning_post(
 			mem
 			,
 			mem = shmat(shmid, NULL, SHM_EXEC);

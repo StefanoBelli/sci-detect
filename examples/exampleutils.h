@@ -216,7 +216,7 @@ __unused static inline void __scid_terminate(void *desc)
 			\
 			char *oldbuf = (_va); \
 			if(snap->fault == SNAPSHOT_WRITE_FAULT) \
-				oldbuf = pre_op_buffer; \
+				oldbuf = pre_or_post_op_buffer; \
 			\
 			if(memcmp(snap->buffer, oldbuf, SCID_PAGE_SIZE)) { \
 	 			fprintf(stderr, "FAILED attempt (remaining retries: %d)\n", --nr_retry); \
@@ -237,11 +237,12 @@ __unused static inline void __scid_terminate(void *desc)
 	 	} \
 	}
 
-#define __check_scid_bcast_base(__preop, __op, __ret, __cond_var__, __test_block__) \
+#define __check_scid_bcast_base(__pre_op, __op, __post_op, __ret, __cond_var__, __test_block__) \
 	({ \
 	 	void *desc = __scid_setup(); \
-	 	__preop \
+	 	__pre_op \
 	 	__op \
+	 	__post_op \
 	 	int nr_retry = 3; \
 	 	__cond_var__ \
 	 	while(1) { \
@@ -253,15 +254,36 @@ __unused static inline void __scid_terminate(void *desc)
 	 	__ret \
 	})
 
+#define check_scid_bcast_wxwarning_pre(_va, op, ret) \
+	__check_scid_bcast_base( \
+			char pre_or_post_op_buffer[SCID_PAGE_SIZE]; \
+			memcpy(pre_or_post_op_buffer, (char*) (_va), SCID_PAGE_SIZE); \
+			, \
+			op \
+			, \
+			, \
+			ret \
+			, \
+			int wxw_count = 0; \
+			, \
+			__wxwarning_test_block(bcasted_event, _va))
+
+#define check_scid_bcast_wxwarning_post(_va, op, ret) \
+	__check_scid_bcast_base( \
+			, \
+			op \
+			, \
+			char pre_or_post_op_buffer[SCID_PAGE_SIZE]; \
+			memcpy(pre_or_post_op_buffer, (char*) (_va), SCID_PAGE_SIZE); \
+			, \
+			ret \
+			, \
+			int wxw_count = 0; \
+			, \
+			__wxwarning_test_block(bcasted_event, _va))
 
 #define check_scid_bcast_wxwarning(_va, op, ret) \
-	__check_scid_bcast_base( \
-			char pre_op_buffer[SCID_PAGE_SIZE]; \
-			memcpy(pre_op_buffer, (char*) (_va), SCID_PAGE_SIZE);, \
-			op, \
-			ret, \
-			int wxw_count = 0;, \
-			__wxwarning_test_block(bcasted_event, _va))
+	check_scid_bcast_wxwarning_pre(_va, op, ret)
 
 #define example_passed() \
 	puts("OK! Example passed!")
