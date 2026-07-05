@@ -6,6 +6,8 @@ SCID_CLI_OBJS=scid-cli.o
 LIBSCID_DIR=../libscid
 LIBSCID_HDRS=$(LIBSCID_DIR)/include
 LIBSCID_LNK=scid
+LIBOPCODES_LNK=opcodes
+LIBZSTD_LNK=zstd
 SCID_SHARED_HEADER=../../kernel/include/user
 
 all: lib cli
@@ -17,7 +19,7 @@ $(SCID_CLI_OUT): $(SCID_CLI_OBJS) | lib
 	@echo -ne "\tLINK $@\n"
 	@$(CC) \
 		$(CFLAGS) $^ \
-		-L$(LIBSCID_DIR) -l$(LIBSCID_LNK) \
+		-L$(LIBSCID_DIR) -l$(LIBSCID_LNK) -l$(LIBOPCODES_LNK) -l$(LIBZSTD_LNK) \
 		-o $@ 
 
 $(SCID_CLI_OBJS): %.o: %.c

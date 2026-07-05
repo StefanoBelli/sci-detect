@@ -6,6 +6,7 @@
 #include <errno.h>
 #include <time.h>
 #include <ctype.h>
+#include <dis-asm.h>
 
 #include <scid.h>
 
@@ -92,5 +93,75 @@ static void print_hexdump(const char* buf)
 #undef GEN_BUFS_ACCESSES_16
 #undef mod_none
 #undef mod_isprint
+
+static int __fprintf_styled(
+		void *stream, 
+		__unused enum disassembler_style st, 
+		const char *fmt, ...) 
+{
+    va_list args;
+    int r;
+    va_start(args, fmt);
+    r = vfprintf(stream, fmt, args);
+    va_end(args);
+
+    return r;
+}
+
+static void print_disasm(
+		const char* buf, 
+		unsigned long base_va, 
+		size_t buffer_len)
+{
+	struct disassemble_info info;
+	disassembler_ftype disasm;
+	size_t pc;
+
+	init_disassemble_info(
+			&info, 
+			stdout, 
+			(fprintf_ftype) fprintf,
+			__fprintf_styled);
+
+	info.arch = bfd_arch_i386;
+	info.mach = bfd_mach_x86_64;
+	info.endian = BFD_ENDIAN_LITTLE;
+	info.read_memory_func = buffer_read_memory;
+	info.buffer = (unsigned char*) buf;
+	info.buffer_vma = base_va;
+	info.buffer_length = buffer_len;
+
+	disassemble_init_for_target(&info);
+	disasm = disassembler(
+			info.arch, 
+			info.endian == BFD_ENDIAN_BIG, 
+			info.mach, 
+			NULL);
+
+	if(!disasm) {
+		fputs("unable to obtain disasm fn", stderr);
+		return;
+	}
+
+	printf("---[ disasm begins below: len=%ldB, assuming base va=0x%08lx ]---\n", 
+			info.buffer_length, info.buffer_vma);
+
+	pc = info.buffer_vma;
+	while(pc < info.buffer_vma + info.buffer_length) {
+		printf("%08lx: ", pc);
+
+		int count = disasm(pc, &info);
+		if(count <= 0) {
+			fprintf(stderr, "ILLEGAL INSTRUCTION\n");
+			return;
+		}
+
+		puts("");
+		pc += count;
+	}
+
+	printf("---[ disasm above: len=%ldB, assumed base va=0x%08lx ] ---\n", 
+			info.buffer_length, info.buffer_vma);
+}
 
 #endif
