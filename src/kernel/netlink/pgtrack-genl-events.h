@@ -6,6 +6,7 @@
 #include <linux/workqueue.h>
 #include <linux/rwsem.h>
 #include <linux/skbuff.h>
+#include <linux/time64.h>
 
 /* nr of queued events in the kfifo */
 #define NR_QUEUED_EVENTS 10
@@ -66,9 +67,8 @@ enum event_type {
 
 struct event {
 	enum event_type type;
+	time64_t datetime;
 	const void *data;
 };
-
-bool populate_skb_with_page_snap(const struct page_snap *, struct sk_buff *);
 
 #endif

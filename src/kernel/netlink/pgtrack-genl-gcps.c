@@ -7,8 +7,8 @@
 #include <netlink.h>
 #include <logging.h>
 
-/* for populate_skb_with_page_snap prototype */
-#include "pgtrack-genl-events.h"
+/* populate_skb_with_page_snap prototype */
+bool populate_skb_with_page_snap(const struct page_snap *, struct sk_buff*);
 
 int pgtrack_genl_get_cur_page_snapshot_doit(
 		__always_unused struct sk_buff *in_skb, struct genl_info *info)

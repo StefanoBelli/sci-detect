@@ -10,6 +10,7 @@ const struct nla_policy global_policy[SCID_GENL_MAX_NR_ATTRS + 1] = {
 	[SCID_GENL_ATTR_PFN] = { .type = NLA_U64 },
 	[SCID_GENL_ATTR_PID] = { .type = NLA_S32 },
 	[SCID_GENL_ATTR_EVT_TYPE] = { .type = NLA_U32 },
+	[SCID_GENL_ATTR_EVT_DATETIME] = { .type = NLA_S64 },
 	[SCID_GENL_ATTR_PFN_FOUND] = { .type = NLA_U32 },
 	[SCID_GENL_ATTR_PAGE_WRITABLE] = { .type = NLA_S32 },
 	[SCID_GENL_ATTR_PAGE_EXECUTABLE] = { .type = NLA_S32 },
@@ -40,12 +41,12 @@ const struct nla_policy global_policy[SCID_GENL_MAX_NR_ATTRS + 1] = {
 		return NL_SKIP; \
 }
 
-
 static int __populate_wxwarning_event(struct wxwarning_event *evt, struct nlattr **attrs)
 {
 	__nla_assign_or_skip(evt->pfn, attrs[SCID_GENL_ATTR_PFN], u64);
 	__nla_assign_or_skip(evt->pid, attrs[SCID_GENL_ATTR_PID], s32);
 	__nla_assign_or_skip(evt->va, attrs[SCID_GENL_ATTR_VA], u64);
+	__nla_assign_or_skip(evt->evt_datetime, attrs[SCID_GENL_ATTR_EVT_DATETIME], s64);
 
 	return NL_OK;
 }
@@ -57,7 +58,12 @@ static int __populate_snapshot_event(struct snapshot_event *evt, struct nlattr *
 	__nla_assign_or_skip(evt->pid, attrs[SCID_GENL_ATTR_PID], s32);
 	__nla_assign_or_skip(evt->pfn, attrs[SCID_GENL_ATTR_PFN], u64);
 	__nla_assign_or_skip(evt->fault, attrs[SCID_GENL_ATTR_PAGE_SNAPSHOT_FAULT], u32);
-	__nla_assign_or_skip(evt->datetime, attrs[SCID_GENL_ATTR_PAGE_SNAPSHOT_DATETIME], s64);
+
+	/* prefer evt_datetime over snapshot datetime when available */
+	if(attrs[SCID_GENL_ATTR_EVT_DATETIME]) 
+		evt->evt_datetime = nla_get_s64(attrs[SCID_GENL_ATTR_EVT_DATETIME]);
+	else
+		__nla_assign_or_skip(evt->datetime, attrs[SCID_GENL_ATTR_PAGE_SNAPSHOT_DATETIME], s64);
 
 	/* we expect the buffer to be present */
 	__nla_data_assign_or_skip(evt->buffer, SCID_PAGE_SIZE, attrs[SCID_GENL_ATTR_PAGE_SNAPSHOT]);
@@ -137,6 +143,8 @@ static int populate_last_evt_wxwarning(struct last_event *evt, struct nlattr *at
 		wxw->pid = nla_get_s32(attr);
 	else if(nla_type(attr) == SCID_GENL_ATTR_PFN)
 		wxw->pfn = nla_get_u64(attr);
+	else if(nla_type(attr) == SCID_GENL_ATTR_EVT_DATETIME)
+		wxw->evt_datetime = nla_get_s64(attr);
 
 	return NL_OK;
 }
@@ -163,8 +171,8 @@ static int populate_last_evt_snapshot(struct last_event *evt, struct nlattr *att
 		snap->seq = nla_get_u64(attr);
 	else if(nla_type(attr) == SCID_GENL_ATTR_PAGE_SNAPSHOT_FAULT)
 		snap->fault = nla_get_u32(attr);
-	else if(nla_type(attr) == SCID_GENL_ATTR_PAGE_SNAPSHOT_DATETIME)
-		snap->datetime = nla_get_s64(attr);
+	else if(nla_type(attr) == SCID_GENL_ATTR_EVT_DATETIME)
+		snap->evt_datetime = nla_get_s64(attr);
 
 	/* buffer should not be present when get_last_events */
 

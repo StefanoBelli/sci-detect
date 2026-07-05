@@ -1,10 +1,7 @@
 #define _GNU_SOURCE
 
 #include <getopt.h>
-#include <scid.h>
-#include <time.h>
 #include <string.h>
-#include <ctype.h>
 
 #include "scid-cli.h"
 
@@ -99,8 +96,12 @@ static void get_cur_page_snapshot(void *desc, unsigned long pfn)
 
 static void wxwarning_pretty_print(const struct wxwarning_event *wxw)
 {
-	printf("wx page: pfn=%ld, va=0x%lx, pid=%d\n",
-			wxw->pfn, wxw->va, wxw->pid);
+	char datetime_buf[100];
+	memset(datetime_buf, 0, 100);
+	datetime_str(wxw->evt_datetime, datetime_buf, 100);
+
+	printf("wx page: pfn=%ld, va=0x%lx, pid=%d, datetime=%s\n",
+			wxw->pfn, wxw->va, wxw->pid, datetime_buf);
 }
 
 static const char* snapshot_fault_str(enum snapshot_fault fault)
@@ -117,52 +118,12 @@ static const char* snapshot_fault_str(enum snapshot_fault fault)
 	}
 }
 
-static void datetime_str(time_t time, char *buf, size_t max_size)
-{
-    struct tm tinfo;
-
-    if (localtime_r(&time, &tinfo) == NULL)
-        return;
-
-    strftime(buf, max_size, "%Y-%m-%d %H:%M:%S", &tinfo);
-}
-
-#define mod_none(x) (x)
-#define mod_isprint(x) isprint(x) ? (x) : '.'
-
-#define GEN_BUFS_ACCESSES_16(__buf, __i, __mod) \
-	__mod((unsigned char) (__buf)[(__i) + 0]), __mod((unsigned char) (__buf)[(__i) + 1]), \
-	__mod((unsigned char) (__buf)[(__i) + 2]), __mod((unsigned char) (__buf)[(__i) + 3]), \
-	__mod((unsigned char) (__buf)[(__i) + 4]), __mod((unsigned char) (__buf)[(__i) + 5]), \
-	__mod((unsigned char) (__buf)[(__i) + 6]), __mod((unsigned char) (__buf)[(__i) + 7]), \
-	__mod((unsigned char) (__buf)[(__i) + 8]), __mod((unsigned char) (__buf)[(__i) + 9]), \
-	__mod((unsigned char) (__buf)[(__i) + 10]), __mod((unsigned char) (__buf)[(__i) + 11]), \
-	__mod((unsigned char) (__buf)[(__i) + 12]), __mod((unsigned char) (__buf)[(__i) + 13]), \
-	__mod((unsigned char) (__buf)[(__i) + 14]), __mod((unsigned char) (__buf)[(__i) + 15]) \
-
-static void print_hexdump(const char* buf)
-{
-	puts("---[ hexdump below ]---");
-	for(size_t i = 0; i < SCID_PAGE_SIZE; i += 16)
-		printf(
-				"%ld:\t"
-				"%02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x\t"
-				"%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c\n",
-					i, 
-					GEN_BUFS_ACCESSES_16(buf, i, mod_none), 
-					GEN_BUFS_ACCESSES_16(buf, i, mod_isprint));
-	puts("---[ hexdump above ]---");
-}
-
-#undef GEN_BUFS_ACCESSES_16
-#undef mod_none
-#undef mod_isprint
-
-static void snapshot_pretty_print(const struct snapshot_event *snap, int has_buffer)
+static void snapshot_pretty_print(
+		const struct snapshot_event *snap, int has_buffer, const int64_t *__datetime_field)
 {
 	char datetime_buf[100];
 	memset(datetime_buf, 0, 100);
-	datetime_str(snap->datetime, datetime_buf, 100);
+	datetime_str(*__datetime_field, datetime_buf, 100);
 
 	printf("snapshot: pfn=%ld, va=0x%lx, pid=%d, "
 			"seq=%ld, fault=%s, datetime=%s\n",
@@ -191,8 +152,9 @@ static void get_last_events_handler(const void *args, __unused void *uargs)
 			printf(" wx page detection\n\t");
 			wxwarning_pretty_print(le->data);
 		} else if(le->type == SNAPSHOT) {
+			struct snapshot_event *snap = le->data;
 			printf(" snapshot\n\t");
-			snapshot_pretty_print(le->data, 0);
+			snapshot_pretty_print(snap, 0, &snap->evt_datetime);
 		} else
 			puts(" unknown event type");
 	}
@@ -225,7 +187,8 @@ static void is_tracked_page_handler(const void *args, __unused void *uargs)
 
 static void snapshot_event_handler(const void *args, __unused void *uargs)
 {
-	snapshot_pretty_print(args, 1);
+	const struct snapshot_event *snap = args;
+	snapshot_pretty_print(snap, 1, &snap->evt_datetime);
 }
 
 static void get_all_tracked_pages_handler(const void *args, __unused void *uargs)
@@ -241,8 +204,9 @@ static void get_one_last_event_handler(const void *args, __unused void *uargs)
 		printf("wx page detection\n\t");
 		wxwarning_pretty_print(le->data);
 	} else if(le->type == SNAPSHOT) {
+		struct snapshot_event *snap = le->data;
 		printf("snapshot\n\t");
-		snapshot_pretty_print(le->data, 1);
+		snapshot_pretty_print(snap, 1, &snap->evt_datetime);
 	}
 }
 
@@ -253,8 +217,9 @@ static void get_cur_page_snapshot_handler(const void *args, __unused void *uargs
 
 	if(cps->pfn_found) {
 		if(cps->snap) {
+			struct snapshot_event *snap = cps->snap;
 			printf(" snapshot\n\t");
-			snapshot_pretty_print(cps->snap, 1);
+			snapshot_pretty_print(snap, 1, &snap->datetime);
 		} else
 			puts(" no snapshot available");
 	}

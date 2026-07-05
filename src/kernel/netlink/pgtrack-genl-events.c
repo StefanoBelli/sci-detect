@@ -1,4 +1,5 @@
 #include <linux/compiler.h>
+#include <linux/timekeeping.h>
 
 #include <netlink/pgtrack/events.h>
 #include <user/scid-netlink-defs.h>
@@ -12,6 +13,9 @@
 struct kmem_cache *event_cachep;
 struct kmem_cache *do_event_bcast_work_cachep;
 
+/* prototype, see below */
+bool populate_skb_with_page_snap(const struct page_snap *snap, struct sk_buff *skb);
+
 /* can be called from atomic context */
 static inline struct event *alloc_and_init_event(enum event_type type, const void *data)
 {
@@ -23,6 +27,7 @@ static inline struct event *alloc_and_init_event(enum event_type type, const voi
 
 	evt->type = type;
 	evt->data = data;
+	evt->datetime = ktime_get_real_seconds();
 
 	return evt;
 
@@ -175,14 +180,24 @@ static bool __event_to_populate_skb_with_snapshot(
 bool event_to_populate_skb_with(
 		const struct event *event, struct sk_buff *skb, const void *args)
 {
-	if(event->type == EVENT_TYPE_WXWARNING)
-		return __event_to_populate_skb_with_wxwarning(event->data, skb, args);
-	else if(event->type == EVENT_TYPE_SNAPSHOT)
-		return __event_to_populate_skb_with_snapshot(event->data, skb, args);
-	else
-		scid_warn("unknown event type!!");
+	bool rv;
 
-	return false;
+	if(event->type == EVENT_TYPE_WXWARNING)
+		rv = __event_to_populate_skb_with_wxwarning(event->data, skb, args);
+	else if(event->type == EVENT_TYPE_SNAPSHOT)
+		rv = __event_to_populate_skb_with_snapshot(event->data, skb, args);
+	else {
+		scid_warn("unknown event type!!");
+		return false;
+	}
+
+	if(likely(rv) && unlikely(nla_put_s64(skb, SCID_GENL_ATTR_EVT_DATETIME, 
+						event->datetime, SCID_GENL_ATTR_PAD))) {
+		scid_err("unable to put evt datetime");
+		return false;
+	}
+
+	return true;
 }
 
 static inline int __event_nla_total_size(const struct event *event)
@@ -202,18 +217,21 @@ static inline int __event_nla_total_size(const struct event *event)
 static struct sk_buff* event_to_skb_alloc_one(const struct event *event)
 {
 	int payld_size = __event_nla_total_size(event);
+	struct sk_buff *skb;
+	u8 cmd;
+	void *hdr;
 
-	struct sk_buff *skb = genlmsg_new(payld_size, GFP_KERNEL);
+	skb = genlmsg_new(payld_size, GFP_KERNEL);
 	if(!skb) {
 		scid_err("unable to allocate skb");
 		return NULL;
 	}
 
-	u8 cmd = SCID_GENL_CMD_EVENT_WXWARNING;
+	cmd = SCID_GENL_CMD_EVENT_WXWARNING;
 	if(event->type == EVENT_TYPE_SNAPSHOT)
 		cmd = SCID_GENL_CMD_EVENT_SNAPSHOT;
 
-	void *hdr = genlmsg_put(skb, 0, 0, &genl_fam, 0, cmd);
+	hdr = genlmsg_put(skb, 0, 0, &genl_fam, 0, cmd);
 	if(!hdr) {
 		scid_err("unable to put header");
 		goto __failure_free;

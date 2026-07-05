@@ -111,10 +111,8 @@ __unlock:
 	/* if something doesn't go well, we will need
 	 * to take care of page_snap resource freeing
 	 */
-	if(!ok) {
+	if(!ok)
 		del_page_snap(my_snap);
-		return;
-	}
 }
 
 #undef __checked_dynamic_alloc

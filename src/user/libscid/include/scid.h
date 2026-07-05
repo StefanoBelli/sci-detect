@@ -181,6 +181,7 @@ struct wxwarning_event {
 	int32_t pid;
 	uint64_t pfn;
 	uint64_t va;
+	int64_t evt_datetime;
 };
 
 enum snapshot_fault : uint32_t {
@@ -192,7 +193,13 @@ enum snapshot_fault : uint32_t {
 struct snapshot_event {
 	char buffer[SCID_PAGE_SIZE];
 	unsigned long va;
-	int64_t datetime;
+
+	/* these two are basically the same */
+	union {
+		int64_t evt_datetime;
+		int64_t datetime;
+	};
+
 	uint64_t seq;
 	unsigned long pfn;
 	pid_t pid;
