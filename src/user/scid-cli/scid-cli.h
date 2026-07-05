@@ -76,10 +76,26 @@ static void datetime_str(time_t time, char *buf, size_t max_size)
     strftime(buf, max_size, "%Y-%m-%d %H:%M:%S", &tinfo);
 }
 
-static void print_hexdump(const char* buf)
+static void print_hexdump(const char* buf, size_t len)
 {
-	puts("---[ hexdump below ]---");
-	for(size_t i = 0; i < SCID_PAGE_SIZE; i += 16)
+	if(len % 16) {
+		fputs("ERROR (hexdump): len is not multiple of 16\n", stderr);
+		return;
+	}
+
+	if(!len) {
+		fputs("ERROR (hexdump): len is zero\n", stderr);
+		return;
+	}
+
+	if(len > SCID_PAGE_SIZE) {
+		fprintf(stderr, "ERROR (hexdump): len exceeds PAGE_SIZE (%d)\n", SCID_PAGE_SIZE);
+		return;
+	}
+
+	printf("---[ hexdump below: len=%ldB  ]---\n", len);
+
+	for(size_t i = 0; i < len; i += 16)
 		printf(
 				"%ld:\t"
 				"%02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x\t"
@@ -87,7 +103,8 @@ static void print_hexdump(const char* buf)
 					i, 
 					GEN_BUFS_ACCESSES_16(buf, i, mod_none), 
 					GEN_BUFS_ACCESSES_16(buf, i, mod_isprint));
-	puts("---[ hexdump above ]---");
+
+	printf("---[ hexdump above: len=%ldB ]---\n", len);
 }
 
 #undef GEN_BUFS_ACCESSES_16
@@ -117,6 +134,16 @@ static void print_disasm(
 	disassembler_ftype disasm;
 	size_t pc;
 
+	if(!buffer_len) {
+		fputs("ERROR (disasm): len is zero\n", stderr);
+		return;
+	}
+
+	if(buffer_len > SCID_PAGE_SIZE) {
+		fprintf(stderr, "ERROR (disasm): len exceeds PAGE_SIZE (%d)\n", SCID_PAGE_SIZE);
+		return;
+	}
+
 	init_disassemble_info(
 			&info, 
 			stdout, 
@@ -139,7 +166,7 @@ static void print_disasm(
 			NULL);
 
 	if(!disasm) {
-		fputs("unable to obtain disasm fn", stderr);
+		fputs("unable to obtain disasm fn\n", stderr);
 		return;
 	}
 
@@ -152,7 +179,7 @@ static void print_disasm(
 
 		int count = disasm(pc, &info);
 		if(count <= 0) {
-			fprintf(stderr, "ILLEGAL INSTRUCTION\n");
+			fprintf(stderr, "(disassembler error=%d)\n", count);
 			return;
 		}
 

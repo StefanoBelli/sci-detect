@@ -7,7 +7,7 @@
 
 /* args for the cli */
 
-static const char *short_opts = "bupfgtaosedxkvlh";
+static const char *short_opts = "bupfgtaosedxkvlnh";
 
 static const struct option opts[] = {
 	{ "sub-bcast", no_argument, NULL, 'b' },
@@ -25,6 +25,7 @@ static const struct option opts[] = {
 	{ "disable-disasm", no_argument, NULL, 'k' },
 	{ "disasm-base-va", required_argument, NULL, 'v' },
 	{ "disasm-length", required_argument, NULL, 'l' },
+	{ "hexdump-length", required_argument, NULL, 'n' },
 	{ "help", no_argument, NULL, 'h' },
 };
 
@@ -33,6 +34,7 @@ static const struct option opts[] = {
 static int do_hexdump = 1;
 static int do_disasm = 1;
 static unsigned long disasm_base_va = 0;
+static size_t hexdump_buf_len = SCID_PAGE_SIZE;
 static size_t disasm_buf_len = SCID_PAGE_SIZE;
 
 /* impls */
@@ -145,7 +147,7 @@ static void snapshot_pretty_print(
 
 	if(has_buffer) {
 		if(do_hexdump) 
-			print_hexdump(snap->buffer);
+			print_hexdump(snap->buffer, hexdump_buf_len);
 
 		if(do_disasm)
 			print_disasm(
@@ -323,6 +325,9 @@ static void dispatch_cmd(const char* filename, void *desc, char c)
 			break;
 		case 'l':
 			disasm_buf_len = to_ul(optarg);
+			break;
+		case 'n':
+			hexdump_buf_len = to_ul(optarg);
 			break;
 		case 'h':
 			print_help(filename);

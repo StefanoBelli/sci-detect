@@ -138,6 +138,7 @@ __unused static void __event_wxwarning_cmdh(const void *in, void *out)
 	uevent->event.wxw.pfn = event->pfn;
 	uevent->event.wxw.pid = event->pid;
 	uevent->event.wxw.va = event->va;
+	uevent->event.wxw.evt_datetime = event->evt_datetime;
 }
 
 __unused static void __event_snapshot_cmdh(const void *in, void *out)
@@ -151,7 +152,7 @@ __unused static void __event_snapshot_cmdh(const void *in, void *out)
 	uevent->event.snap.pid = event->pid;
 	uevent->event.snap.va = event->va;
 	uevent->event.snap.seq = event->seq;
-	uevent->event.snap.datetime = event->datetime;
+	uevent->event.snap.evt_datetime = event->evt_datetime;
 	uevent->event.snap.fault = event->fault;
 	memcpy(uevent->event.snap.buffer, event->buffer, SCID_PAGE_SIZE);
 }
@@ -202,8 +203,9 @@ __unused static inline void __scid_terminate(void *desc)
 	 		printf("YES! we got the wxwarning!\n" \
 	 				"\t--> pfn: %ld\n" \
 	 				"\t--> pid: %d\n" \
-	 				"\t--> va: 0x%lx\n", \
-	 				wxw->pfn, wxw->pid, wxw->va); \
+	 				"\t--> va: 0x%lx\n" \
+	 				"\t--> evt_datetime: %ld\n", \
+	 				wxw->pfn, wxw->pid, wxw->va, wxw->evt_datetime); \
 	 		if(wxw_count == 2) \
 	 			break; \
 	 	} \
@@ -227,11 +229,11 @@ __unused static inline void __scid_terminate(void *desc)
 	 		} \
 	 	} else { \
 	 		wxw_count++; \
-	 		printf("YES! we got the snapshot!\n" \
+	 		printf("[ YES! we got the snapshot! ]\n" \
 	 				"\t--> fault: %d\n" \
 	 				"\t--> seq: %ld\n" \
-	 				"\t--> datetime: %ld\n", \
-	 				snap->fault, snap->seq, snap->datetime); \
+	 				"\t--> evt_datetime: %ld\n", \
+	 				snap->fault, snap->seq, snap->evt_datetime); \
 	 		if(wxw_count == 2) \
 	 			break; \
 	 	} \
