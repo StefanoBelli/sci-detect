@@ -1,5 +1,4 @@
 #include "testutils.h"
-#include <sys/mman.h>
 
 #define SUBSYS_NAME "pte-page-track-fuf-hook"
 #define ENTRY_KEY "entry"
@@ -10,6 +9,10 @@
 int main()
 {
 	int rv = EXIT_SUCCESS;
+	pid_t flusher_child;
+
+	flusher_child = flush_page_cache_periodically();
+	die_if(flusher_child < 0);
 
 	enable_testing_for_me(SUBSYS_NAME);
 	start_value_testing_for_me(SUBSYS_NAME, ENTRY_KEY);
@@ -214,6 +217,7 @@ int main()
 	test_passed();
 
 __finish:
+	await_flusher_process(flusher_child);
 	stop_value_testing_for_me(SUBSYS_NAME, ENTRY_KEY);
 	disable_testing_for_me(SUBSYS_NAME);
 

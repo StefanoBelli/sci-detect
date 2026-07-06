@@ -1,6 +1,4 @@
 #include "testutils.h"
-#include <sys/mman.h>
-#include <sys/wait.h>
 
 #define SUBSYS_NAME "pte-page-track-spr-hook"
 

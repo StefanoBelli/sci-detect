@@ -11,6 +11,10 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <time.h>
+#include <sys/shm.h>
+#include <sys/stat.h>
+#include <sys/mman.h>
+#include <sys/wait.h>
 
 #define __unused __attribute__((__unused__))
 
@@ -356,5 +360,79 @@ __unused static int __rand_int_range(int from , int to) {
 	 	RESET_ALL(); \
 	 	rnd; \
 	})
+
+#define __DROPC_STR "1\n"
+
+#define flush_page_cache() \
+	do { \
+		sync(); \
+		\
+		int _____fd____ = open("/proc/sys/vm/drop_caches", O_WRONLY, 0); \
+		if(_____fd____ < 0) { \
+			perror("flush_page_cache's open"); \
+			exit(EXIT_FAILURE); \
+		} \
+		\
+		ssize_t dropc_len = strlen(__DROPC_STR); \
+		\
+		if(write(_____fd____, __DROPC_STR, dropc_len) != dropc_len) { \
+			perror("flush_page_cache's write"); \
+			close(_____fd____); \
+			exit(EXIT_FAILURE); \
+		} \
+		\
+		close(_____fd____); \
+		\
+		puts("NOTE: page cache flushed correctly"); \
+		\
+	} while(0)
+
+#ifndef FLUSHER_PROCESS_SLEEP_SECS
+#define FLUSHER_PROCESS_SLEEP_SECS 5
+#endif
+
+static __unused void *flusher_process_shmem;
+
+#define flush_page_cache_periodically() \
+	({ \
+	 	pid_t ___rv___ = -1; \
+	 	flusher_process_shmem = mmap( \
+			NULL, \
+			4096, \
+			PROT_READ | PROT_WRITE, \
+			MAP_ANONYMOUS | MAP_SHARED, \
+			-1, 0); \
+			\
+		if(flusher_process_shmem == MAP_FAILED) \
+			perror("mmap"); \
+		else { \
+			*(int*) flusher_process_shmem = 1; \
+			___rv___ = fork(); \
+			if(!___rv___) { \
+				while(*(int*) flusher_process_shmem) { \
+	 				flush_page_cache(); \
+	 				sleep(FLUSHER_PROCESS_SLEEP_SECS); \
+	 			} \
+	 			exit(EXIT_SUCCESS); \
+	 		} else if(___rv___ < 0) \
+	 			perror("fork"); \
+	 	} \
+	 	___rv___; \
+	 })
+
+#define await_flusher_process(child) \
+	({ \
+	 	int exited; \
+	 	int ___rv___; \
+	 	\
+	 	*(int*)flusher_process_shmem = 0; \
+	 	\
+	 	if(waitpid((child), &exited, 0) != (child)) { \
+	 		perror("waitpid"); \
+	 		___rv___ = 0; \
+	 	} else \
+	 		___rv___ = WIFEXITED(exited) && WEXITSTATUS(exited) == EXIT_SUCCESS; \
+	 	___rv___; \
+	 })
 
 #endif

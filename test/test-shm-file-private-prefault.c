@@ -13,9 +13,6 @@
  * (focus on "The mmap() call doesn't fail if the mapping cannot be populated")
  */
 #include "testutils.h"
-#include <sys/mman.h>
-#include <sys/stat.h>
-#include <fcntl.h>
 
 #define SUBSYS_NAME "pte-page-track-spr-hook"
 

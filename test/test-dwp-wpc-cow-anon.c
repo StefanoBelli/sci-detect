@@ -1,6 +1,4 @@
 #include "testutils.h"
-#include <sys/mman.h>
-#include <sys/wait.h>
 
 /* do_wp_page */
 #define DWP_SUBSYS_NAME "pte-page-track-dwp-hook"

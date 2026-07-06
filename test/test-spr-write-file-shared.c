@@ -2,8 +2,6 @@
  * file will be overwritten, be careful
  */
 #include "testutils.h"
-#include <sys/mman.h>
-#include <sys/wait.h>
 
 /* set_pte_range */
 #define SPR_SUBSYS_NAME "pte-page-track-spr-hook"

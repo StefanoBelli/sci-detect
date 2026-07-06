@@ -1,9 +1,4 @@
-#define SOFT_FAIL_TOLERANCE 2
-
 #include "testutils.h"
-#include <sys/mman.h>
-#include <sys/stat.h>
-#include <fcntl.h>
 
 #define SUBSYS_NAME "pte-page-track-spr-hook"
 

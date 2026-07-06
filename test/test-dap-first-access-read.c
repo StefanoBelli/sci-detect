@@ -1,5 +1,4 @@
 #include "testutils.h"
-#include <sys/mman.h>
 
 #define SUBSYS_NAME "pte-page-track-dap-hook"
 #define ENTRY_KEY "entry"
