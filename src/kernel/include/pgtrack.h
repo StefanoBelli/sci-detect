@@ -57,8 +57,12 @@ void del_page_wxwarn(struct page_wxwarn *wxw);
 struct page_status {
 	struct page *page;
 	atomic64_t perms;
+
+#ifndef DISABLE_PAGE_SNAPSHOT
 	spinlock_t snapshot_lock;
 	struct page_snap *snapshot;
+#endif /* DISABLE_PAGE_SNAPSHOT */
+
 	struct kref kref;
 	struct rcu_head rcu;
 };

@@ -1,11 +1,19 @@
-#include <linux/slab.h>
-#include <linux/uaccess.h>
-#include <linux/timekeeping.h>
-#include <linux/highmem.h>
+#include <linux/compiler.h>
 
-#include <pgtrack.h>
-#include <logging.h>
-#include <netlink/pgtrack/events.h>
+#ifndef DISABLE_PAGE_SNAPSHOT
+#	include <linux/slab.h>
+#	include <linux/uaccess.h>
+#	include <linux/timekeeping.h>
+#	include <linux/highmem.h>
+
+#	include <pgtrack.h>
+#	include <logging.h>
+#	include <netlink/pgtrack/events.h>
+#else
+#	include <pgsnap.h>
+#endif /* DISABLE_PAGE_SNAPSHOT */
+
+#ifndef DISABLE_PAGE_SNAPSHOT
 
 static struct kmem_cache *page_snap_cachep;
 
@@ -46,8 +54,17 @@ static struct page_snap* new_page_snap(bool zeroed_snapobj)
 	return snap;
 }
 
-void make_page_snap(struct page_status *pgs, pid_t pid, unsigned long pfn, unsigned long va, enum fault_flag flags)
+#endif /* DISABLE_PAGE_SNAPSHOT */
+
+void make_page_snap(
+		__maybe_unused struct page_status *pgs, 
+		__maybe_unused pid_t pid, 
+		__maybe_unused unsigned long pfn, 
+		__maybe_unused unsigned long va, 
+		__maybe_unused enum fault_flag flags)
 {
+
+#ifndef DISABLE_PAGE_SNAPSHOT
 	void *src;
 	struct page_snap *my_snap;
 	bool ok = true;
@@ -113,17 +130,26 @@ __unlock:
 	 */
 	if(!ok)
 		del_page_snap(my_snap);
+#endif /* DISABLE_PAGE_SNAPSHOT */
+
 }
 
-#undef __checked_dynamic_alloc
-#undef build_page_snap_fault
+#ifndef DISABLE_PAGE_SNAPSHOT
+#	undef build_page_snap_fault
+#endif /* DISABLE_PAGE_SNAPSHOT */
+
+#ifndef DISABLE_PAGE_SNAPSHOT
 
 void del_page_snap(struct page_snap *snap)
 {
+
 	free_page((unsigned long) snap->buffer);
 	snap->buffer = NULL;
 	kmem_cache_free(page_snap_cachep, snap);
+
 }
+
+#endif /* DISABLE_PAGE_SNAPSHOT */
 
 /* no need to hold the pgs->snapshot_lock here,
  * in case it comes out it is, remember that 
@@ -135,17 +161,23 @@ void del_page_snap(struct page_snap *snap)
  * make_page_snap to disable bh execution while in the
  * make_page_snap critical section
  */
-void free_page_snap_from_pgs(struct page_status *pgs)
+void free_page_snap_from_pgs(__maybe_unused struct page_status *pgs)
 {
+
+#ifndef DISABLE_PAGE_SNAPSHOT
 	if(!pgs || !pgs->snapshot)
 		return;
 
 	del_page_snap(pgs->snapshot);
 	pgs->snapshot = NULL;
+#endif /* DISABLE_PAGE_SNAPSHOT */
+
 }
 
 int setup_page_snap(void)
 {
+
+#ifndef DISABLE_PAGE_SNAPSHOT
 	page_snap_cachep = kmem_cache_create(
 			"page_snap_cache",
 			sizeof(struct page_snap),
@@ -157,11 +189,16 @@ int setup_page_snap(void)
 		scid_err("unable to create a new kmem_cache for pgsnap");
 		return -ENOMEM;
 	}
-	
+#endif /* DISABLE_PAGE_SNAPSHOT */
+
 	return 0;
 }
 
 void teardown_page_snap(void)
 {
+
+#ifndef DISABLE_PAGE_SNAPSHOT
 	kmem_cache_destroy(page_snap_cachep);
+#endif /* DISABLE_PAGE_SNAPSHOT */
+
 }

@@ -10,6 +10,12 @@ kernel:
 kernel-testing:
 	make -C src/kernel BUILD_TYPE=testing
 
+kernel-no-snapshot:
+	make -C src/kernel DISABLE_SNAPSHOT=yes
+
+kernel-testing-no-snapshot:
+	make -C src/kernel BUILD_TYPE=testing DISABLE_SNAPSHOT=yes
+
 user:
 	make -C src/user
 

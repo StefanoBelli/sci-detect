@@ -220,8 +220,11 @@ __retry:
 		new_pgs->page = page;
 		atomic64_set(&new_pgs->perms, 0);
 		kref_init(&new_pgs->kref);
+
+#ifndef DISABLE_PAGE_SNAPSHOT
 		new_pgs->snapshot = NULL;
 		spin_lock_init(&new_pgs->snapshot_lock);
+#endif /* DISABLE_PAGE_SNAPSHOT */
 
 		/* try to publish it */
 		int err = xa_insert(&pages, pfn, new_pgs, GFP_ATOMIC);

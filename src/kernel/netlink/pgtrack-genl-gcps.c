@@ -3,12 +3,15 @@
 #include <user/scid-netlink-defs.h>
 #include <netlink/pgtrack/cmds.h>
 #include <pgtrack.h>
-#include <pgsnap.h>
 #include <netlink.h>
 #include <logging.h>
 
+#ifndef DISABLE_PAGE_SNAPSHOT
+
 /* populate_skb_with_page_snap prototype */
 bool populate_skb_with_page_snap(const struct page_snap *, struct sk_buff*);
+
+#endif /* DISABLE_PAGE_SNAPSHOT */
 
 int pgtrack_genl_get_cur_page_snapshot_doit(
 		__always_unused struct sk_buff *in_skb, struct genl_info *info)
@@ -56,6 +59,7 @@ int pgtrack_genl_get_cur_page_snapshot_doit(
 	if(!pgs)
 		goto __end_ok_rcu_unlock;
 
+#ifndef DISABLE_PAGE_SNAPSHOT
 	spin_lock(&pgs->snapshot_lock);
 	if(!pgs->snapshot)
 		goto __end_ok_unlock_both;
@@ -65,6 +69,8 @@ int pgtrack_genl_get_cur_page_snapshot_doit(
 
 __end_ok_unlock_both:
 	spin_unlock(&pgs->snapshot_lock);
+#endif /* DISABLE_PAGE_SNAPSHOT */
+
 __end_ok_rcu_unlock:
 	rcu_read_unlock();
 
@@ -76,9 +82,14 @@ __end_ok_rcu_unlock:
 	genlmsg_end(skb, hdr);
 	return genlmsg_reply(skb, info);
 
+#ifndef DISABLE_PAGE_SNAPSHOT
+
 __failure_unlock_both:
 	spin_unlock(&pgs->snapshot_lock);
 	rcu_read_unlock();
+
+#endif /* DISABLE_PAGE_SNAPSHOT */
+
 __failure_cancel_nlfree:
 	genlmsg_cancel(skb, hdr);
 __failure_nlfree:

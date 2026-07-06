@@ -54,6 +54,23 @@ else ifeq ($(BUILD_TYPE), testing)
 	ccflags-y += -O2 -DSCID_CONFIG_TESTING
 endif
 
+valid_disable_snapshot = yes no
+DISABLE_SNAPSHOT ?= no
+
+ifneq ($(filter $(DISABLE_SNAPSHOT), $(valid_disable_snapshot)),)
+    $(info DISABLE_SNAPSHOT=$(DISABLE_SNAPSHOT) ok)
+else
+    $(error DISABLE_SNAPSHOT=$(DISABLE_SNAPSHOT) is invalid)
+endif
+
+ifeq ($(BUILD_TYPE), testing)
+	ccflags-y += -DSCID_CONFIG_TESTING
+endif
+
+ifeq ($(DISABLE_SNAPSHOT), yes)
+	ccflags-y += -DDISABLE_PAGE_SNAPSHOT
+endif
+ 
 all:
 	make -C /lib/modules/$(shell uname -r)/build M=$(CURDIR) modules
 

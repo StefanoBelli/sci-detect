@@ -46,8 +46,12 @@ static void free_event(struct event *evt)
 	if(likely(evt->data)) {
 		if(evt->type == EVENT_TYPE_WXWARNING)
 			del_page_wxwarn((struct page_wxwarn*) evt->data);
+
+#ifndef DISABLE_PAGE_SNAPSHOT
 		else if(evt->type == EVENT_TYPE_SNAPSHOT)
 			del_page_snap((struct page_snap*) evt->data);
+#endif
+
 		else
 			scid_err("unrecognized event type to free!!");
 
@@ -116,6 +120,8 @@ static bool __event_to_populate_skb_with_wxwarning(
 	return true;
 }
 
+#ifndef DISABLE_PAGE_SNAPSHOT
+
 static bool __populate_skb_with_page_snap(
 		const struct page_snap *snap, struct sk_buff *skb, const void* args)
 {
@@ -166,16 +172,28 @@ static bool __populate_skb_with_page_snap(
 	return true;
 }
 
+#endif /* DISABLE_PAGE_SNAPSHOT */
+
 bool populate_skb_with_page_snap(const struct page_snap *snap, struct sk_buff *skb)
 {
+
+#ifndef DISABLE_PAGE_SNAPSHOT
 	return __populate_skb_with_page_snap(snap, skb, EVENT_TO_SKB_PEEKONE);
+#else
+	return true;
+#endif /* DISABLE_PAGE_SNAPSHOT */
+
 }
+
+#ifndef DISABLE_PAGE_SNAPSHOT
 
 static bool __event_to_populate_skb_with_snapshot(
 		const struct page_snap *snap, struct sk_buff *skb, const void* args)
 {
 	return __populate_skb_with_page_snap(snap, skb, args);
 }
+
+#endif /* DISABLE_PAGE_SNAPSHOT */
 
 bool event_to_populate_skb_with(
 		const struct event *event, struct sk_buff *skb, const void *args)
@@ -184,8 +202,12 @@ bool event_to_populate_skb_with(
 
 	if(event->type == EVENT_TYPE_WXWARNING)
 		rv = __event_to_populate_skb_with_wxwarning(event->data, skb, args);
+
+#ifndef DISABLE_PAGE_SNAPSHOT
 	else if(event->type == EVENT_TYPE_SNAPSHOT)
 		rv = __event_to_populate_skb_with_snapshot(event->data, skb, args);
+#endif /* DISABLE_PAGE_SNAPSHOT */
+
 	else {
 		scid_warn("unknown event type!!");
 		return false;
@@ -200,16 +222,18 @@ bool event_to_populate_skb_with(
 	return true;
 }
 
-static inline int __event_nla_total_size(const struct event *event)
+static inline int __event_nla_total_size(__maybe_unused const struct event *event)
 {
 	int size = GENLMSG_DEFAULT_SIZE;
 
+#ifndef DISABLE_PAGE_SNAPSHOT
 	/* 
 	 * we may find better ways, but let's try to
 	 * avoid specifying nla_total_size(sizeof(field))
 	 */
 	if(event->type == EVENT_TYPE_SNAPSHOT)
 		size += nla_total_size(PAGE_SIZE);
+#endif /* DISABLE_PAGE_SNAPSHOT */
 
 	return size;
 }
@@ -327,11 +351,17 @@ bool bcast_pgtrack_event_wxwarning(const struct page_wxwarn *wxw)
 
 bool bcast_pgtrack_event_snapshot(const struct page_snap *snap)
 {
+
+#ifndef DISABLE_PAGE_SNAPSHOT
 	bool done = __bcast_pgtrack_event_common(EVENT_TYPE_SNAPSHOT, snap);
 	if(!done)
 		scid_err("unable to send out snapshot event");
 	
 	return done;
+#else
+	return true;
+#endif /* DISABLE_PAGE_SNAPSHOT */
+
 }
 
 

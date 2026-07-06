@@ -8,6 +8,8 @@
 /* fwd decl, see pgtrack.h header */
 struct page_status;
 
+#ifndef DISABLE_PAGE_SNAPSHOT
+
 /* why the snapshot happened? */
 enum page_snap_fault : u32 {
 	PAGE_SNAP_NO_FAULT,
@@ -25,6 +27,8 @@ struct page_snap {
 	pid_t pid;
 	enum page_snap_fault fault;
 };
+
+#endif /* DISABLE_PAGE_SNAPSHOT */
 
 /**
  * make_page_snap - make the snapshot of a page, known its page_status descriptor
@@ -60,12 +64,16 @@ void make_page_snap(
  */
 void free_page_snap_from_pgs(struct page_status *pgs);
 
+#ifndef DISABLE_PAGE_SNAPSHOT
+
 /**
  * del_page_snap - free page_snap
  *
  * @snap: the page_snap
  */
 void del_page_snap(struct page_snap *snap);
+
+#endif /* DISABLE_PAGE_SNAPSHOT */
 
 /**
  * setup_page_snap - setup page snapshot mechanism

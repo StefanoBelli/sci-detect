@@ -23,8 +23,12 @@
 /* see below */
 struct event;
 
+#ifndef DISABLE_PAGE_SNAPSHOT
+
 /* fwd decl */
 struct page_snap;
+
+#endif /* DISABLE_PAGE_SNAPSHOT */
 
 extern struct workqueue_struct *bcast_evt_wq;
 extern struct kfifo le;
