@@ -8,7 +8,7 @@ int setup_pgtrack_netlink(void)
 	int rv;
 
 	event_cachep = kmem_cache_create(
-			"page_status_cache", 
+			"scid__event_cache", 
 			sizeof(struct event), 
 			0, 
 			SLAB_HWCACHE_ALIGN | SLAB_ACCOUNT | SLAB_RECLAIM_ACCOUNT, 
@@ -19,7 +19,7 @@ int setup_pgtrack_netlink(void)
 	}
 
 	do_event_bcast_work_cachep = kmem_cache_create(
-			"do_event_bcast_work_cache", 
+			"scid__do_event_bcast_work_cache", 
 			sizeof(struct do_event_bcast_work), 
 			0, 
 			SLAB_HWCACHE_ALIGN | SLAB_ACCOUNT | SLAB_RECLAIM_ACCOUNT, 

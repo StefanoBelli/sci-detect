@@ -64,7 +64,7 @@ static struct kmem_cache *vmfs_cachep;
 int setup_vmfs_pcp_lists(void) 
 {
 	vmfs_cachep = kmem_cache_create(
-			"vmfs_cache", 
+			"scid__vmfs_cache", 
 			sizeof(struct vm_fault_entry), 
 			0, 
 			SLAB_HWCACHE_ALIGN | SLAB_ACCOUNT | SLAB_RECLAIM_ACCOUNT, 

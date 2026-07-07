@@ -42,7 +42,7 @@ int setup_pgtrack(void)
 	xa_init(&pages);
 
 	page_status_cachep = kmem_cache_create(
-			"page_status_cache", 
+			"scid__page_status_cache", 
 			sizeof(struct page_status), 
 			0, 
 			SLAB_HWCACHE_ALIGN | SLAB_ACCOUNT | SLAB_RECLAIM_ACCOUNT, 
@@ -52,7 +52,7 @@ int setup_pgtrack(void)
 		return -ENOMEM;
 
 	page_wxwarn_cachep = kmem_cache_create(
-			"page_wxwarn_cachep",
+			"scid__page_wxwarn_cache",
 			sizeof(struct page_wxwarn),
 			0,
 			SLAB_HWCACHE_ALIGN | SLAB_ACCOUNT | SLAB_RECLAIM_ACCOUNT,

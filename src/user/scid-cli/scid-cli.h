@@ -93,7 +93,7 @@ static void print_hexdump(const char* buf, size_t len)
 		return;
 	}
 
-	printf("---[ hexdump below: len=%ldB  ]---\n", len);
+	printf("---[ hexdump begins below: len=%ldB  ]---\n", len);
 
 	for(size_t i = 0; i < len; i += 16)
 		printf(
@@ -104,7 +104,7 @@ static void print_hexdump(const char* buf, size_t len)
 					GEN_BUFS_ACCESSES_16(buf, i, mod_none), 
 					GEN_BUFS_ACCESSES_16(buf, i, mod_isprint));
 
-	printf("---[ hexdump above: len=%ldB ]---\n", len);
+	printf("---[ hexdump ends above: len=%ldB ]---\n", len);
 }
 
 #undef GEN_BUFS_ACCESSES_16
@@ -187,7 +187,7 @@ static void print_disasm(
 		pc += count;
 	}
 
-	printf("---[ disasm above: len=%ldB, assumed base va=0x%08lx ] ---\n", 
+	printf("---[ disasm ends above: len=%ldB, assumed base va=0x%08lx ] ---\n", 
 			info.buffer_length, info.buffer_vma);
 }
 

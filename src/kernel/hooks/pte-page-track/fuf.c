@@ -1,7 +1,14 @@
+#include <linux/version.h>
 #include <linux/kprobes.h>
 #include <linux/compiler.h>
 #include <linux/mm.h>
-#include <linux/pagevec.h>
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(7, 1, 0)
+#	include <linux/pagevec.h>
+#else
+#	include <linux/folio_batch.h>
+#endif
+
 #include <linux/page-flags.h>
 
 #include <logging.h>

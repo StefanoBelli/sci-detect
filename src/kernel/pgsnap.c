@@ -179,7 +179,7 @@ int setup_page_snap(void)
 
 #ifndef DISABLE_PAGE_SNAPSHOT
 	page_snap_cachep = kmem_cache_create(
-			"page_snap_cache",
+			"scid__page_snap_cache",
 			sizeof(struct page_snap),
 			0,
 			SLAB_HWCACHE_ALIGN | SLAB_ACCOUNT | SLAB_RECLAIM_ACCOUNT,
