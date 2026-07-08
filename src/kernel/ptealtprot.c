@@ -4,79 +4,26 @@
 
 #include <linux/compiler.h>
 #include <linux/mm.h>
-#include <linux/spinlock.h>
 #include <linux/list.h>
 #include <linux/slab.h>
 #include <linux/rmap.h>
+#include <linux/sched.h>
 
+#include <resolve_syms/flush_tlb_mm_range.h>
 #include <resolve_syms/page_vma_mapped_walk.h>
 #include <resolve_syms/rmap_walk.h>
 #include <pgtrack.h>
 #include <logging.h>
 
-/* this gets useful when rmap lock is contended */
-struct mms {
-	struct mm_struct *mm;
-	unsigned long addr;
-
-	struct list_head node;
-};
-
-struct page_mms {
-	spinlock_t lock;
-	unsigned long shadow_write;
-	struct list_head *mms_head;
-};
+static void __scid_flush_tlb_page(struct vm_area_struct *vma, unsigned long addr)
+{
+	THUNK(flush_tlb_mm_range)(vma->vm_mm, addr, addr + PAGE_SIZE, PAGE_SHIFT, false);
+}
 
 static struct kmem_cache *mms_head_cachep;
 static struct kmem_cache *page_mms_cachep;
 static struct kmem_cache *mms_cachep;
 
-#endif /* !defined(DIABLE_PAGE_SNAPSHOT) || !defined(DISABLE_PTE_ALT_PROT) */
-
-void new_page_mms_lock_pgs(struct page_status *pgs)
-{
-
-#if !defined(DISABLE_PAGE_SNAPSHOT) || !defined(DISABLE_PTE_ALT_PROT)
-	struct page_mms *pg_mms;
-
-	pg_mms = kmem_cache_alloc(page_mms_cachep, GFP_ATOMIC);
-	if(!pg_mms) {
-		scid_err("memory exhausted");
-		return;
-	}
-
-	spin_lock_init(&pg_mms->lock);
-	pg_mms->shadow_write = 0;
-	pg_mms->mms_head = NULL;
-
-	spin_lock(&pg_mms->lock);
-
-	/* publish */
-	pgs->pg_mms = pg_mms;
-#endif /* !defined(DISABLE_PAGE_SNAPSHOT) || !defined(DISABLE_PTE_ALT_PROT) */
-
-}
-
-void mms_lock(struct page_status *pgs)
-{
-
-#if !defined(DISABLE_PAGE_SNAPSHOT) || !defined(DISABLE_PTE_ALT_PROT)
-	spin_lock(&pgs->pg_mms->lock);
-#endif /* !defined(DISABLE_PAGE_SNAPSHOT) || !defined(DISABLE_PTE_ALT_PROT) */
-
-}
-
-void mms_unlock(struct page_status *pgs)
-{
-
-#if !defined(DISABLE_PAGE_SNAPSHOT) || !defined(DISABLE_PTE_ALT_PROT)
-	spin_unlock(&pgs->pg_mms->lock);
-#endif /* !defined(DISABLE_PAGE_SNAPSHOT) || !defined(DISABLE_PTE_ALT_PROT) */
-
-}
-
-#if !defined(DISABLE_PAGE_SNAPSHOT) || !defined(DISABLE_PTE_ALT_PROT)
 static void __del_all_mms(struct list_head *mms_head)
 {
 	struct mms *entry;
@@ -88,25 +35,6 @@ static void __del_all_mms(struct list_head *mms_head)
 
 	kmem_cache_free(mms_head_cachep, mms_head);
 }
-#endif /* !defined(DISABLE_PAGE_SNAPSHOT) || !defined(DISABLE_PTE_ALT_PROT) */
-
-void free_mms_from_pgs(struct page_status *pgs)
-{
-
-#if !defined(DISABLE_PAGE_SNAPSHOT) || !defined(DISABLE_PTE_ALT_PROT)
-	if(!pgs->pg_mms)
-		return;
-
-	if(pgs->pg_mms->mms_head)
-		__del_all_mms(pgs->pg_mms->mms_head);
-
-	kmem_cache_free(page_mms_cachep, pgs->pg_mms);
-	pgs->pg_mms = NULL;
-#endif /* !defined(DISABLE_PAGE_SNAPSHOT) || !defined(DISABLE_PTE_ALT_PROT) */
-
-}
-
-#if !defined(DISABLE_PAGE_SNAPSHOT) || !defined(DISABLE_PTE_ALT_PROT)
 
 struct rmap_one_altptes_args {
 	/* passed by caller */
@@ -141,7 +69,7 @@ static bool __mms_grab_mm_and_publish(
 	return true;
 }
 
-static bool __rmap_one_altptes(
+static bool __rmap_one_searchptes(
 		__always_unused struct folio *folio, 
 		struct vm_area_struct *vma, unsigned long addr, void* arg)
 {
@@ -186,10 +114,8 @@ static void __do_alternate_ptes(struct folio *folio, struct page_mms *pg_mms)
 			goto __failure_drop_delete;
 
 		/* minor failure: unable to take the read lock */
-		if(!mmap_read_trylock(entry->mm)) {
-			mmput(entry->mm);
-			continue;
-		}
+		if(!mmap_read_trylock(entry->mm))
+			goto __skip_put;
 
 		struct vm_area_struct *vma;
 		vma = vma_lookup(entry->mm, entry->addr);
@@ -208,6 +134,13 @@ static void __do_alternate_ptes(struct folio *folio, struct page_mms *pg_mms)
 		/* TODO do the actual alternation */
 		/* TODO do the tlb flush */
 
+		/* before next iteration... */
+		mmap_read_unlock(entry->mm);
+__skip_put:
+		mmput(entry->mm);
+		continue;
+
+		/* failure code */
 __failure_unlock_put_drop_delete:
 		mmap_read_unlock(entry->mm);
 		mmput(entry->mm);
@@ -218,10 +151,72 @@ __failure_drop_delete:
 	}
 }
 
+/* mms lock is held */
+static void __prot_adjust_exec(struct vm_fault *vmf, bool shadow_is_exec)
+{
+	pte_t pte;
+
+	if(!shadow_is_exec)
+		return;
+
+	/* hold the page table lock */
+	spin_lock(vmf->ptl);
+
+	pte = ptep_get(vmf->pte);
+
+	/* this is unlikely as this is being run AFTER the 
+	 * page fault handler who setupped the PTEs */
+	if(unlikely(!pte_present(pte) || pte_none(pte)))
+		goto __unlock;
+
+	/* we have the page table lock and change_pte_range
+	 * can't change the pte 
+	 * (TODO better describe the avoided racy situation) 
+	 */
+	if(READ_ONCE(vmf->vma->vm_flags) & VM_EXEC)
+		set_pte(vmf->pte, pte_mkexec(pte));
+
+	/* release the page table lock */
+__unlock:
+	spin_unlock(vmf->ptl);
+
+	__scid_flush_tlb_page(vmf->vma, vmf->address);
+}
+
+/* mms lock is held */
+static bool __check_prot_adjust(struct vm_fault *vmf, struct page_mms *pg_mms)
+{
+	bool invalid_flags;
+	bool same_prot;
+
+	/* check if the vmf flags are invalid themselves */
+	invalid_flags =
+		!(vmf->flags & FAULT_FLAG_WRITE) && 
+		!(vmf->flags & FAULT_FLAG_INSTRUCTION);
+	if(invalid_flags)
+		return false;
+
+	/* check if shadow prot is equal to the fault type */
+	same_prot = 
+		(pg_mms->shadow_write && (vmf->flags & FAULT_FLAG_WRITE)) ||
+		(!pg_mms->shadow_write && (vmf->flags & FAULT_FLAG_INSTRUCTION));
+	if(same_prot) {
+		/* we don't care about writes since the #PF handler takes care
+		 * of them
+		 */
+		__prot_adjust_exec(vmf, !pg_mms->shadow_write);
+		return false;
+	}
+
+	/* otherwise, we must actuate the alternation */
+	pg_mms->shadow_write = vmf->flags & FAULT_FLAG_WRITE;
+	return true;
+}
+
 #endif /* !defined(DISABLE_PAGE_SNAPSHOT) || !defined(DISABLE_PTE_ALT_PROT) */
 
 /* lock is already taken */
-void alternate_ptes_locked(struct page_status *pgs, enum fault_flag flags)
+void alternate_ptes_locked(struct page_status *pgs, struct vm_fault *vmf)
 {
 
 #if !defined(DISABLE_PAGE_SNAPSHOT) || !defined(DISABLE_PTE_ALT_PROT)
@@ -229,23 +224,14 @@ void alternate_ptes_locked(struct page_status *pgs, enum fault_flag flags)
 	struct rmap_one_altptes_args roa_args;
 	struct rmap_walk_control rwc;
 
-	/* determine the type of fault first */
-	if(!(flags & FAULT_FLAG_WRITE)) {
-		if(!(flags & FAULT_FLAG_INSTRUCTION)) {
-			scid_err("invalid flags");
-			return;
-		} else
-			/* enable shadow write */
-			pgs->pg_mms->shadow_write = 1;
-	} else
-		/* disable shadow write */
-		pgs->pg_mms->shadow_write = 0;
+	if(!__check_prot_adjust(vmf, pgs->pg_mms))
+		return;
 
 	/* attempt the rmap... */
 	folio = page_folio(pgs->page);
 	memset(&rwc, 0, sizeof(rwc));
 	rwc.try_lock = true;
-	rwc.rmap_one = __rmap_one_altptes;
+	rwc.rmap_one = __rmap_one_searchptes;
 	rwc.arg = &roa_args;
 	roa_args.already_called = false;
 	roa_args.pg_mms = pgs->pg_mms;
@@ -259,6 +245,52 @@ void alternate_ptes_locked(struct page_status *pgs, enum fault_flag flags)
 	__do_alternate_ptes(folio, pgs->pg_mms);
 
 #endif /* !defined(DISABLE_PAGE_SNAPSHOT) || !defined(DISABLE_PTE_ALT_PROT) */
+
+}
+
+void new_page_mms_lock_pgs(struct page_status *pgs)
+{
+
+#if !defined(DISABLE_PAGE_SNAPSHOT) || !defined(DISABLE_PTE_ALT_PROT)
+	struct page_mms *pg_mms;
+
+	pg_mms = kmem_cache_alloc(page_mms_cachep, GFP_ATOMIC);
+	if(!pg_mms) {
+		scid_err("memory exhausted");
+		return;
+	}
+
+	spin_lock_init(&pg_mms->lock);
+	pg_mms->shadow_write = 0;
+	pg_mms->mms_head = NULL;
+	pg_mms->init_task = NULL;
+
+	spin_lock(&pg_mms->lock);
+
+	/* publish */
+	pgs->pg_mms = pg_mms;
+#endif /* !defined(DISABLE_PAGE_SNAPSHOT) || !defined(DISABLE_PTE_ALT_PROT) */
+
+}
+
+void free_mms_from_pgs(struct page_status *pgs)
+{
+
+#if !defined(DISABLE_PAGE_SNAPSHOT) || !defined(DISABLE_PTE_ALT_PROT)
+	if(!pgs->pg_mms)
+		return;
+
+	if(pgs->pg_mms->mms_head)
+		__del_all_mms(pgs->pg_mms->mms_head);
+
+	kmem_cache_free(page_mms_cachep, pgs->pg_mms);
+	pgs->pg_mms = NULL;
+#endif /* !defined(DISABLE_PAGE_SNAPSHOT) || !defined(DISABLE_PTE_ALT_PROT) */
+
+}
+
+void zeroprot_ptes_locked(struct page_status *pgs)
+{
 
 }
 

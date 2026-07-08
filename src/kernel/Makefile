@@ -7,6 +7,7 @@ $(modname)-objs += \
 	resolve_syms.o \
 	pgtrack.o \
 	pgsnap.o \
+	ptealtprot.o \
 	\
 		testing/testing.o \
 		testing/default-kvops.o \
