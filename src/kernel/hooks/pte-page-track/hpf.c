@@ -8,6 +8,10 @@
 #include <ptealtprot.h>
 #include <pgtrack.h>
 
+#ifdef DO_PTE_ALT_PROT
+#include <linux/rcupdate.h>
+#endif /* DO_PTE_ALT_PROT */
+
 #define handle_pte_fault__symbol "handle_pte_fault"
 
 static int handle_pte_fault__ehkrphook(
@@ -45,7 +49,7 @@ static int handle_pte_fault__hkrphook(
 
 	del_vmf(vmfe);
 
-#if !defined(DISABLE_PAGE_SNAPSHOT) || !defined(DISABLE_PTE_ALT_PROT)
+#ifdef DO_PTE_ALT_PROT
 	if(!_vmf->pte)
 		return 0;
 
@@ -53,19 +57,21 @@ static int handle_pte_fault__hkrphook(
 
 	rcu_read_lock();
 	pgs = lookup_pfn_pgtrack(page_to_pfn(page));
-	if(pgs && pgs->pg_mms) {
-		if(pgs->pg_mms->init_task == current) {
-			pgs->pg_mms->init_task = NULL;
-			spin_unlock(&pgs->pg_mms->lock);
-		} else {
-			spin_lock(&pgs->pg_mms->lock);
-			
-			spin_unlock(&pgs->pg_mms->lock);
-		}
+
+	if(pgs) {
+		spin_lock(&pgs->pg_mms.lock);
+
+		add_mm_to_pgs_locked(pgs, _vmf->vma->vm_mm, _vmf->address);
+
+		if(atomic64_read(&pgs->perms) == PERM_BITS)
+			alternate_ptes_locked(pgs, _vmf);
+
+		spin_unlock(&pgs->pg_mms.lock);
 	}
+
 	rcu_read_unlock();
 
-#endif /* !defined(DISABLE_PAGE_SNAPSHOT) || !defined(DISABLE_PTE_ALT_PROT) */
+#endif /* DO_PTE_ALT_PROT */
 
 	return 0;
 }

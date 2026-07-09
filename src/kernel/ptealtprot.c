@@ -1,17 +1,15 @@
 #include <ptealtprot.h>
 
-#if !defined(DIABLE_PAGE_SNAPSHOT) || !defined(DISABLE_PTE_ALT_PROT)
+#ifdef DO_PTE_ALT_PROT
 
 #include <linux/compiler.h>
 #include <linux/mm.h>
 #include <linux/list.h>
 #include <linux/slab.h>
-#include <linux/rmap.h>
-#include <linux/sched.h>
+#include <linux/workqueue.h>
 
 #include <resolve_syms/flush_tlb_mm_range.h>
 #include <resolve_syms/page_vma_mapped_walk.h>
-#include <resolve_syms/rmap_walk.h>
 #include <pgtrack.h>
 #include <logging.h>
 
@@ -20,35 +18,49 @@ static void __scid_flush_tlb_page(struct vm_area_struct *vma, unsigned long addr
 	THUNK(flush_tlb_mm_range)(vma->vm_mm, addr, addr + PAGE_SIZE, PAGE_SHIFT, false);
 }
 
-static struct kmem_cache *mms_head_cachep;
-static struct kmem_cache *page_mms_cachep;
 static struct kmem_cache *mms_cachep;
+
+struct drop_mm_work_args {
+	struct mm_struct *mm;
+	struct work_struct work;
+};
+
+static void __drop_mm_work(struct work_struct *work)
+{
+	struct drop_mm_work_args *args = container_of(work, struct drop_mm_work_args, work);
+	mmdrop(args->mm);
+
+	kfree(args);
+}
+
+static inline void __drop_del_free_mms(struct mms *entry)
+{
+	struct drop_mm_work_args *work_args;
+	work_args = kmalloc(sizeof(struct drop_mm_work_args), GFP_ATOMIC);
+	if(unlikely(!work_args)) {
+		scid_warn("fallback to non-work-deferring offloading mmdrop");
+		mmdrop(entry->mm);
+	} else {
+		work_args->mm = entry->mm;
+		INIT_WORK(&work_args->work, __drop_mm_work);
+		schedule_work(&work_args->work);
+	}
+
+	list_del(&entry->node);
+	kmem_cache_free(mms_cachep, entry);
+}
 
 static void __del_all_mms(struct list_head *mms_head)
 {
 	struct mms *entry;
+	struct mms *tmp;
 
-	list_for_each_entry(entry, mms_head, node) {
-		mmdrop(entry->mm);
-		kmem_cache_free(mms_cachep, entry);
-	}
-
-	kmem_cache_free(mms_head_cachep, mms_head);
+	list_for_each_entry_safe(entry, tmp, mms_head, node)
+		__drop_del_free_mms(entry);
 }
 
-struct rmap_one_altptes_args {
-	/* passed by caller */
-	struct page_mms *pg_mms;
-
-	/* shall be read by caller */
-	bool error;
-
-	/* used by the callback internally */
-	bool already_called;
-};
-
 /* to successfully "grab the mm", call this when sure that it will not go away... */
-static bool __mms_grab_mm_and_publish(
+static bool __mms_grab_mm_and_publish_locked(
 		struct mm_struct *mm, unsigned long addr, struct list_head *mms_head)
 {
 	/* allocate new mms descriptor */
@@ -69,46 +81,12 @@ static bool __mms_grab_mm_and_publish(
 	return true;
 }
 
-static bool __rmap_one_searchptes(
-		__always_unused struct folio *folio, 
-		struct vm_area_struct *vma, unsigned long addr, void* arg)
-{
-	struct rmap_one_altptes_args *args = arg;
-
-	if(!args->already_called) {
-		args->already_called = true;
-
-		/*
-		 * a possible option would be to queue_work this,
-		 * but it is worth it?
-		 */
-		__del_all_mms(args->pg_mms->mms_head);
-
-		args->pg_mms->mms_head = kmem_cache_alloc(mms_head_cachep, GFP_ATOMIC);
-		if(unlikely(!args->pg_mms->mms_head))
-			goto __memory_exhausted_error;
-
-		INIT_LIST_HEAD(args->pg_mms->mms_head);
-	}
-
-	if(unlikely(!__mms_grab_mm_and_publish(
-					vma->vm_mm, addr, args->pg_mms->mms_head)))
-		goto __memory_exhausted_error;
-
-	return true;
-
-__memory_exhausted_error:
-	args->error = true;
-	scid_err("memory exhausted");
-	return false;
-}
-
 static void __do_alternate_ptes(struct folio *folio, struct page_mms *pg_mms)
 {
 	struct mms *entry;
 	struct mms *tmp;
 
-	list_for_each_entry_safe(entry, tmp, pg_mms->mms_head, node) {
+	list_for_each_entry_safe(entry, tmp, &pg_mms->mms_head, node) {
 		/* the whole address space is not valid anymore */
 		if(!mmget_not_zero(entry->mm))
 			goto __failure_drop_delete;
@@ -130,24 +108,30 @@ static void __do_alternate_ptes(struct folio *folio, struct page_mms *pg_mms)
 		/* for some reason, unable to get the PTE */
 		if(!map_ok)
 			goto __failure_unlock_put_drop_delete;
-		
-		/* TODO do the actual alternation */
-		/* TODO do the tlb flush */
+
+		if(pvmw.pmd && pvmw.pte) {
+			if(pvmw.ptl && spin_is_locked(pvmw.ptl)) {
+
+				/* TODO do the actual alternation */
+				/* TODO do the tlb flush */
+				pte_unmap_unlock(pvmw.pte, pvmw.ptl);
+			} else
+				scid_warn("expecting the ptl lock");
+		} else 
+			scid_warn("pvmw returned invalid config");
 
 		/* before next iteration... */
 		mmap_read_unlock(entry->mm);
 __skip_put:
-		mmput(entry->mm);
+		mmput_async(entry->mm);
 		continue;
 
 		/* failure code */
 __failure_unlock_put_drop_delete:
 		mmap_read_unlock(entry->mm);
-		mmput(entry->mm);
+		mmput_async(entry->mm);
 __failure_drop_delete:
-		mmdrop(entry->mm);
-		list_del(&entry->node);
-		kmem_cache_free(mms_cachep, entry);
+		__drop_del_free_mms(entry);
 	}
 }
 
@@ -169,11 +153,22 @@ static void __prot_adjust_exec(struct vm_fault *vmf, bool shadow_is_exec)
 	if(unlikely(!pte_present(pte) || pte_none(pte)))
 		goto __unlock;
 
-	/* we have the page table lock and change_pte_range
-	 * can't change the pte 
-	 * (TODO better describe the avoided racy situation) 
+	/* this is run when the page fault handler is 
+	 * executed, and when the #PF handler is executed,
+	 * we either have the per-VMA lock or the whole
+	 * mmap read lock (see FAULT_FLAG_VMA_LOCK). 
+	 *
+	 * * lock_vma_under_rcu: https://elixir.bootlin.com/linux/v7.1.2/source/arch/x86/mm/fault.c#L1325
+	 *  \----> handle_mm_fault(... FAULT_FLAG_VMA_LOCK ...): https://elixir.bootlin.com/linux/v7.1.2/source/arch/x86/mm/fault.c#L1334
+	 *
+	 * OR
+	 *
+	 * * lock_mm_and_find_vma: https://elixir.bootlin.com/linux/v7.1.2/source/arch/x86/mm/fault.c#L1357
+	 *  \----> handle_mm_fault(...): https://elixir.bootlin.com/linux/v7.1.2/source/arch/x86/mm/fault.c#L1385
+	 *
+	 * This is about this VMA and this PTE, not "remote" ones.
 	 */
-	if(READ_ONCE(vmf->vma->vm_flags) & VM_EXEC)
+	if(vmf->vma->vm_flags & VM_EXEC)
 		set_pte(vmf->pte, pte_mkexec(pte));
 
 	/* release the page table lock */
@@ -213,79 +208,44 @@ static bool __check_prot_adjust(struct vm_fault *vmf, struct page_mms *pg_mms)
 	return true;
 }
 
-#endif /* !defined(DISABLE_PAGE_SNAPSHOT) || !defined(DISABLE_PTE_ALT_PROT) */
+#endif /* DO_PTE_ALT_PROT */
 
 /* lock is already taken */
 void alternate_ptes_locked(struct page_status *pgs, struct vm_fault *vmf)
 {
 
-#if !defined(DISABLE_PAGE_SNAPSHOT) || !defined(DISABLE_PTE_ALT_PROT)
+#ifdef DO_PTE_ALT_PROT
 	struct folio *folio;
-	struct rmap_one_altptes_args roa_args;
-	struct rmap_walk_control rwc;
 
-	if(!__check_prot_adjust(vmf, pgs->pg_mms))
+	if(!__check_prot_adjust(vmf, &pgs->pg_mms))
 		return;
 
 	/* attempt the rmap... */
 	folio = page_folio(pgs->page);
-	memset(&rwc, 0, sizeof(rwc));
-	rwc.try_lock = true;
-	rwc.rmap_one = __rmap_one_searchptes;
-	rwc.arg = &roa_args;
-	roa_args.already_called = false;
-	roa_args.pg_mms = pgs->pg_mms;
-	roa_args.error = false;
 
-	THUNK(rmap_walk)(folio, &rwc);
+	__do_alternate_ptes(folio, &pgs->pg_mms);
 
-	if(roa_args.error)
-		return;
-
-	__do_alternate_ptes(folio, pgs->pg_mms);
-
-#endif /* !defined(DISABLE_PAGE_SNAPSHOT) || !defined(DISABLE_PTE_ALT_PROT) */
+#endif /* DO_PTE_ALT_PROT */
 
 }
 
-void new_page_mms_lock_pgs(struct page_status *pgs)
+void init_pg_mms(struct page_status *pgs)
 {
 
-#if !defined(DISABLE_PAGE_SNAPSHOT) || !defined(DISABLE_PTE_ALT_PROT)
-	struct page_mms *pg_mms;
-
-	pg_mms = kmem_cache_alloc(page_mms_cachep, GFP_ATOMIC);
-	if(!pg_mms) {
-		scid_err("memory exhausted");
-		return;
-	}
-
-	spin_lock_init(&pg_mms->lock);
-	pg_mms->shadow_write = 0;
-	pg_mms->mms_head = NULL;
-	pg_mms->init_task = NULL;
-
-	spin_lock(&pg_mms->lock);
-
-	/* publish */
-	pgs->pg_mms = pg_mms;
-#endif /* !defined(DISABLE_PAGE_SNAPSHOT) || !defined(DISABLE_PTE_ALT_PROT) */
+#ifdef DO_PTE_ALT_PROT
+	spin_lock_init(&pgs->pg_mms.lock);
+	pgs->pg_mms.shadow_write = 0;
+	INIT_LIST_HEAD(&pgs->pg_mms.mms_head);
+#endif  /* DO_PTE_ALT_PROT */
 
 }
 
 void free_mms_from_pgs(struct page_status *pgs)
 {
 
-#if !defined(DISABLE_PAGE_SNAPSHOT) || !defined(DISABLE_PTE_ALT_PROT)
-	if(!pgs->pg_mms)
-		return;
-
-	if(pgs->pg_mms->mms_head)
-		__del_all_mms(pgs->pg_mms->mms_head);
-
-	kmem_cache_free(page_mms_cachep, pgs->pg_mms);
-	pgs->pg_mms = NULL;
-#endif /* !defined(DISABLE_PAGE_SNAPSHOT) || !defined(DISABLE_PTE_ALT_PROT) */
+#ifdef DO_PTE_ALT_PROT
+	__del_all_mms(&pgs->pg_mms.mms_head);
+#endif /* DO_PTE_ALT_PROT */
 
 }
 
@@ -294,8 +254,32 @@ void zeroprot_ptes_locked(struct page_status *pgs)
 
 }
 
-void add_mm_to_pgs(struct page_status *pgs, struct mm_struct *mm, unsigned long addr)
+void add_mm_to_pgs_locked(struct page_status *pgs, struct mm_struct *mm, unsigned long addr)
 {
+
+#ifdef DO_PTE_ALT_PROT
+	struct mms *entry;
+	struct mms *tmp;
+	bool found = false;
+
+	list_for_each_entry_safe(entry, tmp, &pgs->pg_mms.mms_head, node) {
+		if(!mmget_not_zero(entry->mm)) {
+			__drop_del_free_mms(entry);
+			continue;
+		}
+
+		if(entry->addr == addr && entry->mm == mm)
+			found = true;
+
+		mmput_async(entry->mm);
+	}
+
+	if(found)
+		return;
+
+	if(unlikely(!__mms_grab_mm_and_publish_locked(mm, addr, &pgs->pg_mms.mms_head)))
+		scid_err("memory exhausted");
+#endif /* DO_PTE_ALT_PROT */
 
 }
 
@@ -313,18 +297,7 @@ void update_mm_addr(struct page_status *pgs, struct mm_struct *mm,
 int setup_ptealtprot(void)
 {
 
-#if !defined(DISABLE_PAGE_SNAPSHOT) || !defined(DISABLE_PTE_ALT_PROT)
-	page_mms_cachep = kmem_cache_create(
-			"scid__page_mms_cache", 
-			sizeof(struct page_mms), 
-			0, 
-			SLAB_HWCACHE_ALIGN | SLAB_ACCOUNT | SLAB_RECLAIM_ACCOUNT, 
-			NULL);
-	if(!page_mms_cachep) {
-		scid_err("unable to create a new kmem_cache for page_mms");
-		return -ENOMEM;
-	}
-
+#ifdef DO_PTE_ALT_PROT
 	mms_cachep = kmem_cache_create(
 			"scid__mms_cache", 
 			sizeof(struct mms), 
@@ -333,41 +306,19 @@ int setup_ptealtprot(void)
 			NULL);
 	if(!mms_cachep) {
 		scid_err("unable to create a new kmem_cache for mms");
-		goto __destroy_from_page_mms;
+		return -ENOMEM;
 	}
 
-	mms_head_cachep = kmem_cache_create(
-			"scid__mms_head_cache", 
-			sizeof(struct list_head), 
-			0, 
-			SLAB_HWCACHE_ALIGN | SLAB_ACCOUNT | SLAB_RECLAIM_ACCOUNT, 
-			NULL);
-	if(!mms_head_cachep) {
-		scid_err("unable to create a new kmem_cache for mms heads");
-		goto __destroy_from_mms;
-	}
-
-#endif /* !defined(DISABLE_PAGE_SNAPSHOT) || !defined(DISABLE_PTE_ALT_PROT) */
+#endif /* DO_PTE_ALT_PROT */
 
 	return 0;
-
-#if !defined(DISABLE_PAGE_SNAPSHOT) || !defined(DISABLE_PTE_ALT_PROT)
-__destroy_from_mms:
-	kmem_cache_destroy(mms_cachep);
-__destroy_from_page_mms:
-	kmem_cache_destroy(page_mms_cachep);
-	return -ENOMEM;
-#endif /* !defined(DISABLE_PAGE_SNAPSHOT) || !defined(DISABLE_PTE_ALT_PROT) */
-
 }
 
 void teardown_ptealtprot(void)
 {
 
-#if !defined(DISABLE_PAGE_SNAPSHOT) || !defined(DISABLE_PTE_ALT_PROT)
-	kmem_cache_destroy(mms_head_cachep);
+#ifdef DO_PTE_ALT_PROT
 	kmem_cache_destroy(mms_cachep);
-	kmem_cache_destroy(page_mms_cachep);
-#endif /* !defined(DISABLE_PAGE_SNAPSHOT) || !defined(DISABLE_PTE_ALT_PROT) */
+#endif /* DO_PTE_ALT_PROT */
 
 }
