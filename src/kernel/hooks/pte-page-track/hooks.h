@@ -8,7 +8,6 @@
 
 /* hpr.c */
 extern struct kretprobe handle_pte_fault__krp;
-extern struct kretprobe handle_mm_fault__krp;
 
 /* dap.c */
 extern struct kretprobe do_anonymous_page__krp;

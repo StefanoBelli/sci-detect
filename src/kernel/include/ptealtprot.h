@@ -12,6 +12,7 @@
 #include <linux/spinlock.h>
 #include <linux/types.h>
 
+/* this gets useful when rmap lock is contended */
 struct mms {
 	struct mm_struct *mm;
 	unsigned long addr;
@@ -21,11 +22,7 @@ struct mms {
 
 struct page_mms {
 	spinlock_t lock;
-	bool shadow_write;
-
-	/* this must be used by cpr */
-	bool first_alt_handled;
-
+	unsigned long shadow_write;
 	struct list_head mms_head;
 };
 

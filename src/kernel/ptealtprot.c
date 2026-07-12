@@ -15,7 +15,6 @@
 
 static void __scid_flush_tlb_page(struct vm_area_struct *vma, unsigned long addr)
 {
-	scid_info("flush tlb placeholder");
 	THUNK(flush_tlb_mm_range)(vma->vm_mm, addr, addr + PAGE_SIZE, PAGE_SHIFT, false);
 }
 
@@ -89,58 +88,32 @@ static void __do_alternate_ptes(struct folio *folio, struct page_mms *pg_mms)
 
 	list_for_each_entry_safe(entry, tmp, &pg_mms->mms_head, node) {
 		/* the whole address space is not valid anymore */
-		if(!mmget_not_zero(entry->mm)) {
-			scid_info("mmgget");
+		if(!mmget_not_zero(entry->mm))
 			goto __failure_drop_delete;
-		}
 
 		/* minor failure: unable to take the read lock */
-		if(!mmap_read_trylock(entry->mm)) {
-			scid_info("mmlock");
+		if(!mmap_read_trylock(entry->mm))
 			goto __skip_put;
-		}
 
 		struct vm_area_struct *vma;
 		vma = vma_lookup(entry->mm, entry->addr);
 
 		/* no such vma exists that contains 'addr' */
-		if(!vma) {
-			scid_info("vma");
+		if(!vma)
 			goto __failure_unlock_put_drop_delete;
-		}
 
 		DEFINE_FOLIO_VMA_WALK(pvmw, folio, vma, entry->addr, 0);
 		bool map_ok = THUNK(page_vma_mapped_walk)(&pvmw);
 
 		/* for some reason, unable to get the PTE */
-		if(!map_ok) {
-			scid_info("map");
+		if(!map_ok)
 			goto __failure_unlock_put_drop_delete;
-		}
 
 		if(pvmw.pmd && pvmw.pte) {
 			if(pvmw.ptl && spin_is_locked(pvmw.ptl)) {
-				scid_info("alternating");
 
-				/* TODO validate VMA flags */
-
-				pte_t pte = ptep_get(pvmw.pte);
-				scid_infof("before: 0x%lx", pte_val(pte));
-				
-				pte = pte_wrprotect(pte);
-
-				if(pg_mms->shadow_write) {
-					scid_info("shadow_write!");
-					pte = pte_set_flags(pte, _PAGE_NX);
-				} else {
-					scid_info("shadow exec!");
-					pte = pte_mkexec(pte);
-				}
-
-				set_pte(pvmw.pte, pte);
-				__scid_flush_tlb_page(vma, entry->addr);
-
-				scid_infof("addr = 0x%lx\n", entry->addr);
+				/* TODO do the actual alternation */
+				/* TODO do the tlb flush */
 				pte_unmap_unlock(pvmw.pte, pvmw.ptl);
 			} else
 				scid_warn("expecting the ptl lock");
@@ -167,15 +140,14 @@ static void __prot_adjust_exec(struct vm_fault *vmf, bool shadow_is_exec)
 {
 	pte_t pte;
 
-	if(!shadow_is_exec) {
+	if(!shadow_is_exec)
 		return;
-	}
 
 	/* hold the page table lock */
 	spin_lock(vmf->ptl);
 
 	pte = ptep_get(vmf->pte);
-	
+
 	/* this is unlikely as this is being run AFTER the 
 	 * page fault handler who setupped the PTEs */
 	if(unlikely(!pte_present(pte) || pte_none(pte)))
@@ -196,43 +168,43 @@ static void __prot_adjust_exec(struct vm_fault *vmf, bool shadow_is_exec)
 	 *
 	 * This is about this VMA and this PTE, not "remote" ones.
 	 */
-	if(vmf->vma->vm_flags & VM_EXEC) {
-		//set_pte(vmf->pte, pte_mkexec(pte));
-		__scid_flush_tlb_page(vmf->vma, vmf->address);
-	}
+	if(vmf->vma->vm_flags & VM_EXEC)
+		set_pte(vmf->pte, pte_mkexec(pte));
 
 	/* release the page table lock */
 __unlock:
 	spin_unlock(vmf->ptl);
+
+	__scid_flush_tlb_page(vmf->vma, vmf->address);
 }
 
 /* mms lock is held */
 static bool __check_prot_adjust(struct vm_fault *vmf, struct page_mms *pg_mms)
 {
-	//bool invalid_flags;
+	bool invalid_flags;
 	bool same_prot;
 
-	/*
+	/* check if the vmf flags are invalid themselves */
 	invalid_flags =
 		!(vmf->flags & FAULT_FLAG_WRITE) && 
 		!(vmf->flags & FAULT_FLAG_INSTRUCTION);
 	if(invalid_flags)
 		return false;
-		*/
 
+	/* check if shadow prot is equal to the fault type */
 	same_prot = 
 		(pg_mms->shadow_write && (vmf->flags & FAULT_FLAG_WRITE)) ||
 		(!pg_mms->shadow_write && (vmf->flags & FAULT_FLAG_INSTRUCTION));
 	if(same_prot) {
-		scid_info("adjust");
+		/* we don't care about writes since the #PF handler takes care
+		 * of them
+		 */
 		__prot_adjust_exec(vmf, !pg_mms->shadow_write);
 		return false;
 	}
 
 	/* otherwise, we must actuate the alternation */
 	pg_mms->shadow_write = vmf->flags & FAULT_FLAG_WRITE;
-	scid_infof("fault flag write: %d, fault flag instr: %d",
-			vmf->flags & FAULT_FLAG_WRITE, vmf->flags & FAULT_FLAG_INSTRUCTION);
 	return true;
 }
 
@@ -248,8 +220,7 @@ void alternate_ptes_locked(struct page_status *pgs, struct vm_fault *vmf)
 	if(!__check_prot_adjust(vmf, &pgs->pg_mms))
 		return;
 
-	scid_info("alternate");
-
+	/* attempt the rmap... */
 	folio = page_folio(pgs->page);
 
 	__do_alternate_ptes(folio, &pgs->pg_mms);
@@ -263,8 +234,7 @@ void init_pg_mms(struct page_status *pgs)
 
 #ifdef DO_PTE_ALT_PROT
 	spin_lock_init(&pgs->pg_mms.lock);
-	pgs->pg_mms.shadow_write = false;
-	pgs->pg_mms.first_alt_handled = true;
+	pgs->pg_mms.shadow_write = 0;
 	INIT_LIST_HEAD(&pgs->pg_mms.mms_head);
 #endif  /* DO_PTE_ALT_PROT */
 

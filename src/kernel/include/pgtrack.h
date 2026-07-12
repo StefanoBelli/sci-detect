@@ -64,9 +64,9 @@ struct page_status {
 	struct page_snap *snapshot;
 #endif /* DISABLE_PAGE_SNAPSHOT */
 
-#ifdef DO_PTE_ALT_PROT
+#if !defined(DISABLE_PAGE_SNAPSHOT) || !defined(DISABLE_PTE_ALT_PROT)
 	struct page_mms pg_mms;
-#endif /* DO_PTE_ALT_PROT */
+#endif /* !defined(DISABLE_PAGE_SNAPSHOT) || !defined(DISABLE_PTE_ALT_PROT) */
 
 	struct kref kref;
 	struct rcu_head rcu;

@@ -4,7 +4,6 @@
 
 static struct kretprobe *krps[] = {
 	&handle_pte_fault__krp,
-	&handle_mm_fault__krp,
 	&do_anonymous_page__krp,
 	&wp_page_copy__krp,
 	&do_wp_page__krp,
