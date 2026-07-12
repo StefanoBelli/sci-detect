@@ -62,6 +62,25 @@ static int change_pte_range__ehkrphook(
 	return 0;
 }
 
+#ifdef DO_PTE_ALT_PROT
+
+struct mm_to_pgs_args {
+	struct mm_struct *mm;
+	unsigned long addr;
+	pte_t *ptep;
+};
+
+#define INIT_MM_TO_PGS_ARGS(pair, _mm, _addr, _ptep) \
+	do { \
+		(pair) = (struct mm_to_pgs_args) { \
+			.mm = (_mm), \
+			.addr = (_addr), \
+			.ptep = (_ptep), \
+		}; \
+	} while(0)
+
+#endif
+
 static int change_pte_range__hkrphook(
 		struct kretprobe_instance *krpi, struct pt_regs *regs)
 {
@@ -82,6 +101,14 @@ static int change_pte_range__hkrphook(
 	unsigned long end = cpr_args->end;
 	spinlock_t *ptl;
 
+#ifdef DO_PTE_ALT_PROT
+	unsigned long nr_total_pages = 0;
+	unsigned long nr_pages = 0;
+	unsigned long cnt_addr = addr;
+	struct mm_to_pgs_args *mtp_args;
+	struct page_status *pgs;
+#endif
+
 	pte_t *ptep = THUNK(pte_offset_map_lock)(mm, pmd, addr, &ptl);
 	if(!ptep) {
 		scid_warn("NULL ptep");
@@ -94,25 +121,72 @@ static int change_pte_range__hkrphook(
 		.flags = 0,
 	};
 
+#ifdef DO_PTE_ALT_PROT
+	do {
+		nr_total_pages++;
+	} while(cnt_addr += PAGE_SIZE, cnt_addr != end);
+
+	mtp_args = kmalloc(sizeof(struct mm_to_pgs_args) * nr_total_pages, GFP_ATOMIC);
+	if(!mtp_args) {
+		scid_err("memory exhausted");
+		return 0;
+	}
+#endif
+
 	do {
 		__maybe_unused bool rv;
 		rv = add_one_page(ptep, NULL, NULL, NULL, &pgt_args);
 
-		/* see also add_one_page, this may happen frequently due to
-		 * a PTE that is pte_none being passed anyway to change_pte_range
-		 * for userfaultfd reasons, we simply ignore it
-		 */
+		if(!rv) {
+			/* see also add_one_page, this may happen frequently due to
+		 	 * a PTE that is pte_none being passed anyway to change_pte_range
+		 	 * for userfaultfd reasons, we simply ignore it
+		 	 */
+
 #ifdef __CPR_WARN_UNABLE_TO_ADD_PAGE
-		if(!rv)
 			scid_warn("unable to add page");
+#endif
+
+			continue;
+		}
+
+#ifdef DO_PTE_ALT_PROT
+		INIT_MM_TO_PGS_ARGS(mtp_args[nr_pages++], mm, addr, ptep);
 #endif
 
 	} while(ptep++, addr += PAGE_SIZE, addr != end);
 
 	pte_unmap_unlock(ptep, ptl);
 
-	/* TODO place here code */
+	/* TODO move everything out and fixup code */
 
+#ifdef DO_PTE_ALT_PROT
+	rcu_read_lock();
+
+	for(unsigned long i = 0; i < nr_pages; i++) {
+		pgs = lookup_pfn_pgtrack(
+				page_to_pfn(pte_page(ptep_get(mtp_args[i].ptep))));
+
+		if(pgs) {
+			spin_lock(&pgs->pg_mms.lock);
+			add_mm_to_pgs_locked(pgs, mtp_args[i].mm, mtp_args[i].addr);
+
+			if(atomic64_read(&pgs->perms) == PERM_BITS) {
+				if(pgs->pg_mms.first_alt_handled) {
+					zeroprot_ptes_locked(pgs);
+					pgs->pg_mms.first_alt_handled = false;
+				} /* else
+					fixup_prot_for_pte_locked(pgs, mtp_args[i].ptep); */
+			}
+
+			spin_unlock(&pgs->pg_mms.lock);
+		}
+	}
+
+	rcu_read_unlock();
+
+	kfree(mtp_args);
+#endif
 	__testing("pages-ok");
 
 	return 0;
