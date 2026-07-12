@@ -7,7 +7,6 @@
 #include <linux/spinlock.h>
 
 #include <pgsnap.h>
-#include <ptealtprot.h>
 
 struct page_wxwarn {
 	unsigned long pfn;
@@ -63,10 +62,6 @@ struct page_status {
 	spinlock_t snapshot_lock;
 	struct page_snap *snapshot;
 #endif /* DISABLE_PAGE_SNAPSHOT */
-
-#if !defined(DISABLE_PAGE_SNAPSHOT) || !defined(DISABLE_PTE_ALT_PROT)
-	struct page_mms *pg_mms;
-#endif /* !defined(DISABLE_PAGE_SNAPSHOT) || !defined(DISABLE_PTE_ALT_PROT) */
 
 	struct kref kref;
 	struct rcu_head rcu;

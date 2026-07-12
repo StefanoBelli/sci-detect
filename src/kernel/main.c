@@ -5,7 +5,6 @@
 #include <pgtrack.h>
 #include <netlink.h>
 #include <pgsnap.h>
-#include <ptealtprot.h>
 #include <netlink/pgtrack/setup.h>
 #include <testing/testing.h>
 
@@ -32,12 +31,6 @@ int setup_module(void)
 		return rv;
 	}
 
-	rv = setup_ptealtprot();
-	if(rv) {
-		scid_errf("setup_ptealtprot failed with rv=%d", rv);
-		goto __teardown_from_testing;
-	}
-
 	/* circular dependency: 
 	 *  - netlink subsystem depends on correct, setupped state, of 
 	 * both page_snap and pgtrack to correctly allow kernel <-> user
@@ -55,7 +48,7 @@ int setup_module(void)
 	rv = setup_page_snap();
 	if(rv) {
 		scid_errf("setup_page_snap failed with rv=%d", rv);
-		goto __teardown_from_ptealtprot;
+		goto __teardown_from_testing;
 	}
 
 	rv = setup_pgtrack();
@@ -100,8 +93,6 @@ __teardown_from_pgtrack:
 	teardown_pgtrack();
 __teardown_from_page_snap:
 	teardown_page_snap();
-__teardown_from_ptealtprot:
-	teardown_ptealtprot();
 __teardown_from_testing:
 	teardown_testing();
 
@@ -116,7 +107,6 @@ void teardown_module(void)
 	teardown_pgtrack_netlink();
 	teardown_pgtrack();
 	teardown_page_snap();
-	teardown_ptealtprot();
 	teardown_testing();
 }
 

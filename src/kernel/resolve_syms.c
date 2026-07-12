@@ -3,7 +3,6 @@
 #include <resolve_syms.h>
 #include <resolve_syms/pte_offset_map_lock.h>
 #include <resolve_syms/rmap_walk.h>
-#include <resolve_syms/page_vma_mapped_walk.h>
 
 #define __expand_tos(x) #x
 
@@ -15,8 +14,7 @@
 
 struct sympair sp[NR_SYMPAIRS] = {
 	INIT_SYMPAIR(pte_offset_map_lock),
-	INIT_SYMPAIR(rmap_walk),
-	INIT_SYMPAIR(page_vma_mapped_walk),
+	INIT_SYMPAIR(rmap_walk)
 };
 
 #undef INIT_SYMPAIR
