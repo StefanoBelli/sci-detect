@@ -227,9 +227,6 @@ __retry:
 		spin_lock_init(&new_pgs->snapshot_lock);
 #endif /* DISABLE_PAGE_SNAPSHOT */
 
-		/* this initializes new_pgs.pg_mms */
-		init_pg_mms(new_pgs);
-
 		/* try to publish it */
 		int err = xa_insert(&pages, pfn, new_pgs, GFP_ATOMIC);
 
@@ -266,17 +263,20 @@ __retry:
 		else {
 			bcast_pgtrack_event_wxwarning(wxw);
 			make_page_snap(pgs, pid, pfn, va, flags);
+			new_page_mms_lock_pgs(pgs);
 
-			/* --BE ADVISED-- DEADLOCK WARNING --BE ADVISED--
-			 *
-			 * !!Defer later pte alternation due to deadlock issues!!
-			 *
-			 * this is due to wrong lock acquisition order: 
-			 * pg_track is called with the page table lock held.
-			 * The pte alternation code requires both the
-			 * page_mms::lock and the page table lock.
-			 */
+#if !defined(DISABLE_PAGE_SNAPSHOT) || !defined(DISABLE_PTE_ALT_PROT)
+			if(!flags) {
+				/* this is from a system call */
+				zeroprot_ptes_locked(pgs);
+				spin_unlock(&pgs->pg_mms->lock);
+			} else {
+				/* this is from the #PF handler */
+				pgs->pg_mms->init_task = current;
+				smp_mb();
+			}
 		}
+#endif /* !defined(DISABLE_PAGE_SNAPSHOT) || !defined(DISABLE_PTE_ALT_PROT) */
 	}
 }
 

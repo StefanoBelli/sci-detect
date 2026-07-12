@@ -1,16 +1,11 @@
 #ifndef SCID_PTEALTPROT_H
 #define SCID_PTEALTPROT_H
 
-#if !defined(DISABLE_PAGE_SNAPSHOT) && !defined(DISABLE_PTE_ALT_PROT)
-#	define DO_PTE_ALT_PROT 1
-#endif
-
 #include <linux/mm_types.h>
 
-#ifdef DO_PTE_ALT_PROT
+#if !defined(DIABLE_PAGE_SNAPSHOT) || !defined(DISABLE_PTE_ALT_PROT)
 
 #include <linux/spinlock.h>
-#include <linux/types.h>
 
 /* this gets useful when rmap lock is contended */
 struct mms {
@@ -23,24 +18,25 @@ struct mms {
 struct page_mms {
 	spinlock_t lock;
 	unsigned long shadow_write;
-	struct list_head mms_head;
+	struct task_struct *init_task;
+	struct list_head *mms_head;
 };
 
-#endif /* DO_PTE_ALT_PROT */
+#endif /* !defined(DISABLE_PAGE_SNAPSHOT) || !defined(DISABLE_PTE_ALT_PROT) */
 
 /* fwd decl */
 struct page_status;
 
 /**
- * add_mm_to_pgs_locked - manually add a (mm, addr) pair to mms of the page.
+ * add_mm_to_pgs - manually add a (mm, addr) pair to mms of the page.
  *
- * Caller must ensure the page_mms::lock is acquired.
+ * May be useful if there's contention on a reverse mapping used lock.
  *
  * @pgs: the struct page_status having a non-NULL struct page_mms*
  * @mm: the mm descriptor
  * @addr: the associated virtual address
  */
-void add_mm_to_pgs_locked(struct page_status *pgs, struct mm_struct *mm, unsigned long addr);
+void add_mm_to_pgs(struct page_status *pgs, struct mm_struct *mm, unsigned long addr);
 
 /**
  * fixup_prot_for_pte - silently deny page protection bits upgrade, based
@@ -63,11 +59,11 @@ void update_mm_addr(struct page_status *pgs, struct mm_struct *mm,
 		unsigned long old_addr, unsigned long new_addr);
 
 /**
- * init_pg_mms - initialize pg_mms field of pgs
+ * new_page_mms_lock_pgs - create, init, lock and then publish mms for @pgs
  *
- * @pgs: the pgs
+ * @pgs: the pgs to publish mms for
  */
-void init_pg_mms(struct page_status *pgs);
+void new_page_mms_lock_pgs(struct page_status *pgs);
 
 /**
  * free_mms_from_pgs - free mms from pgs, basically, just utility function

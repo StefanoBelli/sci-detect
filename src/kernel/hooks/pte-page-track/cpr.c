@@ -4,8 +4,7 @@
 
 #include <resolve_syms/pte_offset_map_lock.h>
 #include <hooks/pte-page-track/utils/addpages.h>
-#include <ptealtprot.h>
-#include <pgtrack.h>
+
 #include <logging.h>
 #include <testing/testing.h>
 
@@ -110,8 +109,6 @@ static int change_pte_range__hkrphook(
 	} while(ptep++, addr += PAGE_SIZE, addr != end);
 
 	pte_unmap_unlock(ptep, ptl);
-
-	/* TODO place here code */
 
 	__testing("pages-ok");
 

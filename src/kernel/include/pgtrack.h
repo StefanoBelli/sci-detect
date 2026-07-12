@@ -65,7 +65,7 @@ struct page_status {
 #endif /* DISABLE_PAGE_SNAPSHOT */
 
 #if !defined(DISABLE_PAGE_SNAPSHOT) || !defined(DISABLE_PTE_ALT_PROT)
-	struct page_mms pg_mms;
+	struct page_mms *pg_mms;
 #endif /* !defined(DISABLE_PAGE_SNAPSHOT) || !defined(DISABLE_PTE_ALT_PROT) */
 
 	struct kref kref;
@@ -165,6 +165,7 @@ void teardown_pgtrack(void);
  * @creat: create new entry if it doesn't exist?
  * @va: the starting va that caused state change (via fault or whatever)
  * @flags: the fault_flags included in vm_fault
+ *
  */
 void pg_track(
 		struct page *page, bool has_write, bool has_exec, 
