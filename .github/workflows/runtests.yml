@@ -2,9 +2,13 @@ name: build and test kernel module, then run examples
 
 on:
   push:
-    branches: [ "main" ]
+    branches:
+      - main
+      - good 
   pull_request:
-    branches: [ "main" ]
+    branches:
+      - main
+      - good
 
 jobs:
   build:
@@ -21,12 +25,12 @@ jobs:
       run: sudo apt install -y linux-headers-$(uname -r) libnl-3-dev libnl-genl-3-dev binutils-dev
     - name: Build the module
       run: make kernel-testing
-    - name: Show THP status BEFORE moving to madvise
-      run: ./scripts/show-thp.sh
-    - name: Set THP status to madvise
-      run: sudo ./scripts/disable-thp-madvise.sh
-    - name: Show THP status AFTER moving to madvise
-      run: ./scripts/show-thp.sh
+    - name: Show THP and mem compaction status BEFORE moving to madvise
+      run: ./scripts/show-thp-and-compaction.sh
+    - name: Set THP status to madvise, disable mem compaction
+      run: sudo ./scripts/disable-thp-madvise-and-compaction.sh
+    - name: Show THP and mem compaction status AFTER moving to madvise
+      run: ./scripts/show-thp-and-compaction.sh
     - name: Clear dmesg
       run: sudo dmesg --clear
     - name: Setup kernel module

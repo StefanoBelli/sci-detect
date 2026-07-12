@@ -6,6 +6,15 @@
 #include <errno.h>
 #include <time.h>
 #include <ctype.h>
+
+#ifndef PACKAGE
+#	define PACKAGE "scid-cli"
+#endif
+
+#ifndef PACKAGE_VERSION
+#	define PACKAGE_VERSION "1.0"
+#endif
+
 #include <dis-asm.h>
 
 #include <scid.h>

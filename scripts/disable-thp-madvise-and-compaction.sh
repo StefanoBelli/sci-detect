@@ -37,3 +37,5 @@ for_each_file_echo_never $MTHP_HPS_SHMEM_ENABLED
 
 echo inherit > /sys/kernel/mm/transparent_hugepage/hugepages-2048kB/enabled
 echo inherit > /sys/kernel/mm/transparent_hugepage/hugepages-2048kB/shmem_enabled
+
+echo 0 > /proc/sys/vm/compaction_proactiveness
