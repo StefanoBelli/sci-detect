@@ -264,19 +264,9 @@ __retry:
 			bcast_pgtrack_event_wxwarning(wxw);
 			make_page_snap(pgs, pid, pfn, va, flags);
 			new_page_mms_lock_pgs(pgs);
-
-#if !defined(DISABLE_PAGE_SNAPSHOT) || !defined(DISABLE_PTE_ALT_PROT)
-			if(!flags) {
-				/* this is from a system call */
-				zeroprot_ptes_locked(pgs);
-				spin_unlock(&pgs->pg_mms->lock);
-			} else {
-				/* this is from the #PF handler */
-				pgs->pg_mms->init_task = current;
-				smp_mb();
-			}
+			alternate_ptes_locked(pgs, flags);
+			mms_unlock(pgs);
 		}
-#endif /* !defined(DISABLE_PAGE_SNAPSHOT) || !defined(DISABLE_PTE_ALT_PROT) */
 	}
 }
 

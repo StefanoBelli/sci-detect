@@ -3,28 +3,8 @@
 
 #include <linux/mm_types.h>
 
-#if !defined(DIABLE_PAGE_SNAPSHOT) || !defined(DISABLE_PTE_ALT_PROT)
-
-#include <linux/spinlock.h>
-
-/* this gets useful when rmap lock is contended */
-struct mms {
-	struct mm_struct *mm;
-	unsigned long addr;
-
-	struct list_head node;
-};
-
-struct page_mms {
-	spinlock_t lock;
-	unsigned long shadow_write;
-	struct task_struct *init_task;
-	struct list_head *mms_head;
-};
-
-#endif /* !defined(DISABLE_PAGE_SNAPSHOT) || !defined(DISABLE_PTE_ALT_PROT) */
-
 /* fwd decl */
+struct page_mms;
 struct page_status;
 
 /**
@@ -72,20 +52,44 @@ void new_page_mms_lock_pgs(struct page_status *pgs);
 void free_mms_from_pgs(struct page_status *pgs);
 
 /**
+ * mms_lock - take the lock of a mms (pointed by @pgs)
+ *
+ * @pgs: the pgs pointing to mms
+ */
+void mms_lock(struct page_status *pgs);
+
+/**
+ * mms_unlock - release the lock of a mms (pointed by @pgs)
+ *
+ * @pgs: the pgs pointing to mms
+ */
+void mms_unlock(struct page_status *pgs);
+
+/**
  * alternate_ptes_locked - alternate PTEs assuming mms lock taken by calling
  * thread
  *
  * @pgs: the pgs
- * @vmf: the vmf
+ * @flags: the flags
  */
-void alternate_ptes_locked(struct page_status *pgs, struct vm_fault *vmf);
+void alternate_ptes_locked(struct page_status *pgs, enum fault_flag flags);
 
 /**
- * zeroprot_ptes_locked
+ * alternate_ptes - main routine used to alternate ptes' protection bits
  *
- * @pgs: the pgs
+ * @pgs: the pgs having a non-NULL struct page_mms*
+ * @flags: the fault_flag that comes along with struct vm_fault
  */
-void zeroprot_ptes_locked(struct page_status *pgs);
+static inline void alternate_ptes(struct page_status *pgs, enum fault_flag flags)
+{
+
+#if !defined(DISABLE_PAGE_SNAPSHOT) || !defined(DISABLE_PTE_ALT_PROT)
+	mms_lock(pgs);
+	alternate_ptes_locked(pgs, flags);
+	mms_unlock(pgs);
+#endif /* !defined(DISABLE_PAGE_SNAPSHOT) || !defined(DISABLE_PTE_ALT_PROT) */
+
+}
 
 /**
  * setup_ptealtprot - setup PTE alternating protection mechanism
