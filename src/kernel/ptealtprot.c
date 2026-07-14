@@ -9,6 +9,7 @@
 
 #include <resolve_syms/rmap_walk.h>
 #include <resolve_syms/flush_tlb_mm_range.h>
+#include <resolve_syms/page_vma_mapped_walk.h>
 #include <pgtrack.h>
 #include <logging.h>
 
@@ -27,6 +28,36 @@ struct addr_spc {
 	struct list_head node;
 };
 
+struct drop_mm_work_args {
+	struct mm_struct *mm;
+	struct work_struct work;
+};
+
+static void __drop_mm_work(struct work_struct *work)
+{
+	struct drop_mm_work_args *args = container_of(work, struct drop_mm_work_args, work);
+	mmdrop(args->mm);
+	kfree(args);
+}
+
+static void free_addr_spc(struct addr_spc *entry)
+{
+	struct drop_mm_work_args *work_args;
+
+	work_args = kmalloc(sizeof(struct drop_mm_work_args), GFP_ATOMIC);
+	if(unlikely(!work_args)) {
+		scid_warn("fallback to non-work-deferring offloading mmdrop");
+		mmdrop(entry->mm);
+	} else {
+		work_args->mm = entry->mm;
+		INIT_WORK(&work_args->work, __drop_mm_work);
+		schedule_work(&work_args->work);
+	}
+
+	list_del(&entry->node);
+	kfree(entry);
+}
+
 struct __rmap_one_addr_spc_args {
 	/* head of the list */
 	struct list_head *head;
@@ -40,11 +71,8 @@ static void free_addr_spcs_list(struct list_head **head)
 	struct addr_spc *entry;
 	struct addr_spc *tmp;
 
-	list_for_each_entry_safe(entry, tmp, *head, node) {
-		list_del(&entry->node);
-		mmput_async(entry->mm);
-		kfree(entry);
-	}
+	list_for_each_entry_safe(entry, tmp, *head, node)
+		free_addr_spc(entry);
 
 	kfree(*head);
 	*head = NULL;
@@ -76,7 +104,7 @@ static bool __rmap_one_addr_spc(
 }
 
 /* may sleep, acquires rmap lock */
-static struct list_head *all_addr_spcs_from_folio(struct folio *folio)
+static struct list_head *__all_addr_spcs_from_folio(struct folio *folio)
 {
 	struct __rmap_one_addr_spc_args args;
 	struct rmap_walk_control rwc;
@@ -120,7 +148,76 @@ __unlock:
 	return NULL;
 }
 
-#endif
+/* callback that passes one pte (one for each call)
+ *
+ * when this is called, the following locks are taken:
+ *  1. the ptealtprot lock
+ *  2. the mmap read lock
+ *  3. the ptl lock
+ */
+typedef void (*pte_one_fpt)(
+		pte_t* ptep, 
+		struct vm_area_struct *vma, 
+		unsigned long addr, 
+		void *args);
+
+static void ptes_walk_from_folio(struct folio *folio, pte_one_fpt pte_one, void *args)
+{
+	struct addr_spc *entry;
+	struct addr_spc *pos;
+	struct list_head *addr_spcs_head;
+
+	addr_spcs_head = __all_addr_spcs_from_folio(folio);
+	list_for_each_entry_safe(entry, pos, addr_spcs_head, node) {
+		struct vm_area_struct *vma;
+		bool map_ok;
+
+		/* the whole address space is not valid anymore */
+		if(!mmget_not_zero(entry->mm))
+			goto __failure_drop_delete;
+
+		/* this cannot fail */
+		mmap_read_lock(entry->mm);
+
+		/* lookup the vma */
+		vma = vma_lookup(entry->mm, entry->addr);
+		if(!vma)
+			goto __failure_unlock_put_drop_delete;
+
+		/* page_vma_mapped_walk */
+		DEFINE_FOLIO_VMA_WALK(pvmw, folio, vma, entry->addr, 0);
+		map_ok = THUNK(page_vma_mapped_walk)(&pvmw);
+
+		/* for some reason, unable to get the PTE */
+		if(unlikely(!map_ok))
+			goto __failure_unlock_put_drop_delete;
+
+		/* consistency checks */
+		if(likely(pvmw.pmd && pvmw.pte)) {
+			if(likely(pvmw.ptl && spin_is_locked(pvmw.ptl))) {
+
+				/* pass the ptep */
+				if(pte_one)
+					pte_one(pvmw.pte, vma, entry->addr, args);
+				else
+					scid_warn("pte_one is NULL");
+
+				pte_unmap_unlock(pvmw.pte, pvmw.ptl);
+			} else
+				scid_warn("expecting the ptl lock");
+		} else
+			scid_warn("pvmw returned invalid config");
+
+		/* before next iteration */
+__failure_unlock_put_drop_delete:
+		mmap_read_unlock(entry->mm);
+		mmput_async(entry->mm);
+__failure_drop_delete:
+		free_addr_spc(entry);
+	}
+}
+
+#endif /* DO_PTE_ALT_PROT */
 
 void new_ptealtprot(struct page_status *pgs)
 {
