@@ -7,6 +7,7 @@
 
 #ifdef DO_PTE_ALT_PROT
 
+#include <linux/mm_types.h>
 #include <linux/mutex.h>
 
 struct ptealtprot_struct {
@@ -15,8 +16,13 @@ struct ptealtprot_struct {
 	bool write : 1;
 };
 
+#else
+
+struct ptealtprot_struct;
+
 #endif /* DO_PTE_ALT_PROT */
 
+/* fwd decl */
 struct page_status;
 
 /**
@@ -43,8 +49,9 @@ void free_ptealtprot(struct page_status *pgs);
  * Usage: page fault handler return handler
  *
  * @pap: the ptealtprot_struct
+ * @ff: the fault flags
  */
-void wrex_locked_ptealtprot(struct ptealtprot_struct *pap);
+void wrex_locked_ptealtprot(struct ptealtprot_struct *pap, enum fault_flag ff);
 
 /**
  * exonly_locked_ptealtprot - apply pte prot alternation, only
