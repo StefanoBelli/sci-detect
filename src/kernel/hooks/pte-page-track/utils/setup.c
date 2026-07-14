@@ -1,4 +1,5 @@
 #include <hooks/setuputils.h>
+#include <ptealtprot.h>
 
 #include "../hooks.h"
 
@@ -20,6 +21,10 @@ static struct kprobe *kps[] = {
 
 #ifdef SCID_CONFIG_TESTING
 	&free_pages_and_swap_cache__kp,
+#endif
+
+#ifdef DO_PTE_ALT_PROT
+	&force_sig_fault__kp,
 #endif
 
 };

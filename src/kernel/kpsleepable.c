@@ -48,7 +48,7 @@ struct kprobe **locate_pcp_ckp_addr(struct kprobe *kp)
 			BUG();
 		}
 
-		/* TODO put ifdefs */
+#ifdef __SCID_INFO_LOCATED_CKA
 		scid_infof("on cpu #%d, found:"
 				"\n --> current_kprobe_addr=%px,"
 				"\n --> pcp var ptr=%px,"
@@ -61,6 +61,8 @@ struct kprobe **locate_pcp_ckp_addr(struct kprobe *kp)
 				__this_cpu_read(current_kprobe_addr),
 				kp,
 				*ckp_addr);
+#endif /* __SCID_INFO_LOCATED_CKA */
+
 	}
 
 	return ckp_addr;

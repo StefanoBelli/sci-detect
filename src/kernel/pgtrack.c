@@ -114,6 +114,7 @@ void del_page_wxwarn(struct page_wxwarn *wxw)
 static void free_pgs(struct page_status *pgs)
 {
 	free_page_snap_from_pgs(pgs);
+	free_ptealtprot(pgs);
 	kmem_cache_free(page_status_cachep, pgs);
 }
 
@@ -262,6 +263,7 @@ __retry:
 		else {
 			bcast_pgtrack_event_wxwarning(wxw);
 			make_page_snap(pgs, pid, pfn, va, flags);
+			new_ptealtprot(pgs);
 		}
 	}
 }

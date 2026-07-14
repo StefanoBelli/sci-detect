@@ -8,6 +8,7 @@ $(modname)-objs += \
 	pgtrack.o \
 	pgsnap.o \
 	kpsleepable.o \
+	ptealtprot.o \
 	\
 		testing/testing.o \
 		testing/default-kvops.o \
@@ -33,6 +34,7 @@ $(modname)-objs += \
 			hooks/pte-page-track/spr.o \
 			hooks/pte-page-track/cpr.o \
 			hooks/pte-page-track/fuf.o \
+			hooks/pte-page-track/fsf.o \
 			\
 				hooks/pte-page-track/utils/addpages.o \
 				hooks/pte-page-track/utils/setup.o \

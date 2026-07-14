@@ -9,8 +9,6 @@
 
 #define handle_pte_fault__symbol "handle_pte_fault"
 
-struct kretprobe handle_pte_fault__krp;
-
 static int handle_pte_fault__ehkrphook(
 		struct kretprobe_instance *krpi, struct pt_regs *regs) 
 {
@@ -32,11 +30,6 @@ static int handle_pte_fault__ehkrphook(
 	}
 
 	*((struct vm_fault_entry**)krpi->data) = entry;
-
-	/* TODO remove this... this is magic! :D */
-	__enable_sleep(kpat(handle_pte_fault__krp, krpi));
-	schedule();
-	__disable_sleep(kpat(handle_pte_fault__krp, krpi));
 
 	return 0;
 }
