@@ -32,6 +32,8 @@ so the "malicious" content still around but not tracked anymore.
 ```
 # echo 0 > /proc/sys/vm/compaction_proactiveness
 ```
+ *This inhibits kcompactd, see https://elixir.bootlin.com/linux/v7.1.3/source/mm/compaction.c#L3201*
+
  It shouldn't be really needed if we have already disabled transparent
  hugepages, since it is the major subsystem that can benefit from physical
  memory compaction.

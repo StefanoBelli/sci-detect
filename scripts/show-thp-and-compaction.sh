@@ -9,7 +9,7 @@ SYSFS_PSEUDO_FILES="
 "
 
 PROCFS_COMPACTION="
-	/proc/sys/vm/compaction_proactiveness 
+	/proc/sys/vm/compaction_proactiveness
 "
 
 for file in $SYSFS_PSEUDO_FILES; do
