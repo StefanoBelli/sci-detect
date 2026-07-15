@@ -63,6 +63,8 @@ Quindi la recv, che è bloccante, rimane in attesa senza mai ricevere nulla.
    - La cosa positiva è l'alternanza però: se al write disabilito la exec delle altre PTE, catturerò la exec e vedo il contenuto del frame scritto nella write precedente (effettuata
    concretamente dopo il fault)
 
+ * Vedi problema risolto delle memory protection keys (vedi file docs/10 dedicato) e gli esempi
+
 ## Testing
 
  * **Soft fail/hard fail**

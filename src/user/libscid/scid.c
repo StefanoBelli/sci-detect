@@ -4,7 +4,7 @@
 
 /* tunables */
 #define NL_SOCKET_TXBUF_SIZE 0
-#define NL_SOCKET_RXBUF_SIZE 65535
+#define NL_SOCKET_RXBUF_SIZE (8 * 1024 * 1024)
 
 /* handle, descriptor */
 struct scid_nl_sk {
