@@ -167,6 +167,9 @@ __unlock:
  *  1. the ptealtprot lock
  *  2. the mmap read lock
  *  3. the ptl lock
+ *
+ * Not necessarily in this particular order, see header
+ * docs.
  */
 typedef void (*pte_one_fpt)(
 		pte_t* ptep, 
@@ -175,7 +178,8 @@ typedef void (*pte_one_fpt)(
 		struct ptealtprot_struct *pap);
 
 static void ptes_walk_from_folio(
-		struct folio *folio, pte_one_fpt pte_one, struct ptealtprot_struct *pap)
+		struct folio *folio, pte_one_fpt pte_one, struct ptealtprot_struct *pap,
+		struct mm_struct *skip_lock_this_mm)
 {
 	struct addr_spc *entry;
 	struct addr_spc *pos;
@@ -191,7 +195,10 @@ static void ptes_walk_from_folio(
 			goto __failure_drop_delete;
 
 		/* this cannot fail */
-		mmap_read_lock(entry->mm);
+		if(entry->mm != skip_lock_this_mm)
+			mmap_read_lock(entry->mm);
+		else
+			mmap_assert_locked(entry->mm);
 
 		/* lookup the vma */
 		vma = vma_lookup(entry->mm, entry->addr);
@@ -224,7 +231,8 @@ static void ptes_walk_from_folio(
 
 		/* before next iteration */
 __failure_unlock_put_drop_delete:
-		mmap_read_unlock(entry->mm);
+		if(entry->mm != skip_lock_this_mm)
+			mmap_read_unlock(entry->mm);
 		mmput_async(entry->mm);
 __failure_drop_delete:
 		free_addr_spc(entry);
@@ -363,7 +371,8 @@ void free_ptealtprot(struct page_status *pgs)
 
 #endif
 
-void wrex_locked_ptealtprot(struct page_status *pgs, enum fault_flag ff)
+void wrex_locked_ptealtprot(
+		struct page_status *pgs, enum fault_flag ff, struct mm_struct *skip_lock_this_mm)
 {
 
 #ifdef DO_PTE_ALT_PROT
@@ -404,13 +413,14 @@ void wrex_locked_ptealtprot(struct page_status *pgs, enum fault_flag ff)
 	);
 
 	folio = page_folio(pgs->page);
-	ptes_walk_from_folio(folio, wrex_pte_one, pgs->pap);
+	ptes_walk_from_folio(folio, wrex_pte_one, pgs->pap, skip_lock_this_mm);
 
 #endif
 
 }
 
-void exonly_locked_ptealtprot(struct page_status *pgs)
+void exonly_locked_ptealtprot(
+		struct page_status *pgs, struct mm_struct *skip_lock_this_mm)
 {
 
 #ifdef DO_PTE_ALT_PROT
@@ -441,7 +451,7 @@ void exonly_locked_ptealtprot(struct page_status *pgs)
 	);
 
 	folio = page_folio(pgs->page);
-	ptes_walk_from_folio(folio, exonly_pte_one, NULL);
+	ptes_walk_from_folio(folio, exonly_pte_one, NULL, skip_lock_this_mm);
 
 #endif
 
@@ -455,7 +465,7 @@ void exonly_locked_ptealtprot(struct page_status *pgs)
  * this is called when a system call is returning (AND NOT the
  * page fault handler)
  */
-void none_locked_ptealtprot(struct page_status *pgs)
+void none_locked_ptealtprot(struct page_status *pgs, struct mm_struct *skip_lock_this_mm)
 {
 
 #ifdef DO_PTE_ALT_PROT
@@ -477,13 +487,14 @@ void none_locked_ptealtprot(struct page_status *pgs)
 
 	/* otherwise, zeroprot all the PTEs */
 	folio = page_folio(pgs->page);
-	ptes_walk_from_folio(folio, noneprot_pte_one, NULL);
+	ptes_walk_from_folio(folio, noneprot_pte_one, NULL, skip_lock_this_mm);
 #endif
 
 }
 
 void pte_fixup_locked_ptealtprot(
-		pte_t* ptep, struct vm_area_struct *vma, spinlock_t *ptlp, struct page_status *pgs)
+		pte_t* ptep, struct vm_area_struct *vma, 
+		spinlock_t *ptlp, struct page_status *pgs)
 {
 
 #ifdef DO_PTE_ALT_PROT

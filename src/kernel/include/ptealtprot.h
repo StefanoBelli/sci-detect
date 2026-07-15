@@ -47,8 +47,11 @@ void free_ptealtprot(struct page_status *pgs);
  *
  * @pgs: the pgs
  * @ff: the fault flags
+ * @skip_lock_this_mm: don't acquire the mmap_read_lock for this mm
  */
-void wrex_locked_ptealtprot(struct page_status *pgs, enum fault_flag ff);
+void wrex_locked_ptealtprot(
+		struct page_status *pgs, enum fault_flag ff, 
+		struct mm_struct *skip_lock_this_mm);
 
 /**
  * exonly_locked_ptealtprot - apply pte prot alternation, only
@@ -60,8 +63,10 @@ void wrex_locked_ptealtprot(struct page_status *pgs, enum fault_flag ff);
  * Usage: segmentation fault handler
  *
  * @pgs: the pgs
+ * @skip_lock_this_mm: don't acquire the mmap_read_lock for this mm
  */
-void exonly_locked_ptealtprot(struct page_status *pgs);
+void exonly_locked_ptealtprot(
+		struct page_status *pgs, struct mm_struct *skip_lock_this_mm);
 
 /**
  * none_locked_ptealtprot - apply pte prot alternation, all
@@ -79,8 +84,10 @@ void exonly_locked_ptealtprot(struct page_status *pgs);
  * a system call returns.
  *
  * @pgs: the pgs
+ * @skip_lock_this_mm: don't acquire the mmap_read_lock for this mm
  */
-void none_locked_ptealtprot(struct page_status *pgs);
+void none_locked_ptealtprot(
+		struct page_status *pgs, struct mm_struct *skip_lock_this_mm);
 
 /**
  * pte_fixup_locked_ptealtprot - adjust pte protection bits after
