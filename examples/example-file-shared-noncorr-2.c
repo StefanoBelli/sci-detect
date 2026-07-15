@@ -17,12 +17,13 @@ int main()
 	}
 
 #ifdef EXAMPLE_MLOCK_ALL
+	/* eXecute Only Memory implicitly with protection keys */
 	check_scid_bcast_wxwarning_post(
 			mem
 			,
 			mem = mmap(NULL, 
 				PAGE_SIZE, 
-				PROT_EXEC, 
+				PROT_READ | PROT_EXEC, 
 				MAP_SHARED, fd, 0);
 			,
 	);
@@ -34,9 +35,10 @@ int main()
 
 	((void(*)(void))mem)();
 #else
+	/* XOM may have effects if only PROT_EXEC */
 	mem = mmap(NULL, 
 			PAGE_SIZE, 
-			PROT_EXEC, 
+			PROT_READ | PROT_EXEC, 
 			MAP_SHARED, fd, 0);
 	if(mem == MAP_FAILED) {
 		perror("mmap");

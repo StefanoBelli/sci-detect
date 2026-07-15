@@ -63,6 +63,11 @@ Quindi la recv, che è bloccante, rimane in attesa senza mai ricevere nulla.
    - La cosa positiva è l'alternanza però: se al write disabilito la exec delle altre PTE, catturerò la exec e vedo il contenuto del frame scritto nella write precedente (effettuata
    concretamente dopo il fault)
 
+ * Vedi problema risolto delle memory protection keys (vedi file docs/10 dedicato) e gli esempi. **NOTA: non sono sicuro che sia proprio questo il
+ problema negli esempi, perchè l'errore è 0x4 e quindi il bit PK è disabilitato,
+ ma anche il bit di presenza della pagina: read su PTE non presente, forse
+ meccanismo software per protezione simile da certe vm_operations_struct??**
+
 ## Testing
 
  * **Soft fail/hard fail**

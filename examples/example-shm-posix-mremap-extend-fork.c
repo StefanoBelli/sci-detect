@@ -78,8 +78,10 @@ int main()
 		 * "lazy protection bits adjustment" (essentially leaving
 		 * them off and turning them on when faulting if VMA prot 
 		 * allows to do so)
+		 *
+		 * XOM if only PROT_EXEC (pku)
 		 */
-		if(mprotect(new_mem, PAGE_SIZE, PROT_EXEC)) {
+		if(mprotect(new_mem, PAGE_SIZE, PROT_READ | PROT_EXEC)) {
 			perror("mprotect");
 			shm_unlink(POSIX_SHM_NAME);
 			_exit(EXIT_FAILURE);
