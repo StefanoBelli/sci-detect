@@ -34,11 +34,14 @@ And segmentation faults take this into account:
 ```force_sig_pkuerr```: 
 https://elixir.bootlin.com/linux/v7.1.3/source/kernel/signal.c#L1762
 
+Usage of ```arch_override_mprotect_pkey``` in ```do_mprotect_pkey```: https://elixir.bootlin.com/linux/v7.1.3/source/mm/mprotect.c#L931
+Usage of ```execute_only_pkey``` in ```do_mmap```: https://elixir.bootlin.com/linux/v7.1.3/source/mm/mmap.c#L393
+
 Source: https://docs.kernel.org/core-api/protection-keys.html
 
 ## How I ran into this
 
-**NOT SURE THIS IS THE REAL CAUSE OF THE examples/ FAILURE**
+**NOT SURE THIS IS THE REAL CAUSE OF THE examples/ FAILURE (segfault error 4 insted of the expected error 25)**
 
 **BUT IT MAY HAPPEN**
 
