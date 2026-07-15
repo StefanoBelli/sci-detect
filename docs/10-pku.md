@@ -38,10 +38,16 @@ Source: https://docs.kernel.org/core-api/protection-keys.html
 
 ## How I ran into this
 
+**NOT SURE THIS IS THE REAL CAUSE OF THE examples/ FAILURE**
+
+**BUT IT MAY HAPPEN**
+
 I got into this while running examples on a "newer" Intel CPU than my usual
 CPU (the newer i7-1065G7 vs the older i7-6700K). Some examples **had** VMAs
 with ```PROT_EXEC``` only. On the older CPU examples went fluid as expected (recall, 
 even if no ```PROT_READ```, standard hw x86 PTEs allow reading anyway), on the newer CPU, SEGV!
+
+Try an example: mmap with only PROT_EXEC, but do a read. error=0x25
 
 ## Support for memory protection keys in sci-detect
 
