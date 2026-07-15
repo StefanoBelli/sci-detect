@@ -461,6 +461,8 @@ void none_locked_ptealtprot(struct page_status *pgs)
 #ifdef DO_PTE_ALT_PROT
 	struct folio *folio;
 
+	WARN_ON(!mutex_is_locked(&pgs->pap->lock));
+
 	/* if already initiated, don't do anything */
 	if(!pgs->pap->init)
 		return;
@@ -480,10 +482,34 @@ void none_locked_ptealtprot(struct page_status *pgs)
 
 }
 
-void pte_fixup_locked_ptealtprot(pte_t* ptep, struct page_status *pgs)
+void pte_fixup_locked_ptealtprot(
+		pte_t* ptep, struct vm_area_struct *vma, spinlock_t *ptlp, struct page_status *pgs)
 {
 
 #ifdef DO_PTE_ALT_PROT
+	WARN_ON(!mutex_is_locked(&pgs->pap->lock));
+
+	if(pgs->pap->init)
+		return;
+
+	spin_lock(ptlp);
+
+	pte_t pte = ptep_get(ptep);
+
+	pte = pte_wrprotect(pte);
+
+	if(pgs->pap->noprot)
+		pte = pte_set_flags(pte, _PAGE_NX);
+	else {
+		if(pgs->pap->write)
+			pte = pte_set_flags(pte, _PAGE_NX);
+		else {
+			if(vma->vm_flags & VM_EXEC)
+				pte = pte_mkexec(pte);
+		}
+	}
+
+	spin_unlock(ptlp);
 
 #endif
 

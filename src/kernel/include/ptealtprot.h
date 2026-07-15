@@ -89,12 +89,31 @@ void none_locked_ptealtprot(struct page_status *pgs);
  * Caller must acquire the lock first, and release it later.
  * May sleep. Use kpsleepable.
  *
+ * Caller must **NOT** acquire the page table lock of @ptep (subtle deadlock
+ * warning due to different lock acquisition patterns)
+ *
+ * Caller must ensure VMA is properly locked (whether is per-VMA lock or whole mmap lock).
+ *
+ * This is meaningful only when ->init is false (that is, mprotect
+ * after the page is detected as WX and alternation mechanism already
+ * started). Contrary to none_locked_ptealtprot:
+ *
+ * Acquire the lock anyway:
+ *
+ *  * if ->init is false no recheck is really needed, as
+ *  if ->init is false, it will forever be false
+ *
+ *  * if ->init is true, recheck (it may have changed)
+ *
  * Usage: already detected WX-page mprotect assoc. pte.
  *
  * @ptep: the ptep to adjust
+ * @vma: the vma
+ * @ptlp: the ptr to ptl of @ptep
  * @pgs: the pgs
  */
-void pte_fixup_locked_ptealtprot(pte_t* ptep, struct page_status *pgs);
+void pte_fixup_locked_ptealtprot(
+		pte_t* ptep, struct vm_area_struct *vma, spinlock_t *ptlp, struct page_status *pgs);
 
 /**
  * setup_ptealtprot - prepare it
