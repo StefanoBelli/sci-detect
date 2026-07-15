@@ -6,6 +6,8 @@
 #include <linux/types.h>
 #include <linux/list.h>
 #include <linux/compiler.h>
+#include <linux/sched/mm.h>
+#include <linux/workqueue.h>
 
 #include <resolve_syms/rmap_walk.h>
 #include <resolve_syms/flush_tlb_mm_range.h>
@@ -14,6 +16,7 @@
 #include <logging.h>
 
 static struct kmem_cache *pap_cachep;
+static struct workqueue_struct *drop_mm_wq;
 
 static inline void __scid_flush_tlb_page(struct vm_area_struct *vma, unsigned long a)
 {
@@ -40,23 +43,33 @@ static void __drop_mm_work(struct work_struct *work)
 	kfree(args);
 }
 
+#define warn_sync_mmdrop(mm) \
+	do { \
+		scid_warn("fallback to non-work-deferring offloading mmdrop"); \
+		mmdrop((mm)); \
+	} while(0)
+
 static void free_addr_spc(struct addr_spc *entry)
 {
 	struct drop_mm_work_args *work_args;
 
 	work_args = kmalloc(sizeof(struct drop_mm_work_args), GFP_ATOMIC);
-	if(unlikely(!work_args)) {
-		scid_warn("fallback to non-work-deferring offloading mmdrop");
-		mmdrop(entry->mm);
-	} else {
+	if(unlikely(!work_args))
+		warn_sync_mmdrop(entry->mm);
+	else {
 		work_args->mm = entry->mm;
 		INIT_WORK(&work_args->work, __drop_mm_work);
-		schedule_work(&work_args->work);
+		if(!queue_work(drop_mm_wq, &work_args->work)) {
+			scid_err("unable to queue work");
+			warn_sync_mmdrop(entry->mm);
+		}
 	}
 
 	list_del(&entry->node);
 	kfree(entry);
 }
+
+#undef warn_sync_mmdrop
 
 struct __rmap_one_addr_spc_args {
 	/* head of the list */
@@ -159,9 +172,10 @@ typedef void (*pte_one_fpt)(
 		pte_t* ptep, 
 		struct vm_area_struct *vma, 
 		unsigned long addr, 
-		void *args);
+		struct ptealtprot_struct *pap);
 
-static void ptes_walk_from_folio(struct folio *folio, pte_one_fpt pte_one, void *args)
+static void ptes_walk_from_folio(
+		struct folio *folio, pte_one_fpt pte_one, struct ptealtprot_struct *pap)
 {
 	struct addr_spc *entry;
 	struct addr_spc *pos;
@@ -198,7 +212,7 @@ static void ptes_walk_from_folio(struct folio *folio, pte_one_fpt pte_one, void 
 
 				/* pass the ptep */
 				if(pte_one)
-					pte_one(pvmw.pte, vma, entry->addr, args);
+					pte_one(pvmw.pte, vma, entry->addr, pap);
 				else
 					scid_warn("pte_one is NULL");
 
@@ -215,6 +229,22 @@ __failure_unlock_put_drop_delete:
 __failure_drop_delete:
 		free_addr_spc(entry);
 	}
+}
+
+static void noneprot_pte_one(
+		pte_t* ptep, 
+		struct vm_area_struct *vma, 
+		unsigned long addr,
+		__always_unused struct ptealtprot_struct *pap)
+{
+	pte_t pte = ptep_get(ptep);
+
+	pte = pte_set_flags(pte, _PAGE_NX);
+	pte = pte_wrprotect(pte);
+
+	set_pte(ptep, pte);
+	
+	__scid_flush_tlb_page(vma, addr);
 }
 
 #endif /* DO_PTE_ALT_PROT */
@@ -246,23 +276,51 @@ void free_ptealtprot(struct page_status *pgs)
 
 }
 
-void wrex_locked_ptealtprot(struct ptealtprot_struct *pap, enum fault_flag ff)
+void wrex_locked_ptealtprot(struct page_status *pgs, enum fault_flag ff)
 {
+
+#ifdef DO_PTE_ALT_PROT
+	
+#endif
 
 }
 
-void exonly_locked_ptealtprot(struct ptealtprot_struct *pap)
+void exonly_locked_ptealtprot(struct page_status *pgs)
 {
+
+#ifdef DO_PTE_ALT_PROT
+
+#endif
 
 }
 
-void none_locked_ptealtprot(struct ptealtprot_struct *pap)
+/* 
+ * this is called when a system call is returning (AND NOT the
+ * page fault handler)
+ */
+void none_locked_ptealtprot(struct page_status *pgs)
 {
+
+#ifdef DO_PTE_ALT_PROT
+	struct folio *folio;
+
+	/* if already initiated, don't do anything */
+	if(!pgs->pap->init)
+		return;
+
+	/* otherwise, zeroprot all the PTEs */
+	folio = page_folio(pgs->page);
+	ptes_walk_from_folio(folio, noneprot_pte_one, NULL);
+#endif
 
 }
 
-void pte_fixup_locked_ptealtprot(pte_t* ptep, struct ptealtprot_struct *pap)
+void pte_fixup_locked_ptealtprot(pte_t* ptep, struct page_status *pgs)
 {
+
+#ifdef DO_PTE_ALT_PROT
+
+#endif
 
 }
 
@@ -277,8 +335,17 @@ int setup_ptealtprot(void)
 			SLAB_HWCACHE_ALIGN | SLAB_ACCOUNT | SLAB_RECLAIM_ACCOUNT, 
 			NULL);
 
-	if(!pap_cachep)
+	if(!pap_cachep) {
+		scid_err("unable to create cache");
 		return -ENOMEM;
+	}
+
+	drop_mm_wq = alloc_workqueue("scid-drop-mm-wq", WQ_PERCPU, 0);
+	if(!drop_mm_wq) {
+		scid_err("unable to create wq");
+		kmem_cache_destroy(pap_cachep);
+		return -ENOMEM;
+	}
 #endif
 
 	return 0;
@@ -288,6 +355,10 @@ void teardown_ptealtprot(void)
 {
 
 #ifdef DO_PTE_ALT_PROT
+	flush_workqueue(drop_mm_wq);
+	drain_workqueue(drop_mm_wq);
+	destroy_workqueue(drop_mm_wq);
+
 	kmem_cache_destroy(pap_cachep);
 #endif
 

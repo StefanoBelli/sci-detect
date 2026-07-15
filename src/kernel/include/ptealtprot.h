@@ -16,10 +16,6 @@ struct ptealtprot_struct {
 	bool write : 1;
 };
 
-#else
-
-struct ptealtprot_struct;
-
 #endif /* DO_PTE_ALT_PROT */
 
 /* fwd decl */
@@ -48,10 +44,10 @@ void free_ptealtprot(struct page_status *pgs);
  *
  * Usage: page fault handler return handler
  *
- * @pap: the ptealtprot_struct
+ * @pgs: the pgs
  * @ff: the fault flags
  */
-void wrex_locked_ptealtprot(struct ptealtprot_struct *pap, enum fault_flag ff);
+void wrex_locked_ptealtprot(struct page_status *pgs, enum fault_flag ff);
 
 /**
  * exonly_locked_ptealtprot - apply pte prot alternation, only
@@ -62,9 +58,9 @@ void wrex_locked_ptealtprot(struct ptealtprot_struct *pap, enum fault_flag ff);
  *
  * Usage: segmentation fault handler
  *
- * @pap: the ptealtprot_struct
+ * @pgs: the pgs
  */
-void exonly_locked_ptealtprot(struct ptealtprot_struct *pap);
+void exonly_locked_ptealtprot(struct page_status *pgs);
 
 /**
  * none_locked_ptealtprot - apply pte prot alternation, all
@@ -73,11 +69,17 @@ void exonly_locked_ptealtprot(struct ptealtprot_struct *pap);
  * Caller must acquire the lock first, and release it later.
  * May sleep. Use kpsleepable.
  *
- * Usage: first WX page-detection caused by mprotect
+ * Before acquiring the pgs->lock and calling this, you may check
+ * pgs->pap->init optimistically:
+ *  * if ->init is true then acquire the lock and recheck 
+ *  * if ->init is false... don't do anything!
  *
- * @pap: the ptealtprot_struct
+ * Usage: first WX page-detection caused by mprotect, called when
+ * a system call returns.
+ *
+ * @pgs: the pgs
  */
-void none_locked_ptealtprot(struct ptealtprot_struct *pap);
+void none_locked_ptealtprot(struct page_status *pgs);
 
 /**
  * pte_fixup_locked_ptealtprot - adjust pte protection bits after
@@ -89,9 +91,9 @@ void none_locked_ptealtprot(struct ptealtprot_struct *pap);
  * Usage: already detected WX-page mprotect assoc. pte.
  *
  * @ptep: the ptep to adjust
- * @pap: the ptealtprot_struct
+ * @pgs: the pgs
  */
-void pte_fixup_locked_ptealtprot(pte_t* ptep, struct ptealtprot_struct *pap);
+void pte_fixup_locked_ptealtprot(pte_t* ptep, struct page_status *pgs);
 
 /**
  * setup_ptealtprot - prepare it
