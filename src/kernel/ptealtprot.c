@@ -243,7 +243,45 @@ static void noneprot_pte_one(
 	pte = pte_wrprotect(pte);
 
 	set_pte(ptep, pte);
-	
+	__scid_flush_tlb_page(vma, addr);
+}
+
+static void exonly_pte_one(
+		pte_t* ptep, 
+		struct vm_area_struct *vma, 
+		unsigned long addr,
+		__always_unused struct ptealtprot_struct *pap)
+{
+	pte_t pte = ptep_get(ptep);
+
+	if(vma->vm_flags & VM_EXEC) 
+		pte = pte_mkexec(pte);
+
+	pte = pte_wrprotect(pte);
+
+	set_pte(ptep, pte);
+	__scid_flush_tlb_page(vma, addr);
+}
+
+static void wrex_pte_one(
+		pte_t* ptep, 
+		struct vm_area_struct *vma, 
+		unsigned long addr,
+		struct ptealtprot_struct *pap)
+{
+	pte_t pte = ptep_get(ptep);
+
+	if(pap->write)
+		pte = pte_set_flags(pte, _PAGE_NX);
+	else {
+		if(vma->vm_flags & VM_EXEC)
+			pte = pte_mkexec(pte);
+	}
+
+	/* CoW reasons */
+	pte = pte_wrprotect(pte);
+
+	set_pte(ptep, pte);
 	__scid_flush_tlb_page(vma, addr);
 }
 
@@ -259,6 +297,7 @@ void new_ptealtprot(struct page_status *pgs)
 		return;
 	}
 
+	pgs->pap->noprot = false;
 	pgs->pap->init = true;
 	pgs->pap->write = false;
 	mutex_init(&pgs->pap->lock);
@@ -276,11 +315,97 @@ void free_ptealtprot(struct page_status *pgs)
 
 }
 
+/*
+ * possible configs:
+ *
+ *  --> first call is this
+ *  init = true, noprot = false,
+ *
+ *  --> regular checks, we don't care
+ *  init = false, noprot = false,
+ *
+ *  --> first call was none_locked_ptealtprot 
+ *  init = false, noprot = true,
+ */
+
+#ifdef DO_PTE_ALT_PROT
+
+#define PHASED_PTEALTPROT(__pap, __on_init__, __on_noprot__, __on_regular__) \
+	\
+	WARN_ON(!mutex_is_locked(&(__pap)->lock)); \
+	\
+	if((__pap)->init) { \
+		/* this is the first call */ \
+		BUG_ON((__pap)->write); \
+		BUG_ON((__pap)->noprot); \
+		\
+		/* here we need to choose the init mode */ \
+		__on_init__ \
+		\
+		(__pap)->init = false; \
+	} else { \
+		/* this is NOT the first call */ \
+		if((__pap)->noprot) { \
+			/* prior call disabled both W and X */ \
+			BUG_ON((__pap)->write); \
+			\
+			/* here we need to choose the noprot mode */ \
+			__on_noprot__ \
+			\
+			(__pap)->noprot = false; \
+		} else { \
+			\
+			/* do regular operations */ \
+			__on_regular__ \
+			\
+		} \
+	}
+
+#endif
+
 void wrex_locked_ptealtprot(struct page_status *pgs, enum fault_flag ff)
 {
 
 #ifdef DO_PTE_ALT_PROT
-	
+	struct folio *folio;
+	bool invalid_flags;
+
+	invalid_flags = 
+		!ff || 
+		(!(ff & FAULT_FLAG_INSTRUCTION) && !(ff & FAULT_FLAG_WRITE)) ||
+		((ff & FAULT_FLAG_INSTRUCTION) && (ff & FAULT_FLAG_WRITE));
+
+	if(unlikely(invalid_flags))
+		return;
+
+	PHASED_PTEALTPROT(
+			pgs->pap
+			,
+
+			/* on init */
+			pgs->pap->write = ff & FAULT_FLAG_WRITE;
+			,
+
+			/* on noprot */
+			pgs->pap->write = ff & FAULT_FLAG_WRITE;
+			,
+
+			/* on regular */
+			bool must_alternate;
+
+			must_alternate = 
+				(pgs->pap->write && (ff & FAULT_FLAG_INSTRUCTION)) ||
+				(!pgs->pap->write && (ff & FAULT_FLAG_WRITE));
+
+			if(must_alternate)
+				pgs->pap->write = !pgs->pap->write;
+			else
+				return;
+	);
+
+	folio = page_folio(pgs->page);
+	ptes_walk_from_folio(folio, wrex_pte_one, pgs->pap);
+
 #endif
 
 }
@@ -289,10 +414,42 @@ void exonly_locked_ptealtprot(struct page_status *pgs)
 {
 
 #ifdef DO_PTE_ALT_PROT
+	struct folio *folio;
+
+	PHASED_PTEALTPROT(
+			pgs->pap
+			,
+
+			/* on init */
+			/* here we keep write disabled as we are going
+		 	 * to init to allow exec, not write */
+			,
+
+			/* on noprot */
+			/* here we keep write disabled as we are going
+			 * to init to allow exec, not write */
+			,
+
+			/* on regular */
+			/* prior call disabled either W or X */
+			if(pgs->pap->write)
+				/* ... if disabled X, alternate by disabling W */
+				pgs->pap->write = false;
+			else
+				/* ... othw, if disabled W, keep it disabled */
+				return;
+	);
+
+	folio = page_folio(pgs->page);
+	ptes_walk_from_folio(folio, exonly_pte_one, NULL);
 
 #endif
 
 }
+
+#ifdef DO_PTE_ALT_PROT
+#undef PHASED_PTEALTPROT
+#endif
 
 /* 
  * this is called when a system call is returning (AND NOT the
@@ -307,6 +464,14 @@ void none_locked_ptealtprot(struct page_status *pgs)
 	/* if already initiated, don't do anything */
 	if(!pgs->pap->init)
 		return;
+	else
+		/* this can't be possible, since this is the only
+		 * call that does noprot enabling, and disables init
+		 */
+		BUG_ON(pgs->pap->noprot);
+
+	pgs->pap->init = false;
+	pgs->pap->noprot = true;
 
 	/* otherwise, zeroprot all the PTEs */
 	folio = page_folio(pgs->page);

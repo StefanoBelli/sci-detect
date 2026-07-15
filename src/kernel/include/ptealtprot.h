@@ -14,6 +14,7 @@ struct ptealtprot_struct {
 	struct mutex lock;
 	bool init : 1;
 	bool write : 1;
+	bool noprot : 1;
 };
 
 #endif /* DO_PTE_ALT_PROT */
