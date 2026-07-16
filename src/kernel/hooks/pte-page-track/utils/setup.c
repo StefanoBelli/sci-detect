@@ -25,7 +25,7 @@ static struct kprobe *kps[] = {
 
 #ifdef DO_PTE_ALT_PROT
 	&force_sig_fault__kp,
-	&__bad_area__kp,
+	&__bad_area_nosemaphore__kp,
 #endif
 
 };

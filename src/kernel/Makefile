@@ -3,7 +3,7 @@ modname=sci-detect
 obj-m := $(modname).o
 $(modname)-objs += \
 	main.o \
-	vmfs.o \
+	kcps.o \
 	resolve_syms.o \
 	pgtrack.o \
 	pgsnap.o \

@@ -1,5 +1,5 @@
 #include <hooks.h>
-#include <vmfs.h>
+#include <kcps.h>
 #include <logging.h>
 #include <resolve_syms.h>
 #include <pgtrack.h>
@@ -76,22 +76,22 @@ int setup_module(void)
 		goto __teardown_from_pgtrack_netlink;
 	}
 
-	rv = setup_vmfs_pcp_lists();
+	rv = setup_kcps_pcp_lists();
 	if(rv) {
-		scid_errf("setup_vmfs_pcp_lists failed with rv=%d", rv);
+		scid_errf("setup_kcps_pcp_lists failed with rv=%d", rv);
 		goto __teardown_from_netlink;
 	}
 
 	rv = setup_hooks();
 	if (rv) {
 		scid_errf("setup_hooks failed with rv=%d", rv);
-		goto __teardown_from_vmfs_pcp_lists;
+		goto __teardown_from_kcps_pcp_lists;
 	}
 
 	return rv;
 
-__teardown_from_vmfs_pcp_lists:
-	teardown_vmfs_pcp_lists();
+__teardown_from_kcps_pcp_lists:
+	teardown_kcps_pcp_lists();
 __teardown_from_netlink:
 	teardown_netlink();
 __teardown_from_pgtrack_netlink:
@@ -111,7 +111,7 @@ __teardown_from_testing:
 void teardown_module(void) 
 {
 	teardown_hooks();
-	teardown_vmfs_pcp_lists();
+	teardown_kcps_pcp_lists();
 	teardown_netlink();
 	teardown_pgtrack_netlink();
 	teardown_pgtrack();
