@@ -8,11 +8,14 @@
 #include <linux/compiler.h>
 #include <linux/sched/mm.h>
 #include <linux/workqueue.h>
+#include <asm-generic/rwonce.h>
+#include <asm-generic/barrier.h>
 
 #include <resolve_syms/rmap_walk.h>
 #include <resolve_syms/flush_tlb_mm_range.h>
 #include <resolve_syms/page_vma_mapped_walk.h>
 #include <pgtrack.h>
+#include <pgsnap.h>
 #include <logging.h>
 
 static struct kmem_cache *pap_cachep;
@@ -295,25 +298,31 @@ static void wrex_pte_one(
 
 #endif /* DO_PTE_ALT_PROT */
 
-void new_ptealtprot(struct page_status *pgs)
+void new_ptealtprot(__maybe_unused struct page_status *pgs)
 {
 
 #ifdef DO_PTE_ALT_PROT
-	pgs->pap = kmem_cache_alloc(pap_cachep, GFP_ATOMIC);
-	if(!pgs->pap) {
+	struct ptealtprot_struct *pap;
+
+	pap = kmem_cache_alloc(pap_cachep, GFP_ATOMIC);
+	if(!pap) {
 		scid_err("memory exhausted");
 		return;
 	}
 
-	pgs->pap->noprot = false;
-	pgs->pap->init = true;
-	pgs->pap->write = false;
-	mutex_init(&pgs->pap->lock);
+	pap->noprot = false;
+	pap->init = true;
+	pap->write = false;
+	mutex_init(&pap->lock);
+
+	WRITE_ONCE(pgs->pap, pap);
+	smp_mb();
+
 #endif
 
 }
 
-void free_ptealtprot(struct page_status *pgs)
+void free_ptealtprot(__maybe_unused struct page_status *pgs)
 {
 
 #ifdef DO_PTE_ALT_PROT	
@@ -372,7 +381,9 @@ void free_ptealtprot(struct page_status *pgs)
 #endif
 
 void wrex_locked_ptealtprot(
-		struct page_status *pgs, enum fault_flag ff, struct mm_struct *skip_lock_this_mm)
+		__maybe_unused struct page_status *pgs, 
+		__maybe_unused enum fault_flag ff, 
+		__maybe_unused struct mm_struct *skip_lock_this_mm)
 {
 
 #ifdef DO_PTE_ALT_PROT
@@ -420,7 +431,8 @@ void wrex_locked_ptealtprot(
 }
 
 void exonly_locked_ptealtprot(
-		struct page_status *pgs, struct mm_struct *skip_lock_this_mm)
+		__maybe_unused struct page_status *pgs, 
+		__maybe_unused struct mm_struct *skip_lock_this_mm)
 {
 
 #ifdef DO_PTE_ALT_PROT
@@ -465,7 +477,9 @@ void exonly_locked_ptealtprot(
  * this is called when a system call is returning (AND NOT the
  * page fault handler)
  */
-void none_locked_ptealtprot(struct page_status *pgs, struct mm_struct *skip_lock_this_mm)
+void none_locked_ptealtprot(
+		__maybe_unused struct page_status *pgs, 
+		__maybe_unused struct mm_struct *skip_lock_this_mm)
 {
 
 #ifdef DO_PTE_ALT_PROT
@@ -493,8 +507,10 @@ void none_locked_ptealtprot(struct page_status *pgs, struct mm_struct *skip_lock
 }
 
 void pte_fixup_locked_ptealtprot(
-		pte_t* ptep, struct vm_area_struct *vma, 
-		spinlock_t *ptlp, struct page_status *pgs)
+		__maybe_unused pte_t* ptep, 
+		__maybe_unused struct vm_area_struct *vma, 
+		__maybe_unused spinlock_t *ptlp, 
+		__maybe_unused struct page_status *pgs)
 {
 
 #ifdef DO_PTE_ALT_PROT
