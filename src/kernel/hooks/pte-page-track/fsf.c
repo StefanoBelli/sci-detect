@@ -103,4 +103,27 @@ struct kprobe force_sig_fault__kp = {
 	.pre_handler = force_sig_fault__phkphook,
 };
 
+/* 
+ * we need to hook into __bad_area 
+ * to be able to properly distinguish the situation.
+ * No other way since the signal's code is either
+ * SEGV_MAPERR or SEGV_ACCERR (write or exec, who knows?)
+ *
+ * But we need more infos (that is, the x86 arch-specific
+ * error code)
+ */
+
+#define __bad_area__symbol "__bad_area"
+
+static int __bad_area__phkphook(
+		struct kprobe *kp, struct pt_regs *regs)
+{
+	return 0;
+}
+
+struct kprobe __bad_area__kp = {
+	.symbol_name = __bad_area__symbol,
+	.pre_handler = __bad_area__phkphook,
+};
+
 #endif /* DO_PTE_ALT_PROT */
