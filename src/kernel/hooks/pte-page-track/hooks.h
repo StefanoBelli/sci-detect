@@ -38,5 +38,5 @@ extern struct kretprobe change_pte_range__krp;
 /* fuf.c */
 #ifdef DO_PTE_ALT_PROT
 extern struct kprobe force_sig_fault__kp;
-extern struct kprobe __bad_area_nosemaphore__kp;
+extern struct kretprobe __bad_area_nosemaphore__krp;
 #endif

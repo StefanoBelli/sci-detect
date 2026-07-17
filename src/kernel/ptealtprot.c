@@ -242,6 +242,10 @@ __failure_drop_delete:
 	}
 }
 
+#define IF_INVALID_PTE_RETURN(pte) \
+	if(pte_none((pte)) || !pte_present((pte))) \
+		return
+
 static void noneprot_pte_one(
 		pte_t* ptep, 
 		struct vm_area_struct *vma, 
@@ -249,6 +253,8 @@ static void noneprot_pte_one(
 		__always_unused struct ptealtprot_struct *pap)
 {
 	pte_t pte = ptep_get(ptep);
+
+	IF_INVALID_PTE_RETURN(pte);
 
 	pte = pte_set_flags(pte, _PAGE_NX);
 	pte = pte_wrprotect(pte);
@@ -264,6 +270,8 @@ static void exonly_pte_one(
 		__always_unused struct ptealtprot_struct *pap)
 {
 	pte_t pte = ptep_get(ptep);
+
+	IF_INVALID_PTE_RETURN(pte);
 
 	if(vma->vm_flags & VM_EXEC) 
 		pte = pte_mkexec(pte);
@@ -282,6 +290,8 @@ static void wrex_pte_one(
 {
 	pte_t pte = ptep_get(ptep);
 
+	IF_INVALID_PTE_RETURN(pte);
+
 	if(pap->write)
 		pte = pte_set_flags(pte, _PAGE_NX);
 	else {
@@ -295,6 +305,8 @@ static void wrex_pte_one(
 	set_pte(ptep, pte);
 	__scid_flush_tlb_page(vma, addr);
 }
+
+#undef IF_INVALID_PTE_RETURN
 
 #endif /* DO_PTE_ALT_PROT */
 

@@ -7,12 +7,14 @@
 #include <linux/mm.h>
 #include <linux/rcupdate.h>
 #include <asm/nospec-branch.h>
+#include <asm/trap_pf.h>
 #include <asm-generic/rwonce.h>
 
 #include <kpsleepable.h>
 #include <pgtrack.h>
 #include <ptealtprot.h>
 #include <logging.h>
+#include <sfes.h>
 
 #define WITH_ORIG_IP 0
 #define WITH_NEW_IP 1
@@ -56,23 +58,64 @@ static inline struct page* __do_obtain_page_from_addr(void __user *addr)
 	return page;
 }
 
+#define REQUIRED_CPU_ERROR_CODE ( \
+		X86_PF_PROT | \
+		X86_PF_USER | \
+		X86_PF_INSTR)
+
+static bool fsf_checks_ok(struct pt_regs *regs, void __user **_addr)
+{
+	int sig = regs->di;
+	int code;
+	void __user* addr;
+	struct sig_fault_extras_entry *sfee;
+
+	/* signal being delivered */
+	if(unlikely(sig != SIGSEGV))
+		return false;
+
+	code = regs->si;
+
+	/* type of segment violation */
+	if(code != SEGV_ACCERR)
+		return false;
+
+	addr = (void __user*) regs->dx;
+
+	/* is this the right kernel control path? */
+	sfee = got_this_sfe(current);
+	if(unlikely(!sfee))
+		return false;
+
+	/* this is a consistency check */
+	if(sfee->address != (unsigned long) addr || sfee->si_code != code) {
+		scid_warn("got different sig fault extras, from validated ones");
+		return false;
+	}
+
+	/* now check the error code */
+	if(sfee->error_code != REQUIRED_CPU_ERROR_CODE)
+		return false;
+
+	/* everything is ok */
+	*_addr = addr;
+	return true;
+}
 
 #define force_sig_fault__symbol "force_sig_fault"
 
 static int force_sig_fault__phkphook(
 		__always_unused struct kprobe *kp, struct pt_regs *regs)
 {
-	int sig = (int) regs->di;
 	void __user* addr;
 	struct page *page;
 	struct page_status *pgs;
 	bool pgs_success;
 	int rv = WITH_ORIG_IP;
 
-	if(unlikely(sig != SIGSEGV))
-		return WITH_ORIG_IP;
+	if(!fsf_checks_ok(regs, &addr))
+		return rv;
 
-	addr = (void __user*) regs->dx;
 	page = __do_obtain_page_from_addr(addr);
 
 	rcu_read_lock();
@@ -115,15 +158,37 @@ struct kprobe force_sig_fault__kp = {
 
 #define __bad_area_nosemaphore__symbol "__bad_area_nosemaphore"
 
-static int __bad_area_nosemaphore__phkphook(
-		struct kprobe *kp, struct pt_regs *regs)
+static int __bad_area_nosemaphore__ehkrphook(
+		struct kretprobe_instance *krpi, struct pt_regs *regs)
 {
+	unsigned long error_code = regs->si;
+	unsigned long address = regs->dx;
+	int si_code = regs->r8;
+	struct task_struct *tsk = current;
+	struct sig_fault_extras_entry *sfee;
+
+	sfee = add_sfe(tsk, error_code, address, si_code);
+	if(unlikely(!sfee)) {
+		scid_err("add_sfe failed");
+		return 1;
+	}
+
+	*((struct sig_fault_extras_entry**) krpi->data) = sfee;
 	return 0;
 }
 
-struct kprobe __bad_area_nosemaphore__kp = {
-	.symbol_name = __bad_area_nosemaphore__symbol,
-	.pre_handler = __bad_area_nosemaphore__phkphook,
+static int __bad_area_nosemaphore__hkrphook(
+		struct kretprobe_instance *krpi, __always_unused struct pt_regs *regs)
+{
+	del_sfe(*((struct sig_fault_extras_entry**) krpi->data));
+	return 0;
+}
+
+struct kretprobe __bad_area_nosemaphore__krp = {
+	.kp.symbol_name = __bad_area_nosemaphore__symbol,
+	.entry_handler = __bad_area_nosemaphore__ehkrphook,
+	.handler = __bad_area_nosemaphore__hkrphook,
+	.data_size = sizeof(struct sig_fault_extras_entry*),
 };
 
 #endif /* DO_PTE_ALT_PROT */

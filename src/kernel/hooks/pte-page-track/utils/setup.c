@@ -10,6 +10,12 @@ static struct kretprobe *krps[] = {
 	&do_wp_page__krp,
 	&set_pte_range__krp,
 	&change_pte_range__krp,
+
+#ifdef DO_PTE_ALT_PROT
+	&__bad_area_nosemaphore__krp,
+#endif
+
+
 };
 
 static struct kprobe *kps[] = {
@@ -25,7 +31,6 @@ static struct kprobe *kps[] = {
 
 #ifdef DO_PTE_ALT_PROT
 	&force_sig_fault__kp,
-	&__bad_area_nosemaphore__kp,
 #endif
 
 };
