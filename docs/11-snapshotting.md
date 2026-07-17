@@ -42,16 +42,16 @@
  the kernel delivers the ```SIGSEGV``` immediately, there are **not** 2 page faults. Based on the ```error_code```, ```access_error``` immediately detects that the write
  is to a memory with an associated VMA without ```VM_WRITE```. 
 
- The situation is the following:
+    The situation is the following:
 
- ```c
+    ```c
  
- char *mem = mmap(PROT_READ);
- *mem = 'a';
+    char *mem = mmap(PROT_READ);
+    *mem = 'a';
 
- ```
+    ```
 
- In fact, ```show_signal_msg``` shows an error of 6 (0b110), which means: user + write + non-present.
+    In fact, ```show_signal_msg``` shows an error of 6 (0b110), which means: user + write + non-present.
 
- This demonstrates that there was no ```handle_pte_fault``` execution to populate PTEs (make them present), execution of the thread running in kernel mode was blocked
- earlier.
+    This demonstrates that there was no ```handle_pte_fault``` execution to populate PTEs (make them present), execution of the thread running in kernel mode was blocked
+    earlier.
