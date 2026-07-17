@@ -198,10 +198,12 @@ static void ptes_walk_from_folio(
 			goto __failure_drop_delete;
 
 		/* this cannot fail */
-		if(entry->mm != skip_lock_this_mm)
-			mmap_read_lock(entry->mm);
-		else
-			mmap_assert_locked(entry->mm);
+		if(entry->mm != skip_lock_this_mm) {
+			if(!down_read_trylock(&entry->mm->mmap_lock)) {
+				scid_warn("unable to acquire the mmap_read_lock");
+				goto __failure_put_drop_delete;
+			}
+		}
 
 		/* lookup the vma */
 		vma = vma_lookup(entry->mm, entry->addr);
@@ -236,10 +238,13 @@ static void ptes_walk_from_folio(
 __failure_unlock_put_drop_delete:
 		if(entry->mm != skip_lock_this_mm)
 			mmap_read_unlock(entry->mm);
+__failure_put_drop_delete:
 		mmput_async(entry->mm);
 __failure_drop_delete:
 		free_addr_spc(entry);
 	}
+
+	free_addr_spcs_list(&addr_spcs_head);
 }
 
 #define IF_INVALID_PTE_RETURN(pte) \

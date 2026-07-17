@@ -40,7 +40,16 @@ static int handle_pte_fault__ehkrphook(
 	return 0;
 }
 
+#ifdef DO_PTE_ALT_PROT
+
+static inline bool still_locked_vma_or_mmap(vm_fault_t return_flags)
+{
+	return !(return_flags & (VM_FAULT_RETRY | VM_FAULT_COMPLETED));
+}
+
 struct kretprobe handle_pte_fault__krp;
+
+#endif
 
 static int handle_pte_fault__hkrphook(
 		struct kretprobe_instance *krpi, __maybe_unused struct pt_regs *regs)
@@ -48,15 +57,22 @@ static int handle_pte_fault__hkrphook(
 	struct vm_fault_entry *vmfe = *((struct vm_fault_entry**) krpi->data);
 
 #ifdef DO_PTE_ALT_PROT
+	vm_fault_t retval = regs_return_value(regs);
 	struct page_status *pgs;
 	pte_t pte;
 	unsigned long pfn;
 	bool pfn_found;
 	pte_t *vmf_ptep = vmfe->vmf->pte;
 	enum fault_flag vmf_flags = vmfe->vmf->flags;
+	bool skip_mmap_rlock;
+
+	if(unlikely(retval & VM_FAULT_ERROR))
+		goto __end;
+
+	skip_mmap_rlock = still_locked_vma_or_mmap(retval);
 
 	if(!vmf_ptep)
-		return 0;
+		goto __end;
 
 	/* 
 	 * try not to acquire the ptl since this is 
@@ -78,14 +94,9 @@ static int handle_pte_fault__hkrphook(
 
 		__enable_sleep(this_kp);
 
-		/* 
-		 * there is no risk of deadlock: skip_lock_this_mm is NULL.
-		 * In the worst case, the page fault handler still has
-		 * the mmap_read_lock taken (or the per-VMA lock?) but
-		 * still, are acquiring the semaphore for reading
-		 */
 		mutex_lock(&pgs->pap->lock);
-		wrex_locked_ptealtprot(pgs, vmf_flags, NULL);
+		wrex_locked_ptealtprot(
+				pgs, vmf_flags, skip_mmap_rlock ? current->mm : NULL);
 		mutex_unlock(&pgs->pap->lock);
 
 		__disable_sleep(this_kp);

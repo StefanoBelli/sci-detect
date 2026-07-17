@@ -108,7 +108,6 @@ static inline void __ht_destroy_all(struct kcps_list *l)
 /* this must be called *AFTER* unregister_k(ret)probes did its job */
 void teardown_kcps_pcp_lists(void) 
 {
-	kmem_cache_destroy(kcp_entry_cachep);
 
 #ifdef CONFIG_SMP
 	unsigned int cpu;
@@ -119,6 +118,7 @@ void teardown_kcps_pcp_lists(void)
 	__ht_destroy_all(&kcps);
 #endif
 
+	kmem_cache_destroy(kcp_entry_cachep);
 }
 
 #define __my_hash_for_each_possible(name, obj, member, key) \
