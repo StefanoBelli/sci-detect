@@ -360,7 +360,7 @@ int main()
 		munmap(mem, PAGE_SIZE);
 	}
 
-	/* example 10 
+	/* example 10 */
 	{
 		PRINT_EXAMPLE_NR();
 		
@@ -402,7 +402,7 @@ int main()
 		close(fd);
 		shm_unlink(POSIX_SHM_NAME);
 		munmap(mem, PAGE_SIZE);
-	} */
+	}
 
 	/* example 11 */
 	{

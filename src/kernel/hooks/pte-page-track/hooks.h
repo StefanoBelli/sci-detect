@@ -40,8 +40,3 @@ extern struct kretprobe change_pte_range__krp;
 extern struct kprobe force_sig_fault__kp;
 extern struct kretprobe __bad_area_nosemaphore__krp;
 #endif
-
-/* kmp.c */
-#ifdef DO_PTE_ALT_PROT
-extern struct kretprobe ksys_mmap_pgoff__krp;
-#endif

@@ -38,7 +38,7 @@ static inline struct page* __do_user_page_walk(void __user *addr)
 	struct page *page;
 
 	__enable_sleep(&force_sig_fault__kp);
-	page = NULL;
+	page = user_page_walk((unsigned long) addr, false);
 	__disable_sleep(&force_sig_fault__kp);
 
 	return page;

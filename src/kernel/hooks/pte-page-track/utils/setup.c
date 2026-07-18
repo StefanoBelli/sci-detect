@@ -13,7 +13,6 @@ static struct kretprobe *krps[] = {
 
 #ifdef DO_PTE_ALT_PROT
 	&__bad_area_nosemaphore__krp,
-	&ksys_mmap_pgoff__krp,
 #endif
 
 
