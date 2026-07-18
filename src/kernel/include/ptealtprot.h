@@ -85,8 +85,10 @@ void exonly_locked_ptealtprot(
  *
  * @pgs: the pgs
  * @skip_lock_this_mm: don't acquire the mmap_read_lock for this mm
+ *
+ * Returns: true if cleared all protection bits (->init was true), false otherwise
  */
-void none_locked_ptealtprot(
+bool none_locked_ptealtprot(
 		struct page_status *pgs, struct mm_struct *skip_lock_this_mm);
 
 /**
@@ -118,9 +120,11 @@ void none_locked_ptealtprot(
  * @vma: the vma
  * @ptlp: the ptr to ptl of @ptep
  * @pgs: the pgs
+ * @addr: the va
  */
 void pte_fixup_locked_ptealtprot(
-		pte_t* ptep, struct vm_area_struct *vma, spinlock_t *ptlp, struct page_status *pgs);
+		pte_t* ptep, struct vm_area_struct *vma, spinlock_t *ptlp, 
+		struct page_status *pgs, unsigned long addr);
 
 /**
  * setup_ptealtprot - prepare it

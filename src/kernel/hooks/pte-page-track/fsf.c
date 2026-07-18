@@ -10,6 +10,7 @@
 #include <asm/trap_pf.h>
 #include <asm-generic/rwonce.h>
 
+#include <hooks/pte-page-track/utils/obtain_user_page.h>
 #include <kpsleepable.h>
 #include <pgtrack.h>
 #include <ptealtprot.h>
@@ -18,21 +19,6 @@
 
 #define WITH_ORIG_IP 0
 #define WITH_NEW_IP 1
-
-static struct page *obtain_page_from_addr(unsigned long addr)
-{
-	struct page *pages[1] = { NULL };
-	int nr_pages;
-
-	nr_pages = get_user_pages_fast(addr, 1, 0, pages);
-	if(nr_pages == 1) {
-		put_page(pages[0]);
-		return pages[0];
-	}
-
-	scid_errf("unable to get user page, err = %d", nr_pages);
-	return NULL;
-}
 
 struct kprobe force_sig_fault__kp;
 
@@ -52,7 +38,7 @@ static inline struct page* __do_obtain_page_from_addr(void __user *addr)
 	struct page *page;
 
 	__enable_sleep(&force_sig_fault__kp);
-	page = obtain_page_from_addr((unsigned long) addr);
+	page = obtain_user_page_from_addr((unsigned long) addr);
 	__disable_sleep(&force_sig_fault__kp);
 
 	return page;
@@ -117,6 +103,8 @@ static int force_sig_fault__phkphook(
 		return rv;
 
 	page = __do_obtain_page_from_addr(addr);
+	if(!page)
+		return rv;
 
 	rcu_read_lock();
 	pgs = lookup_pfn_pgtrack(page_to_pfn(page));

@@ -29,7 +29,7 @@ static int handle_pte_fault__ehkrphook(
 		return 1;
 	}
 
-	entry = add_vmf(vmf);
+	entry = add_vmf(vmf, vmf->flags);
 	if(!entry) {
 		scid_err("add_vmf failed");
 		return 1;
@@ -62,8 +62,8 @@ static int handle_pte_fault__hkrphook(
 	pte_t pte;
 	unsigned long pfn;
 	bool pfn_found;
-	pte_t *vmf_ptep = vmfe->vmf->pte;
-	enum fault_flag vmf_flags = vmfe->vmf->flags;
+	pte_t *vmf_ptep = vmf(vmfe)->pte;
+	enum fault_flag vmf_flags = orig_flags(vmfe);
 	bool skip_mmap_rlock;
 
 	if(unlikely(retval & VM_FAULT_ERROR))

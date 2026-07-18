@@ -6,10 +6,17 @@
 
 #include "exampleutils.h"
 
+#define PRINT_EXAMPLE_NR() \
+	printf("\n\texample nr %d\n\n", ++exnr)
+
 int main()
 {
+	int exnr = 0;
+
 	/* example 1 */
 	{
+		PRINT_EXAMPLE_NR();
+
 		char *mem = mmap(
 				NULL, 
 				PAGE_SIZE, 
@@ -29,6 +36,8 @@ int main()
 
 	/* example 2 */
 	{
+		PRINT_EXAMPLE_NR();
+
 		char *mem = mmap(
 				NULL, 
 				PAGE_SIZE, 
@@ -55,6 +64,8 @@ int main()
 
 	/* example 3 */
 	{
+		PRINT_EXAMPLE_NR();
+		
 		char *mem = mmap(
 				NULL, 
 				PAGE_SIZE, 
@@ -88,6 +99,8 @@ int main()
 
 	/* example 4 */
 	{
+		PRINT_EXAMPLE_NR();
+	
 		char *mem = mmap(
 				NULL, 
 				PAGE_SIZE, 
@@ -131,6 +144,8 @@ int main()
 
 	/* example 5 */
 	{
+		PRINT_EXAMPLE_NR();
+	
 		flush_page_cache();
 
 		int fd = open("res/file", O_RDWR, S_IRUSR | S_IWUSR);
@@ -177,6 +192,8 @@ int main()
 
 	/* example 6 */
 	{
+		PRINT_EXAMPLE_NR();
+	
 		flush_page_cache();
 
 		int fd = open("res/file", O_RDWR, S_IRUSR | S_IWUSR);
@@ -211,6 +228,8 @@ int main()
 
 	/* example 7 */
 	{
+		PRINT_EXAMPLE_NR();
+	
 		int fd = open("res/file", O_RDWR, S_IRUSR | S_IWUSR);
 		if(fd < 0) {
 			perror("open");
@@ -255,6 +274,8 @@ int main()
 
 	/* example 8 */
 	{
+		PRINT_EXAMPLE_NR();
+	
 		int fd = open("res/file", O_RDWR, S_IRUSR | S_IWUSR);
 		if(fd < 0) {
 			perror("open");
@@ -285,8 +306,10 @@ int main()
 		munmap(mem, PAGE_SIZE);
 	}
 	
-	/* example 9 
+	/* example 9 */
 	{
+		PRINT_EXAMPLE_NR();
+		
 		int fd = shm_open(POSIX_SHM_NAME, POSIX_SHM_OFLAGS, POSIX_SHM_MODE);
 		if(fd < 0) {
 			perror("shm_open");
@@ -335,10 +358,12 @@ int main()
 		close(fd);
 		shm_unlink(POSIX_SHM_NAME);
 		munmap(mem, PAGE_SIZE);
-	}*/
+	}
 
-	/* example 10 */
+	/* example 10 
 	{
+		PRINT_EXAMPLE_NR();
+		
 		int fd = shm_open(POSIX_SHM_NAME, POSIX_SHM_OFLAGS, POSIX_SHM_MODE);
 		if(fd < 0) {
 			perror("shm_open");
@@ -366,7 +391,9 @@ int main()
 		check_scid_bcast_wxwarning(
 				mem
 				,
+				printf("before the write\n");
 				*mem = x86_opcode_ret;
+				puts("after the write");
 				,
 		);
 
@@ -375,10 +402,12 @@ int main()
 		close(fd);
 		shm_unlink(POSIX_SHM_NAME);
 		munmap(mem, PAGE_SIZE);
-	}
+	} */
 
 	/* example 11 */
 	{
+		PRINT_EXAMPLE_NR();
+
 		int shmid = shmget(SYSV_SHM_KEY, SYSV_SHM_SIZE, SYSV_SHM_FLG);
 		if(shmid < 0) {
 			perror("shmget");
@@ -430,6 +459,8 @@ int main()
 
 	/* example 12 */
 	{
+		PRINT_EXAMPLE_NR();
+
 		int shmid = shmget(SYSV_SHM_KEY, SYSV_SHM_SIZE, SYSV_SHM_FLG);
 		if(shmid < 0) {
 			perror("shmget");
@@ -461,6 +492,8 @@ int main()
 
 	/* example 13 */
 	{
+		PRINT_EXAMPLE_NR();
+	
 		char *mem = mmap(
 				NULL, 
 				3 * PAGE_SIZE, 

@@ -412,6 +412,7 @@ void wrex_locked_ptealtprot(
 		(!(ff & FAULT_FLAG_INSTRUCTION) && !(ff & FAULT_FLAG_WRITE)) ||
 		((ff & FAULT_FLAG_INSTRUCTION) && (ff & FAULT_FLAG_WRITE));
 
+	scid_infof("called, invalid_flags=%d, %d, %d %d", invalid_flags, ff, ff & FAULT_FLAG_WRITE, ff & FAULT_FLAG_INSTRUCTION);
 	if(unlikely(invalid_flags))
 		return;
 
@@ -434,10 +435,13 @@ void wrex_locked_ptealtprot(
 				(pgs->pap->write && (ff & FAULT_FLAG_INSTRUCTION)) ||
 				(!pgs->pap->write && (ff & FAULT_FLAG_WRITE));
 
-			if(must_alternate)
+			if(must_alternate) {
+				scid_info("alternation!");
 				pgs->pap->write = !pgs->pap->write;
-			else
+			} else {
+				scid_info("NOT alternating");
 				return;
+			}
 	);
 
 	folio = page_folio(pgs->page);
@@ -494,7 +498,7 @@ void exonly_locked_ptealtprot(
  * this is called when a system call is returning (AND NOT the
  * page fault handler)
  */
-void none_locked_ptealtprot(
+bool none_locked_ptealtprot(
 		__maybe_unused struct page_status *pgs, 
 		__maybe_unused struct mm_struct *skip_lock_this_mm)
 {
@@ -506,7 +510,7 @@ void none_locked_ptealtprot(
 
 	/* if already initiated, don't do anything */
 	if(!pgs->pap->init)
-		return;
+		return false;
 	else
 		/* this can't be possible, since this is the only
 		 * call that does noprot enabling, and disables init
@@ -521,13 +525,15 @@ void none_locked_ptealtprot(
 	ptes_walk_from_folio(folio, noneprot_pte_one, NULL, skip_lock_this_mm);
 #endif
 
+	return true;
 }
 
 void pte_fixup_locked_ptealtprot(
 		__maybe_unused pte_t* ptep, 
 		__maybe_unused struct vm_area_struct *vma, 
 		__maybe_unused spinlock_t *ptlp, 
-		__maybe_unused struct page_status *pgs)
+		__maybe_unused struct page_status *pgs,
+		__maybe_unused unsigned long addr)
 {
 
 #ifdef DO_PTE_ALT_PROT
@@ -552,6 +558,8 @@ void pte_fixup_locked_ptealtprot(
 				pte = pte_mkexec(pte);
 		}
 	}
+	
+	__scid_flush_tlb_page(vma, addr);
 
 	spin_unlock(ptlp);
 
