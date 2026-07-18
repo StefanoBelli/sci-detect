@@ -6,6 +6,7 @@
 #include <resolve_syms/rmap_walk.h>
 #include <resolve_syms/page_vma_mapped_walk.h>
 #include <resolve_syms/flush_tlb_mm_range.h>
+#include <resolve_syms/walk_page_range.h>
 
 #define __expand_tos(x) #x
 
@@ -20,6 +21,7 @@ struct sympair sp[NR_SYMPAIRS] = {
 	INIT_SYMPAIR(rmap_walk),
 	INIT_SYMPAIR(flush_tlb_mm_range),
 	INIT_SYMPAIR(page_vma_mapped_walk),
+	INIT_SYMPAIR(walk_page_range),
 };
 
 #undef INIT_SYMPAIR

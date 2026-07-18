@@ -10,7 +10,7 @@
 #include <asm/trap_pf.h>
 #include <asm-generic/rwonce.h>
 
-#include <hooks/pte-page-track/utils/obtain_user_page.h>
+#include <hooks/pte-page-track/utils/user_page_walk.h>
 #include <kpsleepable.h>
 #include <pgtrack.h>
 #include <ptealtprot.h>
@@ -33,12 +33,12 @@ static inline void __do_pte_alt(struct page_status *pgs)
 	__disable_sleep(&force_sig_fault__kp);
 }
 
-static inline struct page* __do_obtain_page_from_addr(void __user *addr)
+static inline struct page* __do_user_page_walk(void __user *addr)
 {
 	struct page *page;
 
 	__enable_sleep(&force_sig_fault__kp);
-	page = obtain_user_page_from_addr((unsigned long) addr);
+	page = NULL;
 	__disable_sleep(&force_sig_fault__kp);
 
 	return page;
@@ -102,7 +102,7 @@ static int force_sig_fault__phkphook(
 	if(!fsf_checks_ok(regs, &addr))
 		return rv;
 
-	page = __do_obtain_page_from_addr(addr);
+	page = __do_user_page_walk(addr);
 	if(!page)
 		return rv;
 

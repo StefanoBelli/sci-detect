@@ -9,7 +9,7 @@
 #include <uapi/asm-generic/mman-common.h>
 
 #include <resolve_syms/page_vma_mapped_walk.h>
-#include <hooks/pte-page-track/utils/obtain_user_page.h>
+#include <hooks/pte-page-track/utils/user_page_walk.h>
 #include <kpsleepable.h>
 #include <logging.h>
 #include <pgtrack.h>
@@ -34,12 +34,12 @@ static int ksys_mmap_pgoff__ehkrphook(
 	return 0;
 }
 
-static inline struct page *do_oup(struct kprobe *kp, unsigned long addr)
+static inline struct page *do_user_page_walk(struct kprobe *kp, unsigned long addr)
 {
 	struct page *page;
 
 	__enable_sleep(kp);
-	page = obtain_user_page_from_addr(addr);
+	page = NULL;
 	__disable_sleep(kp);
 
 	return page;
@@ -126,7 +126,7 @@ static int ksys_mmap_pgoff__hkrphook(
 
 	kp = kpat(ksys_mmap_pgoff__krp, krpi);
 
-	page = do_oup(kp, addr);
+	page = do_user_page_walk(kp, addr);
 	if(!page)
 		return 0;
 

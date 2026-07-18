@@ -35,12 +35,11 @@ $(modname)-objs += \
 			hooks/pte-page-track/cpr.o \
 			hooks/pte-page-track/fuf.o \
 			hooks/pte-page-track/fsf.o \
-			hooks/pte-page-track/kmp.o \
 			\
 				hooks/pte-page-track/utils/addpages.o \
 				hooks/pte-page-track/utils/setup.o \
 				hooks/pte-page-track/utils/check_orig_pte.o \
-				hooks/pte-page-track/utils/obtain_user_page.o 
+				hooks/pte-page-track/utils/user_page_walk.o 
 
 ccflags-y += -Wall -W -Wextra -I$(src)/include -Wno-shadow
 
