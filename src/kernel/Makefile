@@ -52,10 +52,8 @@ else
     $(error BUILD_TYPE=$(BUILD_TYPE) is invalid)
 endif
 
-ifeq ($(BUILD_TYPE), release)
-	ccflags-y += -O2
-else ifeq ($(BUILD_TYPE), testing)
-	ccflags-y += -O2 -DSCID_CONFIG_TESTING
+ifeq ($(BUILD_TYPE), testing)
+	ccflags-y += -DSCID_CONFIG_TESTING
 endif
 
 valid_disable_snapshot = yes no
@@ -65,10 +63,6 @@ ifneq ($(filter $(DISABLE_SNAPSHOT), $(valid_disable_snapshot)),)
     $(info DISABLE_SNAPSHOT=$(DISABLE_SNAPSHOT) ok)
 else
     $(error DISABLE_SNAPSHOT=$(DISABLE_SNAPSHOT) is invalid)
-endif
-
-ifeq ($(BUILD_TYPE), testing)
-	ccflags-y += -DSCID_CONFIG_TESTING
 endif
 
 ifeq ($(DISABLE_SNAPSHOT), yes)

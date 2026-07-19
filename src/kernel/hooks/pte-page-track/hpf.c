@@ -42,6 +42,7 @@ static int handle_pte_fault__ehkrphook(
 
 #ifdef DO_PTE_ALT_PROT
 
+/* avoid locking if already locked */
 static inline bool still_locked_vma_or_mmap(vm_fault_t return_flags)
 {
 	return !(return_flags & (VM_FAULT_RETRY | VM_FAULT_COMPLETED));
@@ -90,16 +91,13 @@ static int handle_pte_fault__hkrphook(
 		if(likely(!pgs->pap))
 			goto __put_pgs_end;
 
-		struct kprobe *this_kp = kpat(handle_pte_fault__krp, krpi);
-
-		__enable_sleep(this_kp);
-
-		mutex_lock(&pgs->pap->lock);
-		wrex_locked_ptealtprot(
-				pgs, vmf_flags, skip_mmap_rlock ? current->mm : NULL);
-		mutex_unlock(&pgs->pap->lock);
-
-		__disable_sleep(this_kp);
+		struct kprobe *mykp = kpat(handle_pte_fault__krp, krpi);
+		KPSLEEPABLE(mykp,
+				mutex_lock(&pgs->pap->lock);
+				wrex_locked_ptealtprot(
+					pgs, vmf_flags, skip_mmap_rlock ? current->mm : NULL);
+				mutex_unlock(&pgs->pap->lock);
+		);
 	} else 
 		goto __end;
 

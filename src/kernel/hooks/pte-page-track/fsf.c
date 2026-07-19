@@ -24,24 +24,11 @@ struct kprobe force_sig_fault__kp;
 
 static inline void __do_pte_alt(struct page_status *pgs)
 {
-	__enable_sleep(&force_sig_fault__kp);
-
-	mutex_lock(&pgs->pap->lock);
-	exonly_locked_ptealtprot(pgs, NULL);
-	mutex_unlock(&pgs->pap->lock);
-
-	__disable_sleep(&force_sig_fault__kp);
-}
-
-static inline struct page* __do_user_page_walk(void __user *addr)
-{
-	struct page *page;
-
-	__enable_sleep(&force_sig_fault__kp);
-	page = user_page_walk((unsigned long) addr, false);
-	__disable_sleep(&force_sig_fault__kp);
-
-	return page;
+	KPSLEEPABLE(&force_sig_fault__kp,
+			mutex_lock(&pgs->pap->lock);
+			exonly_locked_ptealtprot(pgs, NULL);
+			mutex_unlock(&pgs->pap->lock);
+	);
 }
 
 #define REQUIRED_CPU_ERROR_CODE ( \
@@ -90,6 +77,17 @@ static bool fsf_checks_ok(struct pt_regs *regs, void __user **_addr)
 
 #define force_sig_fault__symbol "force_sig_fault"
 
+#define __dont_optimize_no_frame_pointer \
+	__attribute__((__optimize__("-fomit-frame-pointer,-O0")))
+
+static noinline __dont_optimize_no_frame_pointer 
+void __return_from_subroutine(void)
+{
+	return;
+}
+
+struct kprobe force_sig_fault__kp;
+
 static int force_sig_fault__phkphook(
 		__always_unused struct kprobe *kp, struct pt_regs *regs)
 {
@@ -102,7 +100,10 @@ static int force_sig_fault__phkphook(
 	if(!fsf_checks_ok(regs, &addr))
 		return rv;
 
-	page = __do_user_page_walk(addr);
+	KPSLEEPABLE(&force_sig_fault__kp, 
+			page = user_page_walk((unsigned long) addr, false);
+	);
+
 	if(!page)
 		return rv;
 
@@ -118,7 +119,7 @@ static int force_sig_fault__phkphook(
 		__do_pte_alt(pgs);
 
 		rv = WITH_NEW_IP;
-		regs->ip = (unsigned long) __x86_return_thunk;
+		regs->ip = (unsigned long) &__return_from_subroutine;
 		goto __put_pgs;
 	}
 	
