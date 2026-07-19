@@ -116,11 +116,12 @@ static bool __rmap_one_addr_spc(
 	list_add(&aspc->node, args->head);
 
 	mmgrab(aspc->mm);
+
 	return true;
 }
 
 /* may sleep, acquires rmap lock */
-static struct list_head *__all_addr_spcs_from_folio(struct folio *folio)
+static struct list_head *all_addr_spcs_from_folio(struct folio *folio)
 {
 	struct __rmap_one_addr_spc_args args;
 	struct rmap_walk_control rwc;
@@ -164,6 +165,28 @@ __unlock:
 	return NULL;
 }
 
+static inline void rlock_all_mm_in_addr_spcs(
+		struct list_head *addr_spcs_head, struct mm_struct *skip_mm)
+{
+	struct addr_spc *entry;
+
+	list_for_each_entry(entry, addr_spcs_head, node) {
+		if(entry->mm != skip_mm)
+			mmap_read_lock(entry->mm);
+	}
+}
+
+static inline void unlock_all_mm_in_addr_spcs(
+		struct list_head *addr_spcs_head, struct mm_struct *skip_mm)
+{
+	struct addr_spc *entry;
+
+	list_for_each_entry(entry, addr_spcs_head, node) {
+		if(entry->mm != skip_mm)
+			mmap_read_unlock(entry->mm);
+	}
+}
+
 /* callback that passes one pte (one for each call)
  *
  * when this is called, the following locks are taken:
@@ -180,35 +203,25 @@ typedef void (*pte_one_fpt)(
 		unsigned long addr, 
 		struct ptealtprot_struct *pap);
 
-static void ptes_walk_from_folio(
-		struct folio *folio, pte_one_fpt pte_one, struct ptealtprot_struct *pap,
-		struct mm_struct *skip_lock_this_mm)
+static void ptes_walk_from_folio_locked(
+		struct folio *folio, pte_one_fpt pte_one, 
+		struct ptealtprot_struct *pap, struct list_head *addr_spcs_head)
 {
 	struct addr_spc *entry;
 	struct addr_spc *pos;
-	struct list_head *addr_spcs_head;
 
-	addr_spcs_head = __all_addr_spcs_from_folio(folio);
 	list_for_each_entry_safe(entry, pos, addr_spcs_head, node) {
 		struct vm_area_struct *vma;
 		bool map_ok;
 
 		/* the whole address space is not valid anymore */
 		if(!mmget_not_zero(entry->mm))
-			goto __failure_drop_delete;
-
-		/* this cannot fail */
-		if(entry->mm != skip_lock_this_mm) {
-			if(!down_read_trylock(&entry->mm->mmap_lock)) {
-				scid_warn("unable to acquire the mmap_read_lock");
-				goto __failure_put_drop_delete;
-			}
-		}
+			goto __failure_put;
 
 		/* lookup the vma */
 		vma = vma_lookup(entry->mm, entry->addr);
 		if(!vma)
-			goto __failure_unlock_put_drop_delete;
+			goto __failure_put;
 
 		/* page_vma_mapped_walk */
 		DEFINE_FOLIO_VMA_WALK(pvmw, folio, vma, entry->addr, 0);
@@ -216,7 +229,7 @@ static void ptes_walk_from_folio(
 
 		/* for some reason, unable to get the PTE */
 		if(unlikely(!map_ok))
-			goto __failure_unlock_put_drop_delete;
+			goto __failure_put;
 
 		/* consistency checks */
 		if(likely(pvmw.pmd && pvmw.pte)) {
@@ -235,16 +248,9 @@ static void ptes_walk_from_folio(
 			scid_warn("pvmw returned invalid config");
 
 		/* before next iteration */
-__failure_unlock_put_drop_delete:
-		if(entry->mm != skip_lock_this_mm)
-			mmap_read_unlock(entry->mm);
-__failure_put_drop_delete:
+__failure_put:
 		mmput_async(entry->mm);
-__failure_drop_delete:
-		free_addr_spc(entry);
 	}
-
-	free_addr_spcs_list(&addr_spcs_head);
 }
 
 #define IF_INVALID_PTE_RETURN(pte) \
@@ -366,8 +372,6 @@ void free_ptealtprot(__maybe_unused struct page_status *pgs)
 
 #define PHASED_PTEALTPROT(__pap, __on_init__, __on_noprot__, __on_regular__) \
 	\
-	WARN_ON(!mutex_is_locked(&(__pap)->lock)); \
-	\
 	if((__pap)->init) { \
 		/* this is the first call */ \
 		BUG_ON((__pap)->write); \
@@ -406,15 +410,25 @@ void wrex_locked_ptealtprot(
 #ifdef DO_PTE_ALT_PROT
 	struct folio *folio;
 	bool invalid_flags;
+	struct list_head *addr_spcs_head;
 
 	invalid_flags = 
 		!ff || 
 		(!(ff & FAULT_FLAG_INSTRUCTION) && !(ff & FAULT_FLAG_WRITE)) ||
 		((ff & FAULT_FLAG_INSTRUCTION) && (ff & FAULT_FLAG_WRITE));
 
+	/* TODO remove */
 	scid_infof("called, invalid_flags=%d, %d, %d %d", invalid_flags, ff, ff & FAULT_FLAG_WRITE, ff & FAULT_FLAG_INSTRUCTION);
+
 	if(unlikely(invalid_flags))
 		return;
+
+	folio = page_folio(pgs->page);
+
+	addr_spcs_head = all_addr_spcs_from_folio(folio);
+	rlock_all_mm_in_addr_spcs(addr_spcs_head, skip_lock_this_mm);
+
+	mutex_lock(&pgs->pap->lock);
 
 	PHASED_PTEALTPROT(
 			pgs->pap
@@ -436,16 +450,25 @@ void wrex_locked_ptealtprot(
 				(!pgs->pap->write && (ff & FAULT_FLAG_WRITE));
 
 			if(must_alternate) {
+
+				/* TODO remove */
 				scid_info("alternation!");
 				pgs->pap->write = !pgs->pap->write;
 			} else {
+
+				/* TODO remove */
 				scid_info("NOT alternating");
-				return;
+				goto __unlock_all_and_free;
 			}
 	);
 
-	folio = page_folio(pgs->page);
-	ptes_walk_from_folio(folio, wrex_pte_one, pgs->pap, skip_lock_this_mm);
+	ptes_walk_from_folio_locked(folio, wrex_pte_one, pgs->pap, addr_spcs_head);
+
+__unlock_all_and_free:
+	unlock_all_mm_in_addr_spcs(addr_spcs_head, skip_lock_this_mm);
+	mutex_unlock(&pgs->pap->lock);
+
+	free_addr_spcs_list(&addr_spcs_head);
 
 #endif
 
@@ -457,7 +480,15 @@ void exonly_locked_ptealtprot(
 {
 
 #ifdef DO_PTE_ALT_PROT
+	struct list_head *addr_spcs_head;
 	struct folio *folio;
+
+	folio = page_folio(pgs->page);
+
+	addr_spcs_head = all_addr_spcs_from_folio(folio);
+	rlock_all_mm_in_addr_spcs(addr_spcs_head, skip_lock_this_mm);
+
+	mutex_lock(&pgs->pap->lock);
 
 	PHASED_PTEALTPROT(
 			pgs->pap
@@ -480,12 +511,16 @@ void exonly_locked_ptealtprot(
 				pgs->pap->write = false;
 			else
 				/* ... othw, if disabled W, keep it disabled */
-				return;
+				goto __unlock_all_and_free;
 	);
 
-	folio = page_folio(pgs->page);
-	ptes_walk_from_folio(folio, exonly_pte_one, NULL, skip_lock_this_mm);
+	ptes_walk_from_folio_locked(folio, exonly_pte_one, pgs->pap, addr_spcs_head);
 
+__unlock_all_and_free:
+	unlock_all_mm_in_addr_spcs(addr_spcs_head, skip_lock_this_mm);
+	mutex_unlock(&pgs->pap->lock);
+
+	free_addr_spcs_list(&addr_spcs_head);
 #endif
 
 }
@@ -504,9 +539,9 @@ bool none_locked_ptealtprot(
 {
 
 #ifdef DO_PTE_ALT_PROT
-	struct folio *folio;
 
-	WARN_ON(!mutex_is_locked(&pgs->pap->lock));
+#if 0
+	struct folio *folio;
 
 	/* if already initiated, don't do anything */
 	if(!pgs->pap->init)
@@ -525,6 +560,8 @@ bool none_locked_ptealtprot(
 	ptes_walk_from_folio(folio, noneprot_pte_one, NULL, skip_lock_this_mm);
 #endif
 
+#endif
+
 	return true;
 }
 
@@ -537,8 +574,6 @@ void pte_fixup_locked_ptealtprot(
 {
 
 #ifdef DO_PTE_ALT_PROT
-	WARN_ON(!mutex_is_locked(&pgs->pap->lock));
-
 	if(pgs->pap->init)
 		return;
 
