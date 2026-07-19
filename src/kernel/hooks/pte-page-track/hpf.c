@@ -93,8 +93,11 @@ static int handle_pte_fault__hkrphook(
 
 		struct kprobe *mykp = kpat(handle_pte_fault__krp, krpi);
 		KPSLEEPABLE(mykp,
-				wrex_locked_ptealtprot(
-					pgs, vmf_flags, skip_mmap_rlock ? current->mm : NULL);
+				wrex_ptealtprot(
+					pgs, vmf_flags, 
+					skip_mmap_rlock ? current->mm : NULL,
+					vmf(vmfe)->vma, vmf_ptep, 
+					vmf(vmfe)->ptl, vmf(vmfe)->address);
 		);
 	} else 
 		goto __end;

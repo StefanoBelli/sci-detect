@@ -25,7 +25,7 @@ struct kprobe force_sig_fault__kp;
 static inline void __do_pte_alt(struct page_status *pgs)
 {
 	KPSLEEPABLE(&force_sig_fault__kp,
-			exonly_locked_ptealtprot(pgs, NULL);
+			exonly_ptealtprot(pgs, NULL);
 	);
 }
 

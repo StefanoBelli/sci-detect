@@ -37,11 +37,10 @@ void new_ptealtprot(struct page_status *pgs);
 void free_ptealtprot(struct page_status *pgs);
 
 /**
- * wrex_locked_ptealtprot - apply pte prot alternation, both
+ * wrex_ptealtprot - apply pte prot alternation, both
  * write and execute are possible targets
  * 
- * Caller must acquire the lock first, and release it later.
- * May sleep. Use kpsleepable.
+ * May sleep.
  *
  * Usage: page fault handler return handler
  *
@@ -49,34 +48,33 @@ void free_ptealtprot(struct page_status *pgs);
  * @ff: the fault flags
  * @skip_lock_this_mm: don't acquire the mmap_read_lock for this mm
  */
-void wrex_locked_ptealtprot(
+void wrex_ptealtprot(
 		struct page_status *pgs, enum fault_flag ff, 
-		struct mm_struct *skip_lock_this_mm);
+		struct mm_struct *skip_lock_this_mm,
+		struct vm_area_struct *vma, pte_t* ptep,
+		spinlock_t *ptlp, unsigned long addr);
 
 /**
- * exonly_locked_ptealtprot - apply pte prot alternation, only
+ * exonly_ptealtprot - apply pte prot alternation, only
  * execute is a possible target
  * 
- * Caller must acquire the lock first, and release it later.
- * May sleep. Use kpsleepable.
+ * May sleep.
  *
  * Usage: segmentation fault handler
  *
  * @pgs: the pgs
  * @skip_lock_this_mm: don't acquire the mmap_read_lock for this mm
  */
-void exonly_locked_ptealtprot(
+void exonly_ptealtprot(
 		struct page_status *pgs, struct mm_struct *skip_lock_this_mm);
 
 /**
- * none_locked_ptealtprot - apply pte prot alternation, all
+ * none_ptealtprot - apply pte prot alternation, all
  * PTEs will have both wr and ex disabled.
  * 
- * Caller must acquire the lock first, and release it later.
- * May sleep. Use kpsleepable.
+ * May sleep.
  *
- * Before acquiring the pgs->lock and calling this, you may check
- * pgs->pap->init optimistically:
+ * Before calling this, you may check pgs->pap->init optimistically:
  *  * if ->init is true then acquire the lock and recheck 
  *  * if ->init is false... don't do anything!
  *
@@ -88,15 +86,14 @@ void exonly_locked_ptealtprot(
  *
  * Returns: true if cleared all protection bits (->init was true), false otherwise
  */
-bool none_locked_ptealtprot(
+bool none_ptealtprot(
 		struct page_status *pgs, struct mm_struct *skip_lock_this_mm);
 
 /**
- * pte_fixup_locked_ptealtprot - adjust pte protection bits after
+ * pte_fixup_ptealtprot - adjust pte protection bits after
  * according to the current shadow perms.
  *
- * Caller must acquire the lock first, and release it later.
- * May sleep. Use kpsleepable.
+ * May sleep.
  *
  * Caller must **NOT** acquire the page table lock of @ptep (subtle deadlock
  * warning due to different lock acquisition patterns)
@@ -105,14 +102,7 @@ bool none_locked_ptealtprot(
  *
  * This is meaningful only when ->init is false (that is, mprotect
  * after the page is detected as WX and alternation mechanism already
- * started). Contrary to none_locked_ptealtprot:
- *
- * Acquire the lock anyway:
- *
- *  * if ->init is false no recheck is really needed, as
- *  if ->init is false, it will forever be false
- *
- *  * if ->init is true, recheck (it may have changed)
+ * started). Contrary to none_ptealtprot:
  *
  * Usage: already detected WX-page mprotect assoc. pte.
  *
@@ -122,7 +112,7 @@ bool none_locked_ptealtprot(
  * @pgs: the pgs
  * @addr: the va
  */
-void pte_fixup_locked_ptealtprot(
+void pte_fixup_ptealtprot(
 		pte_t* ptep, struct vm_area_struct *vma, spinlock_t *ptlp, 
 		struct page_status *pgs, unsigned long addr);
 

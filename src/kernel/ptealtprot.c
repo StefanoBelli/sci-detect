@@ -401,10 +401,14 @@ void free_ptealtprot(__maybe_unused struct page_status *pgs)
 
 #endif
 
-void wrex_locked_ptealtprot(
+void wrex_ptealtprot(
 		__maybe_unused struct page_status *pgs, 
 		__maybe_unused enum fault_flag ff, 
-		__maybe_unused struct mm_struct *skip_lock_this_mm)
+		__maybe_unused struct mm_struct *skip_lock_this_mm,
+		__maybe_unused struct vm_area_struct *vma,
+		__maybe_unused pte_t *ptep,
+		__maybe_unused spinlock_t *ptlp,
+		__maybe_unused unsigned long addr)
 {
 
 #ifdef DO_PTE_ALT_PROT
@@ -465,6 +469,17 @@ void wrex_locked_ptealtprot(
 	ptes_walk_from_folio_locked(folio, wrex_pte_one, pgs->pap, addr_spcs_head);
 
 __unlock_all_and_free:
+	if(pgs->pap->write && vma->vm_flags & VM_WRITE) {
+		pte_t pte;
+
+		spin_lock(ptlp);
+		pte = ptep_get(ptep);
+		pte = pte_mkwrite_novma(pte);
+		set_pte(ptep, pte);
+		spin_unlock(ptlp);
+		__scid_flush_tlb_page(vma, addr);
+	}
+
 	unlock_all_mm_in_addr_spcs(addr_spcs_head, skip_lock_this_mm);
 	mutex_unlock(&pgs->pap->lock);
 
@@ -474,7 +489,7 @@ __unlock_all_and_free:
 
 }
 
-void exonly_locked_ptealtprot(
+void exonly_ptealtprot(
 		__maybe_unused struct page_status *pgs, 
 		__maybe_unused struct mm_struct *skip_lock_this_mm)
 {
@@ -533,7 +548,7 @@ __unlock_all_and_free:
  * this is called when a system call is returning (AND NOT the
  * page fault handler)
  */
-bool none_locked_ptealtprot(
+bool none_ptealtprot(
 		__maybe_unused struct page_status *pgs, 
 		__maybe_unused struct mm_struct *skip_lock_this_mm)
 {
@@ -565,7 +580,7 @@ bool none_locked_ptealtprot(
 	return true;
 }
 
-void pte_fixup_locked_ptealtprot(
+void pte_fixup_ptealtprot(
 		__maybe_unused pte_t* ptep, 
 		__maybe_unused struct vm_area_struct *vma, 
 		__maybe_unused spinlock_t *ptlp, 
