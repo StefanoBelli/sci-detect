@@ -20,15 +20,6 @@
 #define WITH_ORIG_IP 0
 #define WITH_NEW_IP 1
 
-struct kprobe force_sig_fault__kp;
-
-static inline void __do_pte_alt(struct page_status *pgs)
-{
-	KPSLEEPABLE(&force_sig_fault__kp,
-			exonly_ptealtprot(pgs, NULL);
-	);
-}
-
 #define REQUIRED_CPU_ERROR_CODE ( \
 		X86_PF_PROT | \
 		X86_PF_USER | \
@@ -114,7 +105,9 @@ static int force_sig_fault__phkphook(
 		if(likely(!READ_ONCE(pgs->pap)))
 			goto __put_pgs;
 
-		__do_pte_alt(pgs);
+		KPSLEEPABLE(&force_sig_fault__kp,
+				exonly_ptealtprot(pgs, true);
+		);
 
 		rv = WITH_NEW_IP;
 		regs->ip = (unsigned long) &__return_from_subroutine;

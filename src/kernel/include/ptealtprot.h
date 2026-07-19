@@ -7,7 +7,6 @@
 
 #ifdef DO_PTE_ALT_PROT
 
-#include <linux/mm_types.h>
 #include <linux/mutex.h>
 
 struct ptealtprot_struct {
@@ -18,6 +17,16 @@ struct ptealtprot_struct {
 };
 
 #endif /* DO_PTE_ALT_PROT */
+
+#include <linux/mm_types.h>
+#include <linux/spinlock.h>
+
+struct my_pte_info {
+	pte_t *ptep;
+	spinlock_t *ptlp;
+	struct vm_area_struct *vma;
+	unsigned long addr;
+};
 
 /* fwd decl */
 struct page_status;
@@ -40,39 +49,40 @@ void free_ptealtprot(struct page_status *pgs);
  * wrex_ptealtprot - apply pte prot alternation, both
  * write and execute are possible targets
  * 
- * May sleep.
+ * May sleep. Expecting process context.
+ * Don't acquire the pap->lock
  *
  * Usage: page fault handler return handler
  *
  * @pgs: the pgs
  * @ff: the fault flags
- * @skip_lock_this_mm: don't acquire the mmap_read_lock for this mm
+ * @rlkmm: whether or not to acquire the mmap_read_lock for current->mm
+ * @mpi: fault handler's own manipulated PTE infos
  */
 void wrex_ptealtprot(
 		struct page_status *pgs, enum fault_flag ff, 
-		struct mm_struct *skip_lock_this_mm,
-		struct vm_area_struct *vma, pte_t* ptep,
-		spinlock_t *ptlp, unsigned long addr);
+		bool rlkmm, struct my_pte_info *mpi);
 
 /**
  * exonly_ptealtprot - apply pte prot alternation, only
  * execute is a possible target
  * 
- * May sleep.
+ * May sleep. Expecting process context.
+ * Don't acquire the pap->lock.
  *
  * Usage: segmentation fault handler
  *
  * @pgs: the pgs
- * @skip_lock_this_mm: don't acquire the mmap_read_lock for this mm
+ * @rlkmm: whether or not to acquire the mmap_read_lock for current->mm
  */
-void exonly_ptealtprot(
-		struct page_status *pgs, struct mm_struct *skip_lock_this_mm);
+void exonly_ptealtprot(struct page_status *pgs, bool rlkmm);
 
 /**
  * none_ptealtprot - apply pte prot alternation, all
  * PTEs will have both wr and ex disabled.
  * 
- * May sleep.
+ * May sleep. Expecting process context.
+ * Don't acquire the pap->lock.
  *
  * Before calling this, you may check pgs->pap->init optimistically:
  *  * if ->init is true then acquire the lock and recheck 
@@ -82,18 +92,17 @@ void exonly_ptealtprot(
  * a system call returns.
  *
  * @pgs: the pgs
- * @skip_lock_this_mm: don't acquire the mmap_read_lock for this mm
+ * @rlkmm: whether or not to acquire the mmap_read_lock for current->mm
  *
  * Returns: true if cleared all protection bits (->init was true), false otherwise
  */
-bool none_ptealtprot(
-		struct page_status *pgs, struct mm_struct *skip_lock_this_mm);
+bool none_ptealtprot(struct page_status *pgs, bool rlkmm);
 
 /**
  * pte_fixup_ptealtprot - adjust pte protection bits after
  * according to the current shadow perms.
  *
- * May sleep.
+ * May sleep. Expecting process context.
  *
  * Caller must **NOT** acquire the page table lock of @ptep (subtle deadlock
  * warning due to different lock acquisition patterns)
@@ -102,7 +111,7 @@ bool none_ptealtprot(
  *
  * This is meaningful only when ->init is false (that is, mprotect
  * after the page is detected as WX and alternation mechanism already
- * started). Contrary to none_ptealtprot:
+ * started).
  *
  * Usage: already detected WX-page mprotect assoc. pte.
  *

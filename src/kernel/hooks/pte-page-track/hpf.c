@@ -66,6 +66,7 @@ static int handle_pte_fault__hkrphook(
 	pte_t *vmf_ptep = vmf(vmfe)->pte;
 	enum fault_flag vmf_flags = orig_flags(vmfe);
 	bool skip_mmap_rlock;
+	struct my_pte_info mpi;
 
 	if(unlikely(retval & VM_FAULT_ERROR))
 		goto __end;
@@ -91,13 +92,13 @@ static int handle_pte_fault__hkrphook(
 		if(likely(!pgs->pap))
 			goto __put_pgs_end;
 
-		struct kprobe *mykp = kpat(handle_pte_fault__krp, krpi);
-		KPSLEEPABLE(mykp,
-				wrex_ptealtprot(
-					pgs, vmf_flags, 
-					skip_mmap_rlock ? current->mm : NULL,
-					vmf(vmfe)->vma, vmf_ptep, 
-					vmf(vmfe)->ptl, vmf(vmfe)->address);
+		mpi.vma = vmf(vmfe)->vma;
+		mpi.ptlp = vmf(vmfe)->ptl;
+		mpi.addr = vmf(vmfe)->address;
+		mpi.ptep = vmf_ptep;
+
+		KPSLEEPABLE(kpat(handle_pte_fault__krp, krpi),
+				wrex_ptealtprot(pgs, vmf_flags, !skip_mmap_rlock, &mpi);
 		);
 	} else 
 		goto __end;

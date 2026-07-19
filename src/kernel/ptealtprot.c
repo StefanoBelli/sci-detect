@@ -165,27 +165,31 @@ __unlock:
 	return NULL;
 }
 
-static inline void rlock_all_mm_in_addr_spcs(
-		struct list_head *addr_spcs_head, struct mm_struct *skip_mm)
-{
-	struct addr_spc *entry;
+#define __for_each_addr_spc_do(addr_spcs_head, rlk_cur_mm, action) \
+	do { \
+		struct addr_spc *entry; \
+		\
+		list_for_each_entry(entry, (addr_spcs_head), node) { \
+			if(!(rlk_cur_mm) && entry->mm == current->mm) \
+				continue; \
+			\
+			action(entry->mm); \
+		} \
+	} while(0)
 
-	list_for_each_entry(entry, addr_spcs_head, node) {
-		if(entry->mm != skip_mm)
-			mmap_read_lock(entry->mm);
-	}
+static inline void rlock_all_mm_in_addr_spcs(
+		struct list_head *addr_spcs_head, bool rlk_cur_mm)
+{
+	__for_each_addr_spc_do(addr_spcs_head, rlk_cur_mm, mmap_read_lock);
 }
 
 static inline void unlock_all_mm_in_addr_spcs(
-		struct list_head *addr_spcs_head, struct mm_struct *skip_mm)
+		struct list_head *addr_spcs_head, bool rlk_cur_mm)
 {
-	struct addr_spc *entry;
-
-	list_for_each_entry(entry, addr_spcs_head, node) {
-		if(entry->mm != skip_mm)
-			mmap_read_unlock(entry->mm);
-	}
+	__for_each_addr_spc_do(addr_spcs_head, rlk_cur_mm, mmap_read_unlock);
 }
+
+#undef __for_each_addr_spc_do
 
 /* callback that passes one pte (one for each call)
  *
@@ -205,7 +209,8 @@ typedef void (*pte_one_fpt)(
 
 static void ptes_walk_from_folio_locked(
 		struct folio *folio, pte_one_fpt pte_one, 
-		struct ptealtprot_struct *pap, struct list_head *addr_spcs_head)
+		struct ptealtprot_struct *pap, struct list_head *addr_spcs_head,
+		pte_t *skip_ptep)
 {
 	struct addr_spc *entry;
 	struct addr_spc *pos;
@@ -236,10 +241,8 @@ static void ptes_walk_from_folio_locked(
 			if(likely(pvmw.ptl && spin_is_locked(pvmw.ptl))) {
 
 				/* pass the ptep */
-				if(pte_one)
+				if(likely(pte_one && pvmw.pte != skip_ptep))
 					pte_one(pvmw.pte, vma, entry->addr, pap);
-				else
-					scid_warn("pte_one is NULL");
 
 				pte_unmap_unlock(pvmw.pte, pvmw.ptl);
 			} else
@@ -315,6 +318,21 @@ static void wrex_pte_one(
 
 	set_pte(ptep, pte);
 	__scid_flush_tlb_page(vma, addr);
+}
+
+static inline void maybe_mkwrite_mypte(bool shdw_write, struct my_pte_info *mpi)
+{
+	if(shdw_write && mpi->vma->vm_flags & VM_WRITE) {
+		pte_t pte;
+
+		spin_lock(mpi->ptlp);
+		pte = ptep_get(mpi->ptep);
+		pte = pte_mkwrite_novma(pte);
+		pte = pte_set_flags(pte, _PAGE_NX);
+		set_pte(mpi->ptep, pte);
+		spin_unlock(mpi->ptlp);
+		__scid_flush_tlb_page(mpi->vma, mpi->addr);
+	}
 }
 
 #undef IF_INVALID_PTE_RETURN
@@ -404,11 +422,8 @@ void free_ptealtprot(__maybe_unused struct page_status *pgs)
 void wrex_ptealtprot(
 		__maybe_unused struct page_status *pgs, 
 		__maybe_unused enum fault_flag ff, 
-		__maybe_unused struct mm_struct *skip_lock_this_mm,
-		__maybe_unused struct vm_area_struct *vma,
-		__maybe_unused pte_t *ptep,
-		__maybe_unused spinlock_t *ptlp,
-		__maybe_unused unsigned long addr)
+		__maybe_unused bool rlkmm,
+		__maybe_unused struct my_pte_info *mpi)
 {
 
 #ifdef DO_PTE_ALT_PROT
@@ -430,7 +445,7 @@ void wrex_ptealtprot(
 	folio = page_folio(pgs->page);
 
 	addr_spcs_head = all_addr_spcs_from_folio(folio);
-	rlock_all_mm_in_addr_spcs(addr_spcs_head, skip_lock_this_mm);
+	rlock_all_mm_in_addr_spcs(addr_spcs_head, rlkmm);
 
 	mutex_lock(&pgs->pap->lock);
 
@@ -466,22 +481,14 @@ void wrex_ptealtprot(
 			}
 	);
 
-	ptes_walk_from_folio_locked(folio, wrex_pte_one, pgs->pap, addr_spcs_head);
+	ptes_walk_from_folio_locked(
+			folio, wrex_pte_one, pgs->pap, addr_spcs_head, mpi->ptep);
 
 __unlock_all_and_free:
-	if(pgs->pap->write && vma->vm_flags & VM_WRITE) {
-		pte_t pte;
+	maybe_mkwrite_mypte(pgs->pap->write, mpi);
 
-		spin_lock(ptlp);
-		pte = ptep_get(ptep);
-		pte = pte_mkwrite_novma(pte);
-		set_pte(ptep, pte);
-		spin_unlock(ptlp);
-		__scid_flush_tlb_page(vma, addr);
-	}
-
-	unlock_all_mm_in_addr_spcs(addr_spcs_head, skip_lock_this_mm);
 	mutex_unlock(&pgs->pap->lock);
+	unlock_all_mm_in_addr_spcs(addr_spcs_head, rlkmm);
 
 	free_addr_spcs_list(&addr_spcs_head);
 
@@ -491,7 +498,7 @@ __unlock_all_and_free:
 
 void exonly_ptealtprot(
 		__maybe_unused struct page_status *pgs, 
-		__maybe_unused struct mm_struct *skip_lock_this_mm)
+		__maybe_unused bool rlkmm)
 {
 
 #ifdef DO_PTE_ALT_PROT
@@ -501,7 +508,7 @@ void exonly_ptealtprot(
 	folio = page_folio(pgs->page);
 
 	addr_spcs_head = all_addr_spcs_from_folio(folio);
-	rlock_all_mm_in_addr_spcs(addr_spcs_head, skip_lock_this_mm);
+	rlock_all_mm_in_addr_spcs(addr_spcs_head, rlkmm);
 
 	mutex_lock(&pgs->pap->lock);
 
@@ -529,11 +536,12 @@ void exonly_ptealtprot(
 				goto __unlock_all_and_free;
 	);
 
-	ptes_walk_from_folio_locked(folio, exonly_pte_one, pgs->pap, addr_spcs_head);
+	ptes_walk_from_folio_locked(
+			folio, exonly_pte_one, pgs->pap, addr_spcs_head, NULL);
 
 __unlock_all_and_free:
-	unlock_all_mm_in_addr_spcs(addr_spcs_head, skip_lock_this_mm);
 	mutex_unlock(&pgs->pap->lock);
+	unlock_all_mm_in_addr_spcs(addr_spcs_head, rlkmm);
 
 	free_addr_spcs_list(&addr_spcs_head);
 #endif
@@ -550,7 +558,7 @@ __unlock_all_and_free:
  */
 bool none_ptealtprot(
 		__maybe_unused struct page_status *pgs, 
-		__maybe_unused struct mm_struct *skip_lock_this_mm)
+		__maybe_unused bool rlkmm)
 {
 
 #ifdef DO_PTE_ALT_PROT
