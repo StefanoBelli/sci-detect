@@ -8,6 +8,7 @@
 
 #include <resolve_syms/walk_page_range.h>
 #include <logging.h>
+#include <kpsleepable.h>
 
 #define ERROR_INVALID_PTE -123456
 
@@ -27,7 +28,7 @@ static int upw_entry_pte(
 }
 
 /* don't use GUP, as it will alter PTEs, cause faultins, ... */
-struct page *user_page_walk(unsigned long addr, bool quiet)
+struct page *user_page_walk(unsigned long addr, bool quiet, struct kprobe *kp)
 {
 	int rv;
 	struct mm_struct *mm = current->mm;
@@ -40,7 +41,9 @@ struct page *user_page_walk(unsigned long addr, bool quiet)
 	};
 
 	/* lock mm */
-	mmap_read_lock(mm);
+	KPSLEEPABLE(kp,
+			mmap_read_lock(mm);
+	);
 
 	rv = THUNK(walk_page_range)(mm, astart, aend, &wops, &page);
 

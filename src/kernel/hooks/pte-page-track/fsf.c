@@ -11,7 +11,6 @@
 #include <asm-generic/rwonce.h>
 
 #include <hooks/pte-page-track/utils/user_page_walk.h>
-#include <kpsleepable.h>
 #include <pgtrack.h>
 #include <ptealtprot.h>
 #include <logging.h>
@@ -89,9 +88,7 @@ static int force_sig_fault__phkphook(
 	if(!fsf_checks_ok(regs, &addr))
 		return rv;
 
-	KPSLEEPABLE(&force_sig_fault__kp, 
-			page = user_page_walk((unsigned long) addr, false);
-	);
+	page = user_page_walk((unsigned long) addr, false, &force_sig_fault__kp);
 
 	if(!page)
 		return rv;
@@ -105,9 +102,7 @@ static int force_sig_fault__phkphook(
 		if(likely(!READ_ONCE(pgs->pap)))
 			goto __put_pgs;
 
-		KPSLEEPABLE(&force_sig_fault__kp,
-				exonly_ptealtprot(pgs, true);
-		);
+		exonly_ptealtprot(pgs, true, &force_sig_fault__kp);
 
 		rv = WITH_NEW_IP;
 		regs->ip = (unsigned long) &__return_from_subroutine;

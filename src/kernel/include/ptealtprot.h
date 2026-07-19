@@ -20,6 +20,7 @@ struct ptealtprot_struct {
 
 #include <linux/mm_types.h>
 #include <linux/spinlock.h>
+#include <linux/kprobes.h>
 
 struct my_pte_info {
 	pte_t *ptep;
@@ -58,10 +59,11 @@ void free_ptealtprot(struct page_status *pgs);
  * @ff: the fault flags
  * @rlkmm: whether or not to acquire the mmap_read_lock for current->mm
  * @mpi: fault handler's own manipulated PTE infos
+ * @kp: the current kprobe
  */
 void wrex_ptealtprot(
 		struct page_status *pgs, enum fault_flag ff, 
-		bool rlkmm, struct my_pte_info *mpi);
+		bool rlkmm, struct my_pte_info *mpi, struct kprobe *kp);
 
 /**
  * exonly_ptealtprot - apply pte prot alternation, only
@@ -74,8 +76,10 @@ void wrex_ptealtprot(
  *
  * @pgs: the pgs
  * @rlkmm: whether or not to acquire the mmap_read_lock for current->mm
+ * @kp: the current kprobe
  */
-void exonly_ptealtprot(struct page_status *pgs, bool rlkmm);
+void exonly_ptealtprot(
+		struct page_status *pgs, bool rlkmm, struct kprobe *kp);
 
 /**
  * none_ptealtprot - apply pte prot alternation, all
@@ -93,10 +97,12 @@ void exonly_ptealtprot(struct page_status *pgs, bool rlkmm);
  *
  * @pgs: the pgs
  * @rlkmm: whether or not to acquire the mmap_read_lock for current->mm
+ * @kp: the current kprobe
  *
  * Returns: true if cleared all protection bits (->init was true), false otherwise
  */
-bool none_ptealtprot(struct page_status *pgs, bool rlkmm);
+bool none_ptealtprot(struct page_status *pgs, bool rlkmm, 
+		struct kprobe *kp);
 
 /**
  * pte_fixup_ptealtprot - adjust pte protection bits after

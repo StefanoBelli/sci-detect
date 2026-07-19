@@ -97,9 +97,8 @@ static int handle_pte_fault__hkrphook(
 		mpi.addr = vmf(vmfe)->address;
 		mpi.ptep = vmf_ptep;
 
-		KPSLEEPABLE(kpat(handle_pte_fault__krp, krpi),
-				wrex_ptealtprot(pgs, vmf_flags, !skip_mmap_rlock, &mpi);
-		);
+		wrex_ptealtprot(pgs, vmf_flags, !skip_mmap_rlock, 
+				&mpi, kpat(handle_pte_fault__krp, krpi));
 	} else 
 		goto __end;
 

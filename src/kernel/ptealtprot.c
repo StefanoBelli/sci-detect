@@ -14,6 +14,7 @@
 #include <resolve_syms/rmap_walk.h>
 #include <resolve_syms/flush_tlb_mm_range.h>
 #include <resolve_syms/page_vma_mapped_walk.h>
+#include <kpsleepable.h>
 #include <pgtrack.h>
 #include <pgsnap.h>
 #include <logging.h>
@@ -46,25 +47,27 @@ static void __drop_mm_work(struct work_struct *work)
 	kfree(args);
 }
 
-#define warn_sync_mmdrop(mm) \
+#define warn_sync_mmdrop(mm, kp) \
 	do { \
 		scid_warn("fallback to non-work-deferring offloading mmdrop"); \
-		mmdrop((mm)); \
+		KPSLEEPABLE((kp), \
+				mmdrop((mm)); \
+		); \
 	} while(0)
 
-static void free_addr_spc(struct addr_spc *entry)
+static void free_addr_spc(struct addr_spc *entry, struct kprobe *kp)
 {
 	struct drop_mm_work_args *work_args;
 
 	work_args = kmalloc(sizeof(struct drop_mm_work_args), GFP_ATOMIC);
 	if(unlikely(!work_args))
-		warn_sync_mmdrop(entry->mm);
+		warn_sync_mmdrop(entry->mm, kp);
 	else {
 		work_args->mm = entry->mm;
 		INIT_WORK(&work_args->work, __drop_mm_work);
 		if(!queue_work(drop_mm_wq, &work_args->work)) {
 			scid_err("unable to queue work");
-			warn_sync_mmdrop(entry->mm);
+			warn_sync_mmdrop(entry->mm, kp);
 		}
 	}
 
@@ -82,13 +85,13 @@ struct __rmap_one_addr_spc_args {
 	bool errored;
 };
 
-static void free_addr_spcs_list(struct list_head **head)
+static void free_addr_spcs_list(struct list_head **head, struct kprobe *kp)
 {
 	struct addr_spc *entry;
 	struct addr_spc *tmp;
 
 	list_for_each_entry_safe(entry, tmp, *head, node)
-		free_addr_spc(entry);
+		free_addr_spc(entry, kp);
 
 	kfree(*head);
 	*head = NULL;
@@ -121,7 +124,8 @@ static bool __rmap_one_addr_spc(
 }
 
 /* may sleep, acquires rmap lock */
-static struct list_head *all_addr_spcs_from_folio(struct folio *folio)
+static struct list_head *all_addr_spcs_from_folio(
+		struct folio *folio, struct kprobe *kp)
 {
 	struct __rmap_one_addr_spc_args args;
 	struct rmap_walk_control rwc;
@@ -130,9 +134,11 @@ static struct list_head *all_addr_spcs_from_folio(struct folio *folio)
 	if(unlikely(!folio_mapped(folio)))
 		return NULL;
 
-	folio_lock(folio);
+	KPSLEEPABLE(kp, 
+			folio_lock(folio);
+			head = kmalloc(sizeof(struct list_head), GFP_KERNEL);
+	);
 
-	head = kmalloc(sizeof(struct list_head), GFP_KERNEL);
 	if(unlikely(!head)) {
 		scid_err("memory exhausted");
 		goto __unlock;
@@ -148,7 +154,9 @@ static struct list_head *all_addr_spcs_from_folio(struct folio *folio)
 	rwc.arg = &args;
 
 	/* this acquires rmap lock */
-	THUNK(rmap_walk)(folio, &rwc);
+	KPSLEEPABLE(kp, 
+			THUNK(rmap_walk)(folio, &rwc);
+	);
 
 	if(unlikely(args.errored)) {
 		scid_err("rmap_walk errored");
@@ -159,34 +167,40 @@ static struct list_head *all_addr_spcs_from_folio(struct folio *folio)
 	return head;
 
 __free_list_unlock:
-	free_addr_spcs_list(&head);
+	free_addr_spcs_list(&head, kp);
 __unlock:
 	folio_unlock(folio);
 	return NULL;
 }
 
-#define __for_each_addr_spc_do(addr_spcs_head, rlk_cur_mm, action) \
+#define __for_each_addr_spc_do(name, addr_spcs_head, rlk_cur_mm, __action__) \
 	do { \
-		struct addr_spc *entry; \
+		struct addr_spc *name; \
 		\
-		list_for_each_entry(entry, (addr_spcs_head), node) { \
-			if(!(rlk_cur_mm) && entry->mm == current->mm) \
+		list_for_each_entry(name, (addr_spcs_head), node) { \
+			if(!(rlk_cur_mm) && name->mm == current->mm) \
 				continue; \
 			\
-			action(entry->mm); \
+			__action__\
 		} \
 	} while(0)
 
 static inline void rlock_all_mm_in_addr_spcs(
-		struct list_head *addr_spcs_head, bool rlk_cur_mm)
+		struct list_head *addr_spcs_head, bool rlk_cur_mm, struct kprobe *kp)
 {
-	__for_each_addr_spc_do(addr_spcs_head, rlk_cur_mm, mmap_read_lock);
+	__for_each_addr_spc_do(entry, addr_spcs_head, rlk_cur_mm, 
+			KPSLEEPABLE(kp, 
+				mmap_read_lock(entry->mm);
+			);
+	);
 }
 
 static inline void unlock_all_mm_in_addr_spcs(
 		struct list_head *addr_spcs_head, bool rlk_cur_mm)
 {
-	__for_each_addr_spc_do(addr_spcs_head, rlk_cur_mm, mmap_read_unlock);
+	__for_each_addr_spc_do(entry, addr_spcs_head, rlk_cur_mm, 
+			mmap_read_unlock(entry->mm);
+	);
 }
 
 #undef __for_each_addr_spc_do
@@ -256,9 +270,8 @@ __failure_put:
 	}
 }
 
-#define IF_INVALID_PTE_RETURN(pte) \
-	if(pte_none((pte)) || !pte_present((pte))) \
-		return
+#define INVALID_PTE(pte) \
+	(pte_none((pte)) || !pte_present((pte)))
 
 static void noneprot_pte_one(
 		pte_t* ptep, 
@@ -268,7 +281,8 @@ static void noneprot_pte_one(
 {
 	pte_t pte = ptep_get(ptep);
 
-	IF_INVALID_PTE_RETURN(pte);
+	if(INVALID_PTE(pte))
+		return;
 
 	pte = pte_set_flags(pte, _PAGE_NX);
 	pte = pte_wrprotect(pte);
@@ -285,7 +299,8 @@ static void exonly_pte_one(
 {
 	pte_t pte = ptep_get(ptep);
 
-	IF_INVALID_PTE_RETURN(pte);
+	if(INVALID_PTE(pte))
+		return;
 
 	if(vma->vm_flags & VM_EXEC) 
 		pte = pte_mkexec(pte);
@@ -304,7 +319,8 @@ static void wrex_pte_one(
 {
 	pte_t pte = ptep_get(ptep);
 
-	IF_INVALID_PTE_RETURN(pte);
+	if(INVALID_PTE(pte))
+		return;
 
 	if(pap->write)
 		pte = pte_set_flags(pte, _PAGE_NX);
@@ -326,7 +342,13 @@ static inline void maybe_mkwrite_mypte(bool shdw_write, struct my_pte_info *mpi)
 		pte_t pte;
 
 		spin_lock(mpi->ptlp);
+
 		pte = ptep_get(mpi->ptep);
+		if(INVALID_PTE(pte)) {
+			spin_unlock(mpi->ptlp);
+			return;
+		}
+
 		pte = pte_mkwrite_novma(pte);
 		pte = pte_set_flags(pte, _PAGE_NX);
 		set_pte(mpi->ptep, pte);
@@ -335,7 +357,7 @@ static inline void maybe_mkwrite_mypte(bool shdw_write, struct my_pte_info *mpi)
 	}
 }
 
-#undef IF_INVALID_PTE_RETURN
+#undef INVALID_PTE
 
 #endif /* DO_PTE_ALT_PROT */
 
@@ -423,7 +445,8 @@ void wrex_ptealtprot(
 		__maybe_unused struct page_status *pgs, 
 		__maybe_unused enum fault_flag ff, 
 		__maybe_unused bool rlkmm,
-		__maybe_unused struct my_pte_info *mpi)
+		__maybe_unused struct my_pte_info *mpi,
+		__maybe_unused struct kprobe *kp)
 {
 
 #ifdef DO_PTE_ALT_PROT
@@ -444,10 +467,12 @@ void wrex_ptealtprot(
 
 	folio = page_folio(pgs->page);
 
-	addr_spcs_head = all_addr_spcs_from_folio(folio);
-	rlock_all_mm_in_addr_spcs(addr_spcs_head, rlkmm);
+	addr_spcs_head = all_addr_spcs_from_folio(folio, kp);
+	rlock_all_mm_in_addr_spcs(addr_spcs_head, rlkmm, kp);
 
-	mutex_lock(&pgs->pap->lock);
+	KPSLEEPABLE(kp, 
+			mutex_lock(&pgs->pap->lock);
+	);
 
 	PHASED_PTEALTPROT(
 			pgs->pap
@@ -490,7 +515,7 @@ __unlock_all_and_free:
 	mutex_unlock(&pgs->pap->lock);
 	unlock_all_mm_in_addr_spcs(addr_spcs_head, rlkmm);
 
-	free_addr_spcs_list(&addr_spcs_head);
+	free_addr_spcs_list(&addr_spcs_head, kp);
 
 #endif
 
@@ -498,7 +523,8 @@ __unlock_all_and_free:
 
 void exonly_ptealtprot(
 		__maybe_unused struct page_status *pgs, 
-		__maybe_unused bool rlkmm)
+		__maybe_unused bool rlkmm,
+		__maybe_unused struct kprobe *kp)
 {
 
 #ifdef DO_PTE_ALT_PROT
@@ -507,10 +533,12 @@ void exonly_ptealtprot(
 
 	folio = page_folio(pgs->page);
 
-	addr_spcs_head = all_addr_spcs_from_folio(folio);
-	rlock_all_mm_in_addr_spcs(addr_spcs_head, rlkmm);
+	addr_spcs_head = all_addr_spcs_from_folio(folio, kp);
+	rlock_all_mm_in_addr_spcs(addr_spcs_head, rlkmm, kp);
 
-	mutex_lock(&pgs->pap->lock);
+	KPSLEEPABLE(kp,
+			mutex_lock(&pgs->pap->lock);
+	);
 
 	PHASED_PTEALTPROT(
 			pgs->pap
@@ -543,7 +571,7 @@ __unlock_all_and_free:
 	mutex_unlock(&pgs->pap->lock);
 	unlock_all_mm_in_addr_spcs(addr_spcs_head, rlkmm);
 
-	free_addr_spcs_list(&addr_spcs_head);
+	free_addr_spcs_list(&addr_spcs_head, kp);
 #endif
 
 }
@@ -558,7 +586,8 @@ __unlock_all_and_free:
  */
 bool none_ptealtprot(
 		__maybe_unused struct page_status *pgs, 
-		__maybe_unused bool rlkmm)
+		__maybe_unused bool rlkmm,
+		__maybe_unused struct kprobe *kp)
 {
 
 #ifdef DO_PTE_ALT_PROT
