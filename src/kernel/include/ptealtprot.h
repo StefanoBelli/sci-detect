@@ -149,10 +149,13 @@ bool none_ptealtprot(struct page_status *pgs, bool rlkmm,
  * Usage: already detected WX-page mprotect assoc. pte.
  *
  * @pgs: the pgs
- * @mpi: 
+ * @mpi: my_pte_info
+ * @kp: the current running kprobe
+ *
  */
 void pte_fixup_ptealtprot(
-		struct page_status *pgs, struct my_pte_info *mpi);
+		struct page_status *pgs, struct my_pte_info *mpi, 
+		struct kprobe *kp);
 
 /**
  * setup_ptealtprot - prepare it

@@ -81,6 +81,7 @@ static int change_pte_range__hkrphook(
 	unsigned long end = cpr_args->end;
 	spinlock_t *ptl;
 
+	/* start of the critical section involving the ptl declared above */
 	pte_t *ptep = THUNK(pte_offset_map_lock)(mm, pmd, addr, &ptl);
 	if(!ptep) {
 		scid_warn("NULL ptep");
@@ -108,6 +109,7 @@ static int change_pte_range__hkrphook(
 
 	} while(ptep++, addr += PAGE_SIZE, addr != end);
 
+	/* end of the critical section involving the ptl declared above */
 	pte_unmap_unlock(ptep, ptl);
 
 	__testing("pages-ok");
