@@ -43,6 +43,8 @@ $(modname)-objs += \
 
 ccflags-y += -Wall -W -Wextra -I$(src)/include -Wno-shadow
 
+# ------ build type ------
+
 valid_build_types = release testing
 BUILD_TYPE ?= release
 
@@ -56,6 +58,8 @@ ifeq ($(BUILD_TYPE), testing)
 	ccflags-y += -DSCID_CONFIG_TESTING
 endif
 
+# ------ snapshot ------
+
 valid_disable_snapshot = yes no
 DISABLE_SNAPSHOT ?= no
 
@@ -67,6 +71,21 @@ endif
 
 ifeq ($(DISABLE_SNAPSHOT), yes)
 	ccflags-y += -DDISABLE_PAGE_SNAPSHOT
+endif
+
+# ------ ptealtprot -----
+
+valid_disable_ptealtprot = yes no
+DISABLE_PTEALTPROT ?= no
+
+ifneq ($(filter $(DISABLE_PTEALTPROT), $(valid_disable_ptealtprot)),)
+    $(info DISABLE_PTEALTPROT=$(DISABLE_PTEALTPROT) ok)
+else
+    $(error DISABLE_PTEALTPROT=$(DISABLE_PTEALTPROT) is invalid)
+endif
+
+ifeq ($(DISABLE_PTEALTPROT), yes)
+	ccflags-y += -DDISABLE_PTE_ALT_PROT
 endif
  
 all:

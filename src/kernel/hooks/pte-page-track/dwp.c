@@ -132,8 +132,6 @@ static int do_wp_page__hkrphook(
 			return 0;
 
 		struct folio *folio = page_folio(page);
-		if(!folio)
-			return 0;
 
 		if(!folio_try_get(folio)) {
 			scid_err("unable to get folio");

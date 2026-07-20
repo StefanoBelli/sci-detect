@@ -23,8 +23,8 @@ jobs:
       run: sudo apt update
     - name: Install kernel headers, libnl-3, binutils-dev
       run: sudo apt install -y linux-headers-$(uname -r) libnl-3-dev libnl-genl-3-dev binutils-dev
-    - name: Build the module
-      run: make kernel-testing
+    - name: Build the module (without ptealtprot feature)
+      run: make kernel-testing-no-ptealtprot
     - name: Show THP and mem compaction status BEFORE moving to madvise
       run: ./scripts/show-thp-and-compaction.sh
     - name: Set THP status to madvise, disable mem compaction

@@ -246,6 +246,13 @@ static int free_unref_folios__phkphook(
 	for(unsigned char i = 0; i < folios->nr; i++) {
 		struct folio *folio = folios->folios[i];
 
+		/*
+		 * don't try to get the folio (folio_try_get) or forcefully
+		 * get a reference to the folio. When this hook is reached,
+		 * this means that the folio reached refcnf = 0 (that is,
+		 * unreffed. folio_try_get would fail.)
+		 */
+
 		FUF_TESTING_CALL(fuf_check_folio(folio));
 
 		unsigned long nr_pages = folio_nr_pages(folio);

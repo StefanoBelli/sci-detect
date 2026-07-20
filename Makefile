@@ -7,14 +7,26 @@ clean: kernel-clean user-clean
 kernel:
 	make -C src/kernel
 
-kernel-testing:
-	make -C src/kernel BUILD_TYPE=testing
+kernel-no-ptealtprot:
+	make -C src/kernel DISABLE_PTEALTPROT=yes
 
 kernel-no-snapshot:
 	make -C src/kernel DISABLE_SNAPSHOT=yes
 
+kernel-no-snapshot-no-ptealtprot:
+	make -C src/kernel DISABLE_SNAPSHOT=yes DISABLE_PTEALTPROT=yes
+
+kernel-testing:
+	make -C src/kernel BUILD_TYPE=testing
+
 kernel-testing-no-snapshot:
 	make -C src/kernel BUILD_TYPE=testing DISABLE_SNAPSHOT=yes
+
+kernel-testing-no-ptealtprot:
+	make -C src/kernel BUILD_TYPE=testing DISABLE_PTEALTPROT=yes
+
+kernel-testing-no-snapshot-no-ptealtprot:
+	make -C src/kernel BUILD_TYPE=testing DISABLE_SNAPSHOT=yes DISABLE_PTEALTPROT=yes
 
 user:
 	make -C src/user

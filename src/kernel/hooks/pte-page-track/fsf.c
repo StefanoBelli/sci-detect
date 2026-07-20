@@ -81,6 +81,7 @@ static int force_sig_fault__phkphook(
 {
 	void __user* addr;
 	struct page *page;
+	unsigned long pfn;
 	struct page_status *pgs;
 	bool pgs_success;
 	int rv = WITH_ORIG_IP;
@@ -93,8 +94,10 @@ static int force_sig_fault__phkphook(
 	if(!page)
 		return rv;
 
+	pfn = page_to_pfn(page);
+
 	rcu_read_lock();
-	pgs = lookup_pfn_pgtrack(page_to_pfn(page));
+	pgs = lookup_pfn_pgtrack(pfn);
 	pgs_success = pgs && try_page_status_get(pgs);
 	rcu_read_unlock();
 
@@ -102,7 +105,15 @@ static int force_sig_fault__phkphook(
 		if(likely(!READ_ONCE(pgs->pap)))
 			goto __put_pgs;
 
-		exonly_ptealtprot(pgs, true, &force_sig_fault__kp);
+		DEFINE_SNAPSHOT_EXTRAS_WITH_PTR(snapex, 
+				task_pid_vnr(current), pfn, (unsigned long) addr);
+
+		/* 
+		 * here, we always acquire the mmap read lock for current->mm.
+		 * As when force_sig_fault gets called, this lock or the per-VMA lock
+		 * has been released.
+		 */
+		exonly_ptealtprot(pgs, true, snapex, &force_sig_fault__kp);
 
 		rv = WITH_NEW_IP;
 		regs->ip = (unsigned long) &__return_from_subroutine;

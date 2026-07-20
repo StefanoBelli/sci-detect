@@ -16,8 +16,11 @@
 #include <resolve_syms/page_vma_mapped_walk.h>
 #include <kpsleepable.h>
 #include <pgtrack.h>
-#include <pgsnap.h>
 #include <logging.h>
+
+#ifndef DISABLE_PAGE_SNAPSHOT
+#	include <pgsnap.h>
+#endif
 
 static struct kmem_cache *pap_cachep;
 static struct workqueue_struct *drop_mm_wq;
@@ -224,10 +227,14 @@ typedef void (*pte_one_fpt)(
 static void ptes_walk_from_folio_locked(
 		struct folio *folio, pte_one_fpt pte_one, 
 		struct ptealtprot_struct *pap, struct list_head *addr_spcs_head,
-		pte_t *skip_ptep)
+		pte_t *skip_ptep, struct kprobe *kp)
 {
 	struct addr_spc *entry;
 	struct addr_spc *pos;
+
+	KPSLEEPABLE(kp, 
+			folio_lock(folio);
+	);
 
 	list_for_each_entry_safe(entry, pos, addr_spcs_head, node) {
 		struct vm_area_struct *vma;
@@ -268,6 +275,8 @@ static void ptes_walk_from_folio_locked(
 __failure_put:
 		mmput_async(entry->mm);
 	}
+
+	folio_unlock(folio);
 }
 
 #define INVALID_PTE(pte) \
@@ -359,6 +368,76 @@ static inline void maybe_mkwrite_mypte(bool shdw_write, struct my_pte_info *mpi)
 
 #undef INVALID_PTE
 
+static struct folio* __init_collect_aspcs_and_lock(
+		struct page_status *pgs, struct list_head **addr_spcs_head, 
+		bool rlkmm, struct kprobe *kp)
+{
+	struct folio *folio;
+
+	folio = page_folio(pgs->page);
+	if(!folio_try_get(folio)) {
+		scid_warn("unable to get folio, this is strange :/");
+		return NULL;
+	}
+
+	*addr_spcs_head = all_addr_spcs_from_folio(folio, kp);
+	rlock_all_mm_in_addr_spcs(*addr_spcs_head, rlkmm, kp);
+
+	KPSLEEPABLE(kp, 
+			mutex_lock(&pgs->pap->lock);
+	);
+
+	return folio;
+}
+
+static void __end_free_aspcs_and_unlock(
+		struct page_status *pgs, struct list_head **addr_spcs_head, 
+		bool rlkmm, struct folio *folio, struct kprobe *kp)
+{
+	mutex_unlock(&pgs->pap->lock);
+	unlock_all_mm_in_addr_spcs(*addr_spcs_head, rlkmm);
+	folio_put(folio);
+
+	free_addr_spcs_list(addr_spcs_head, kp);
+}
+
+#ifndef DISABLE_PAGE_SNAPSHOT
+#	define DEFINE_INITIATED_RIGHT_NOW() bool initiated_right_now = false
+#else
+#	define DEFINE_INITIATED_RIGHT_NOW()
+#endif
+
+#ifndef DISABLE_PAGE_SNAPSHOT
+#	define SET_INITIATED_RIGHT_NOW() \
+		do { \
+			initiated_right_now = true; \
+		} while(0)
+#else
+#	define SET_INITIATED_RIGHT_NOW()
+#endif
+
+#ifdef DEBUG_PRINTS_PTEALTPROT
+#	define DEBUG_PAP(x) x
+#else
+#	define DEBUG_PAP(x)
+#endif
+
+#ifndef DISABLE_PAGE_SNAPSHOT
+
+static inline void do_snapshot(
+		struct page_status *pgs, struct snapshot_extras *snapex, 
+		enum fault_flag ff, bool irn, __maybe_unused const char* name)
+{
+	if(!irn) {
+		DEBUG_PAP(scid_infof("%s doing a snapshot", name));
+		make_page_snap(pgs, snapex->pid, snapex->pfn, snapex->raddr, ff);
+	}
+}
+
+#else
+#	define do_snapshot(pgs, snapex, ff, irn, name)
+#endif
+
 #endif /* DO_PTE_ALT_PROT */
 
 void new_ptealtprot(__maybe_unused struct page_status *pgs)
@@ -404,7 +483,7 @@ void free_ptealtprot(__maybe_unused struct page_status *pgs)
  *  --> regular checks, we don't care
  *  init = false, noprot = false,
  *
- *  --> first call was none_locked_ptealtprot 
+ *  --> first call was none_ptealtprot 
  *  init = false, noprot = true,
  */
 
@@ -446,6 +525,7 @@ void wrex_ptealtprot(
 		__maybe_unused enum fault_flag ff, 
 		__maybe_unused bool rlkmm,
 		__maybe_unused struct my_pte_info *mpi,
+		__maybe_unused struct snapshot_extras *snapex,
 		__maybe_unused struct kprobe *kp)
 {
 
@@ -453,32 +533,30 @@ void wrex_ptealtprot(
 	struct folio *folio;
 	bool invalid_flags;
 	struct list_head *addr_spcs_head;
+	DEFINE_INITIATED_RIGHT_NOW();
 
 	invalid_flags = 
 		!ff || 
 		(!(ff & FAULT_FLAG_INSTRUCTION) && !(ff & FAULT_FLAG_WRITE)) ||
 		((ff & FAULT_FLAG_INSTRUCTION) && (ff & FAULT_FLAG_WRITE));
 
-	/* TODO remove */
 	scid_infof("called, invalid_flags=%d, %d, %d %d", invalid_flags, ff, ff & FAULT_FLAG_WRITE, ff & FAULT_FLAG_INSTRUCTION);
 
 	if(unlikely(invalid_flags))
 		return;
 
-	folio = page_folio(pgs->page);
-
-	addr_spcs_head = all_addr_spcs_from_folio(folio, kp);
-	rlock_all_mm_in_addr_spcs(addr_spcs_head, rlkmm, kp);
-
-	KPSLEEPABLE(kp, 
-			mutex_lock(&pgs->pap->lock);
-	);
+	folio = __init_collect_aspcs_and_lock(pgs, &addr_spcs_head, rlkmm, kp);
+	if(!folio) {
+		scid_warn("unable to get folio");
+		return;
+	}
 
 	PHASED_PTEALTPROT(
 			pgs->pap
 			,
 
 			/* on init */
+			SET_INITIATED_RIGHT_NOW();
 			pgs->pap->write = ff & FAULT_FLAG_WRITE;
 			,
 
@@ -495,27 +573,23 @@ void wrex_ptealtprot(
 
 			if(must_alternate) {
 
-				/* TODO remove */
 				scid_info("alternation!");
 				pgs->pap->write = !pgs->pap->write;
 			} else {
 
-				/* TODO remove */
 				scid_info("NOT alternating");
 				goto __unlock_all_and_free;
 			}
 	);
 
+	do_snapshot(pgs, snapex, ff, initiated_right_now, "wrex");
 	ptes_walk_from_folio_locked(
-			folio, wrex_pte_one, pgs->pap, addr_spcs_head, mpi->ptep);
+			folio, wrex_pte_one, pgs->pap, addr_spcs_head, mpi->ptep, kp);
 
 __unlock_all_and_free:
 	maybe_mkwrite_mypte(pgs->pap->write, mpi);
 
-	mutex_unlock(&pgs->pap->lock);
-	unlock_all_mm_in_addr_spcs(addr_spcs_head, rlkmm);
-
-	free_addr_spcs_list(&addr_spcs_head, kp);
+	__end_free_aspcs_and_unlock(pgs, &addr_spcs_head, rlkmm, folio, kp);
 
 #endif
 
@@ -524,21 +598,20 @@ __unlock_all_and_free:
 void exonly_ptealtprot(
 		__maybe_unused struct page_status *pgs, 
 		__maybe_unused bool rlkmm,
+		__maybe_unused struct snapshot_extras *snapex,
 		__maybe_unused struct kprobe *kp)
 {
 
 #ifdef DO_PTE_ALT_PROT
 	struct list_head *addr_spcs_head;
 	struct folio *folio;
+	DEFINE_INITIATED_RIGHT_NOW();
 
-	folio = page_folio(pgs->page);
-
-	addr_spcs_head = all_addr_spcs_from_folio(folio, kp);
-	rlock_all_mm_in_addr_spcs(addr_spcs_head, rlkmm, kp);
-
-	KPSLEEPABLE(kp,
-			mutex_lock(&pgs->pap->lock);
-	);
+	folio = __init_collect_aspcs_and_lock(pgs, &addr_spcs_head, rlkmm, kp);
+	if(!folio) {
+		scid_warn("unable to get folio");
+		return;
+	}
 
 	PHASED_PTEALTPROT(
 			pgs->pap
@@ -547,6 +620,7 @@ void exonly_ptealtprot(
 			/* on init */
 			/* here we keep write disabled as we are going
 		 	 * to init to allow exec, not write */
+		 	SET_INITIATED_RIGHT_NOW();
 			,
 
 			/* on noprot */
@@ -564,14 +638,12 @@ void exonly_ptealtprot(
 				goto __unlock_all_and_free;
 	);
 
+	do_snapshot(pgs, snapex, FAULT_FLAG_INSTRUCTION, initiated_right_now, "exonly");
 	ptes_walk_from_folio_locked(
-			folio, exonly_pte_one, pgs->pap, addr_spcs_head, NULL);
+			folio, exonly_pte_one, pgs->pap, addr_spcs_head, NULL, kp);
 
 __unlock_all_and_free:
-	mutex_unlock(&pgs->pap->lock);
-	unlock_all_mm_in_addr_spcs(addr_spcs_head, rlkmm);
-
-	free_addr_spcs_list(&addr_spcs_head, kp);
+	__end_free_aspcs_and_unlock(pgs, &addr_spcs_head, rlkmm, folio, kp);
 #endif
 
 }
@@ -581,57 +653,73 @@ __unlock_all_and_free:
 #endif
 
 /* 
- * this is called when a system call is returning (AND NOT the
+ * this is called within a running system call (AND NOT the
  * page fault handler)
  */
 bool none_ptealtprot(
 		__maybe_unused struct page_status *pgs, 
 		__maybe_unused bool rlkmm,
+		__maybe_unused struct snapshot_extras *snapex,
 		__maybe_unused struct kprobe *kp)
 {
+	bool rv = true;
 
 #ifdef DO_PTE_ALT_PROT
-
-#if 0
+	struct list_head *addr_spcs_head;
 	struct folio *folio;
+	DEFINE_INITIATED_RIGHT_NOW();
+
+	folio = __init_collect_aspcs_and_lock(pgs, &addr_spcs_head, rlkmm, kp);
+	if(!folio) {
+		scid_warn("unable to get folio");
+		return rv;
+	}
 
 	/* if already initiated, don't do anything */
-	if(!pgs->pap->init)
-		return false;
-	else
+	if(!pgs->pap->init) {
+		rv = false;
+		goto __unlock_all_and_free;
+	} else {
 		/* this can't be possible, since this is the only
 		 * call that does noprot enabling, and disables init
+		 * that is, init = true and noprot = true can't be possible
 		 */
 		BUG_ON(pgs->pap->noprot);
+		SET_INITIATED_RIGHT_NOW();
+	}
 
 	pgs->pap->init = false;
 	pgs->pap->noprot = true;
 
+	do_snapshot(pgs, snapex, 0, initiated_right_now, "noneprot");
+
 	/* otherwise, zeroprot all the PTEs */
-	folio = page_folio(pgs->page);
-	ptes_walk_from_folio(folio, noneprot_pte_one, NULL, skip_lock_this_mm);
-#endif
+	ptes_walk_from_folio_locked(
+			folio, noneprot_pte_one, NULL, addr_spcs_head, NULL, kp);
+
+__unlock_all_and_free:
+	__end_free_aspcs_and_unlock(pgs, &addr_spcs_head, rlkmm, folio, kp);
 
 #endif
 
-	return true;
+	return rv;
 }
 
+/* todo use my_pte_info */
 void pte_fixup_ptealtprot(
-		__maybe_unused pte_t* ptep, 
-		__maybe_unused struct vm_area_struct *vma, 
-		__maybe_unused spinlock_t *ptlp, 
 		__maybe_unused struct page_status *pgs,
-		__maybe_unused unsigned long addr)
+		__maybe_unused struct my_pte_info *mpi)
 {
 
 #ifdef DO_PTE_ALT_PROT
+	pte_t pte;
+
 	if(pgs->pap->init)
 		return;
 
-	spin_lock(ptlp);
+	spin_lock(mpi->ptlp);
 
-	pte_t pte = ptep_get(ptep);
+	pte = ptep_get(mpi->ptep);
 
 	pte = pte_wrprotect(pte);
 
@@ -641,14 +729,14 @@ void pte_fixup_ptealtprot(
 		if(pgs->pap->write)
 			pte = pte_set_flags(pte, _PAGE_NX);
 		else {
-			if(vma->vm_flags & VM_EXEC)
+			if(mpi->vma->vm_flags & VM_EXEC)
 				pte = pte_mkexec(pte);
 		}
 	}
-	
-	__scid_flush_tlb_page(vma, addr);
 
-	spin_unlock(ptlp);
+	spin_unlock(mpi->ptlp);
+
+	__scid_flush_tlb_page(mpi->vma, mpi->addr);
 
 #endif
 

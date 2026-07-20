@@ -1,9 +1,9 @@
 #ifndef SCID_PTEALTPROT_H
 #define SCID_PTEALTPROT_H
 
-#if !defined(DISABLE_PAGE_SNAPSHOT) && !defined(DISABLE_PTE_ALT_PROT)
+#if !defined(DISABLE_PTE_ALT_PROT)
 #	define DO_PTE_ALT_PROT 1
-#endif /* !defined(DISABLE_PAGE_SNAPSHOT) && !defined(DISABLE_PTE_ALT_PROT) */
+#endif /* !defined(DISABLE_PTE_ALT_PROT) */
 
 #ifdef DO_PTE_ALT_PROT
 
@@ -21,6 +21,28 @@ struct ptealtprot_struct {
 #include <linux/mm_types.h>
 #include <linux/spinlock.h>
 #include <linux/kprobes.h>
+
+#ifndef DISABLE_PAGE_SNASPHOT
+
+struct snapshot_extras {
+	pid_t pid;
+	unsigned long pfn;
+	unsigned long raddr;
+};
+
+#define DEFINE_SNAPSHOT_EXTRAS_WITH_PTR(__name, __pid, __pfn, __raddr) \
+	struct snapshot_extras __##__name = { \
+		.pid = (__pid), \
+		.pfn = (__pfn), \
+		.raddr = (__raddr), \
+	}; \
+	struct snapshot_extras *__name = &__##__name
+
+#else
+struct snapshot_extras;
+#define DEFINE_SNAPSHOT_EXTRAS_WITH_PTR(__name, __pid, __pfn, __raddr) \
+	struct snapshot_extras *__name = NULL
+#endif
 
 struct my_pte_info {
 	pte_t *ptep;
@@ -59,11 +81,13 @@ void free_ptealtprot(struct page_status *pgs);
  * @ff: the fault flags
  * @rlkmm: whether or not to acquire the mmap_read_lock for current->mm
  * @mpi: fault handler's own manipulated PTE infos
+ * @snapex: snapshot extra infos
  * @kp: the current kprobe
  */
 void wrex_ptealtprot(
 		struct page_status *pgs, enum fault_flag ff, 
-		bool rlkmm, struct my_pte_info *mpi, struct kprobe *kp);
+		bool rlkmm, struct my_pte_info *mpi, 
+		struct snapshot_extras *snapex, struct kprobe *kp);
 
 /**
  * exonly_ptealtprot - apply pte prot alternation, only
@@ -76,10 +100,12 @@ void wrex_ptealtprot(
  *
  * @pgs: the pgs
  * @rlkmm: whether or not to acquire the mmap_read_lock for current->mm
+ * @snapex: snapshot extra infos
  * @kp: the current kprobe
  */
 void exonly_ptealtprot(
-		struct page_status *pgs, bool rlkmm, struct kprobe *kp);
+		struct page_status *pgs, bool rlkmm, 
+		struct snapshot_extras *snapex, struct kprobe *kp);
 
 /**
  * none_ptealtprot - apply pte prot alternation, all
@@ -97,12 +123,13 @@ void exonly_ptealtprot(
  *
  * @pgs: the pgs
  * @rlkmm: whether or not to acquire the mmap_read_lock for current->mm
+ * @snapex: snapshot extra infos
  * @kp: the current kprobe
  *
  * Returns: true if cleared all protection bits (->init was true), false otherwise
  */
 bool none_ptealtprot(struct page_status *pgs, bool rlkmm, 
-		struct kprobe *kp);
+		struct snapshot_extras *snapex, struct kprobe *kp);
 
 /**
  * pte_fixup_ptealtprot - adjust pte protection bits after
@@ -121,15 +148,11 @@ bool none_ptealtprot(struct page_status *pgs, bool rlkmm,
  *
  * Usage: already detected WX-page mprotect assoc. pte.
  *
- * @ptep: the ptep to adjust
- * @vma: the vma
- * @ptlp: the ptr to ptl of @ptep
  * @pgs: the pgs
- * @addr: the va
+ * @mpi: 
  */
 void pte_fixup_ptealtprot(
-		pte_t* ptep, struct vm_area_struct *vma, spinlock_t *ptlp, 
-		struct page_status *pgs, unsigned long addr);
+		struct page_status *pgs, struct my_pte_info *mpi);
 
 /**
  * setup_ptealtprot - prepare it

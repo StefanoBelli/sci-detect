@@ -42,13 +42,15 @@ static int handle_pte_fault__ehkrphook(
 
 #ifdef DO_PTE_ALT_PROT
 
-/* avoid locking if already locked */
-static inline bool still_locked_vma_or_mmap(vm_fault_t return_flags)
-{
-	return !(return_flags & (VM_FAULT_RETRY | VM_FAULT_COMPLETED));
-}
-
 struct kretprobe handle_pte_fault__krp;
+
+#define DEFINE_MPI_BY_VMF(__mpivar, __vmf) \
+	struct my_pte_info __mpivar = { \
+		.vma = (__vmf)->vma, \
+		.ptlp = (__vmf)->ptl, \
+		.ptep = (__vmf)->pte, \
+		.addr = (__vmf)->address, \
+	}
 
 #endif
 
@@ -65,13 +67,10 @@ static int handle_pte_fault__hkrphook(
 	bool pfn_found;
 	pte_t *vmf_ptep = vmf(vmfe)->pte;
 	enum fault_flag vmf_flags = orig_flags(vmfe);
-	bool skip_mmap_rlock;
-	struct my_pte_info mpi;
+	bool locked_mm;
 
 	if(unlikely(retval & VM_FAULT_ERROR))
 		goto __end;
-
-	skip_mmap_rlock = still_locked_vma_or_mmap(retval);
 
 	if(!vmf_ptep)
 		goto __end;
@@ -81,6 +80,9 @@ static int handle_pte_fault__hkrphook(
 	 * only an atomic read, let's see... 
 	 */
 	pte = ptep_get(vmf_ptep);
+	if(unlikely(pte_none(pte) || !pte_present(pte)))
+		goto __end;
+
 	pfn = page_to_pfn(pte_page(pte));
 
 	rcu_read_lock();
@@ -92,13 +94,29 @@ static int handle_pte_fault__hkrphook(
 		if(likely(!pgs->pap))
 			goto __put_pgs_end;
 
-		mpi.vma = vmf(vmfe)->vma;
-		mpi.ptlp = vmf(vmfe)->ptl;
-		mpi.addr = vmf(vmfe)->address;
-		mpi.ptep = vmf_ptep;
+		DEFINE_MPI_BY_VMF(mpi, vmf(vmfe));
+		DEFINE_SNAPSHOT_EXTRAS_WITH_PTR(snapex, 
+				task_pid_vnr(current), pfn, vmf(vmfe)->real_address);
 
-		wrex_ptealtprot(pgs, vmf_flags, !skip_mmap_rlock, 
-				&mpi, kpat(handle_pte_fault__krp, krpi));
+		/* 
+	 	 * this condition checks if either the mmap_read_lock or the per-VMA
+	 	 * lock is taken when exiting handle_pte_fault. Check handle_mm_fault code
+	 	 * for further details, but this serves to avoid potential deadlock condition
+	 	 * when ptealtprot code acquires the current->mm read lock.
+	 	 */
+		locked_mm = !(retval & (VM_FAULT_RETRY | VM_FAULT_COMPLETED));
+
+		/*
+		 * argument @rlkmm indicates whether the current->mm read lock must
+		 * be acquired or not (see above),
+		 *  rlkmm = true when locked_mm = false (take the lock if the current
+		 *    kernel control path released it)
+		 *
+		 *  rlkmm = false when locked_mm = true (don't attempt to acquire the
+		 *    mmap read lock if current kernel control path still got it)
+		 */
+		wrex_ptealtprot(pgs, vmf_flags, !locked_mm, 
+				&mpi, snapex, kpat(handle_pte_fault__krp, krpi));
 	} else 
 		goto __end;
 

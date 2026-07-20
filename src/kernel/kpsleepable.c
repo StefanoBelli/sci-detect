@@ -4,6 +4,10 @@
 #include <kpsleepable.h>
 #include <logging.h>
 
+#ifdef DEBUG_PRINTS_PCP_CKP_ADDR
+#	include <linux/smp.h>
+#endif
+
 /*
  * pointer to the per-cpu variable "current_kprobe" (of type struct kprobe*)
  *
@@ -51,7 +55,7 @@ struct kprobe **locate_pcp_ckp_addr(struct kprobe *kp)
 			BUG();
 		}
 
-#ifdef __SCID_INFO_LOCATED_CKA
+#ifdef DEBUG_PRINTS_PCP_CKP_ADDR
 		scid_infof("on cpu #%d, found:"
 				"\n --> current_kprobe_addr=%px,"
 				"\n --> pcp var ptr=%px,"
@@ -64,7 +68,7 @@ struct kprobe **locate_pcp_ckp_addr(struct kprobe *kp)
 				__this_cpu_read(current_kprobe_addr),
 				kp,
 				*ckp_addr);
-#endif /* __SCID_INFO_LOCATED_CKA */
+#endif /* DEBUG_PRINTS_PCP_CKP_ADDR */
 
 	}
 
