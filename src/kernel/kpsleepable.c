@@ -4,6 +4,7 @@
 #include <kpsleepable.h>
 #include <logging.h>
 
+//#define DEBUG_PRINTS_PCP_CKP_ADDR
 #ifdef DEBUG_PRINTS_PCP_CKP_ADDR
 #	include <linux/smp.h>
 #endif

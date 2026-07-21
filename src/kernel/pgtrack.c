@@ -2,6 +2,7 @@
 #include <linux/xarray.h>
 #include <linux/mm.h>
 #include <linux/types.h>
+#include <linux/pid.h>
 
 #include <pgtrack.h>
 #include <netlink/pgtrack/events.h>
@@ -255,7 +256,7 @@ __retry:
 
 	/* one thread only will get to execute this */
 	if((new_perms | old_perms) == PERM_BITS) {
-		pid_t pid = task_pid_vnr(current);
+		pid_t pid = task_pid_nr(current);
 		struct page_wxwarn *wxw = new_page_wxwarn(pfn, va, pid);
 		if(!wxw)
 			/* fallback to dmesg */

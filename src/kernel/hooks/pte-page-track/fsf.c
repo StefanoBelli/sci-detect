@@ -106,7 +106,7 @@ static int force_sig_fault__phkphook(
 			goto __put_pgs;
 
 		DEFINE_SNAPSHOT_EXTRAS_WITH_PTR(snapex, 
-				task_pid_vnr(current), pfn, (unsigned long) addr);
+				task_pid_nr(current), pfn, (unsigned long) addr);
 
 		/* 
 		 * here, we always acquire the mmap read lock for current->mm.

@@ -22,9 +22,10 @@
 #	include <pgsnap.h>
 #endif
 
-//#define DEBUG_PRINTS_PTEALTPROT
+#define DEBUG_PRINTS_PTEALTPROT
 #ifdef DEBUG_PRINTS_PTEALTPROT
 #	include <linux/pid.h>
+#	include <linux/sched.h>
 #endif
 
 static struct kmem_cache *pap_cachep;
@@ -399,10 +400,32 @@ static void __end_unlock_put_free_aspcs(
 #endif
 
 #ifdef DEBUG_PRINTS_PTEALTPROT
-#	define DEBUG_PAP(name, str, ...) \
-		scid_infof("debug-pap (%s): " str, name,  __VA_ARGS__)
+
+#	define __debug_pap_common(__name, __strx) \
+		scid_infof("debug-pap (%s): task=(%d, %s) -  " __strx, \
+				__name, task_pid_nr(current), current->comm
+
+#	define DEBUG_PAP_FMT(name, strf, ...) \
+		__debug_pap_common(name, strf), __VA_ARGS__)
+
+#	define DEBUG_PAP(name, str) \
+		__debug_pap_common(name, str))
+
+#	define WREX "wrex"
+#	define EXONLY "exonly"
+#	define NONE "none"
+#	define PTE_FIXUP "pte-fixup"
+
 #else
-#	define DEBUG_PAP(name, str, ...)
+
+#	define DEBUG_PAP_FMT(name, strf, ...)
+#	define DEBUG_PAP(name, str)
+
+#	define WREX NULL
+#	define EXONLY NULL
+#	define NONE NULL
+#	define PTE_FIXUP NULL
+
 #endif
 
 #ifndef DISABLE_PAGE_SNAPSHOT
@@ -412,8 +435,8 @@ static inline void do_snapshot(
 		enum fault_flag ff, bool irn, __maybe_unused const char* name)
 {
 	if(!irn) {
-		DEBUG_PAP(name, "pid=%d, done snapshot: pfn=%ld, raddr=%lx, ff=%x", 
-				snapex->pid, snapex->pfn, snapex->raddr, ff);
+		DEBUG_PAP_FMT(name, "doing snapshot: pfn=%ld, raddr=%px, ff=%x", 
+				snapex->pfn, (void*) snapex->raddr, ff);
 
 		make_page_snap(pgs, snapex->pid, snapex->pfn, snapex->raddr, ff);
 	}
@@ -436,8 +459,7 @@ static inline void maybe_mkwrite_mypte(bool shdw_write, struct my_pte_info *mpi)
 			return;
 		}
 
-		DEBUG_PAP("wrex", "pid=%d making my own pte writable and non-exec", 
-				task_pid_vnr(current));
+		DEBUG_PAP(WREX, "making my own pte writable and non-exec");
 
 		pte = pte_mkwrite_novma(pte);
 		pte = pte_set_flags(pte, _PAGE_NX);
@@ -546,17 +568,15 @@ void wrex_ptealtprot(
 	struct list_head *addr_spcs_head;
 	DEFINE_INITIATED_RIGHT_NOW();
 
-	DEBUG_PAP("wrex", "pid=%d, called: addr=0x%lx, rlkmm=%d",
-			task_pid_nr(current), mpi->addr, rlkmm);
+	DEBUG_PAP_FMT(WREX, "called: addr=%px, rlkmm=%d", (void*) mpi->addr, rlkmm);
 
 	invalid_flags = 
 		!ff || 
 		(!(ff & FAULT_FLAG_INSTRUCTION) && !(ff & FAULT_FLAG_WRITE)) ||
 		((ff & FAULT_FLAG_INSTRUCTION) && (ff & FAULT_FLAG_WRITE));
 
-	DEBUG_PAP("wrex", "pid=%d, fault_flag infos: invalid=%d, ff=%d, write=%d, instr=%d", 
-			task_pid_nr(current), invalid_flags, ff, 
-			ff & FAULT_FLAG_WRITE, ff & FAULT_FLAG_INSTRUCTION);
+	DEBUG_PAP_FMT(WREX, "fault_flag infos: invalid=%d, ff=%d, write=%d, instr=%d", 
+			invalid_flags, ff, ff & FAULT_FLAG_WRITE, ff & FAULT_FLAG_INSTRUCTION);
 
 	if(unlikely(invalid_flags))
 		return;
@@ -575,15 +595,13 @@ void wrex_ptealtprot(
 			SET_INITIATED_RIGHT_NOW();
 			pgs->pap->write = ff & FAULT_FLAG_WRITE;
 
-			DEBUG_PAP("wrex", "pid=%d, init: pap->write=%d", 
-				task_pid_nr(current), pgs->pap->write);
+			DEBUG_PAP_FMT(WREX, "init: pap->write=%d", pgs->pap->write);
 			,
 
 			/* on noprot */
 			pgs->pap->write = ff & FAULT_FLAG_WRITE;
 
-			DEBUG_PAP("wrex", "pid=%d, noprot, pap->write=%d", 
-				task_pid_nr(current), pgs->pap->write);
+			DEBUG_PAP_FMT(WREX, "noprot, pap->write=%d", pgs->pap->write);
 			,
 
 			/* on regular */
@@ -594,21 +612,21 @@ void wrex_ptealtprot(
 				(!pgs->pap->write && (ff & FAULT_FLAG_WRITE));
 
 			if(must_alternate) {
-				DEBUG_PAP("wrex", "pid=%d, alternate: old pap->write=%d, new pap->write=%d",
-						task_pid_nr(current), pgs->pap->write, !pgs->pap->write);
+				DEBUG_PAP_FMT(WREX, "alternate: old pap->write=%d, new pap->write=%d",
+						pgs->pap->write, !pgs->pap->write);
 
 				pgs->pap->write = !pgs->pap->write;
 			} else {
-				DEBUG_PAP("wrex", "pid=%d, NOT alternating, cur pap->write=%d",
-						task_pid_nr(current), pgs->pap->write);
+				DEBUG_PAP_FMT(WREX, "NOT alternating: cur pap->write=%d",
+						pgs->pap->write);
 
 				goto __finish;
 			}
 	);
 
-	do_snapshot(pgs, snapex, ff, initiated_right_now, "wrex");
+	do_snapshot(pgs, snapex, ff, initiated_right_now, WREX);
 
-	DEBUG_PAP("wrex", "pid=%d, will walk pte folios:...", task_pid_nr(current));
+	DEBUG_PAP(WREX, "will walk pte folios:...");
 
 	ptes_walk_from_folio_locked(
 			folio, wrex_pte_one, pgs->pap, addr_spcs_head, mpi->ptep, kp);
@@ -634,7 +652,7 @@ void exonly_ptealtprot(
 	struct folio *folio;
 	DEFINE_INITIATED_RIGHT_NOW();
 
-	DEBUG_PAP("exonly", "pid=%d, called: rlkmm=%d", task_pid_nr(current), rlkmm);
+	DEBUG_PAP_FMT(EXONLY, "called: rlkmm=%d", rlkmm);
 
 	folio = __init_collect_aspcs_and_lock(pgs, &addr_spcs_head, rlkmm, kp);
 	if(!folio) {
@@ -651,38 +669,36 @@ void exonly_ptealtprot(
 		 	 * to init to allow exec, not write */
 		 	SET_INITIATED_RIGHT_NOW();
 
-			DEBUG_PAP("exonly", "pid=%d, init: pap->write=%d", 
-				task_pid_nr(current), pgs->pap->write);
+			DEBUG_PAP_FMT(EXONLY, "init: pap->write=%d", pgs->pap->write);
 			,
 
 			/* on noprot */
 			/* here we keep write disabled as we are going
 			 * to init to allow exec, not write */
 
-			DEBUG_PAP("exonly", "pid=%d, noprot, pap->write=%d", 
-				task_pid_nr(current), pgs->pap->write);
+			DEBUG_PAP_FMT(EXONLY, "noprot, pap->write=%d", pgs->pap->write);
 			,
 
 			/* on regular */
 			/* prior call disabled either W or X */
 			if(pgs->pap->write) {
-				DEBUG_PAP("exonly", "pid=%d, alternate: old pap->write=%d, new pap->write=%d",
-						task_pid_nr(current), pgs->pap->write, !pgs->pap->write);
+				DEBUG_PAP_FMT(EXONLY, "alternate: old pap->write=%d, new pap->write=%d",
+						pgs->pap->write, !pgs->pap->write);
 
 				/* ... if disabled X, alternate by disabling W */
 				pgs->pap->write = false;
 			} else {
-				DEBUG_PAP("exonly", "pid=%d, NOT alternating, cur pap->write=%d",
-						task_pid_nr(current), pgs->pap->write);
+				DEBUG_PAP_FMT(EXONLY, "NOT alternating, cur pap->write=%d",
+						pgs->pap->write);
 
 				/* ... othw, if disabled W, keep it disabled */
 				goto __finish;
 			}
 	);
 
-	do_snapshot(pgs, snapex, FAULT_FLAG_INSTRUCTION, initiated_right_now, "exonly");
+	do_snapshot(pgs, snapex, FAULT_FLAG_INSTRUCTION, initiated_right_now, EXONLY);
 
-	DEBUG_PAP("exonly", "pid=%d, will walk pte folios:...", task_pid_nr(current));
+	DEBUG_PAP(EXONLY, "will walk pte folios:...");
 
 	ptes_walk_from_folio_locked(
 			folio, exonly_pte_one, pgs->pap, addr_spcs_head, NULL, kp);
@@ -714,7 +730,7 @@ bool none_ptealtprot(
 	struct folio *folio;
 	DEFINE_INITIATED_RIGHT_NOW();
 
-	DEBUG_PAP("none", "pid=%d, called: rlkmm=%d", task_pid_nr(current), rlkmm);
+	DEBUG_PAP_FMT(NONE, "called: rlkmm=%d", rlkmm);
 
 	folio = __init_collect_aspcs_and_lock(pgs, &addr_spcs_head, rlkmm, kp);
 	if(!folio) {
@@ -724,15 +740,14 @@ bool none_ptealtprot(
 
 	/* if already initiated, don't do anything */
 	if(!pgs->pap->init) {
-		DEBUG_PAP("none", "pid=%d, already inited, returning now",
-				task_pid_nr(current));
+		DEBUG_PAP(NONE, "already inited, returning now");
 
 		rv = false;
 		goto __finish;
 	}
 
-	DEBUG_PAP("none", "pid=%d, init: pap->write=%d, pap->noprot=%d", 
-			task_pid_nr(current), pgs->pap->write, pgs->pap->noprot);
+	DEBUG_PAP_FMT(NONE, "init: pap->write=%d, pap->noprot=%d", 
+			pgs->pap->write, pgs->pap->noprot);
 
 	/* this can't be possible, since this is the only
 	 * call that does noprot enabling, and disables init
@@ -744,12 +759,11 @@ bool none_ptealtprot(
 	pgs->pap->init = false;
 	pgs->pap->noprot = true;
 
-	DEBUG_PAP("none", "pid=%d, init: checks passed, doing noprot on every pte",
-			task_pid_nr(current));
+	DEBUG_PAP(NONE, "init: checks passed, doing noprot on every pte");
 
-	do_snapshot(pgs, snapex, 0, initiated_right_now, "none");
+	do_snapshot(pgs, snapex, 0, initiated_right_now, NONE);
 	
-	DEBUG_PAP("none", "pid=%d, will walk pte folios:...", task_pid_nr(current));
+	DEBUG_PAP(NONE, "will walk pte folios:...");
 
 	/* otherwise, zeroprot all the PTEs */
 	ptes_walk_from_folio_locked(
@@ -780,8 +794,8 @@ void pte_fixup_ptealtprot(
 #ifdef DO_PTE_ALT_PROT
 	pte_t pte;
 
-	DEBUG_PAP("pte-fixup", "pid=%d called: ptep=%px, vma=%px, ptlp=%px, addr=%px",
-			task_pid_nr(current), mpi->ptep, mpi->vma, mpi->ptlp, (void*) mpi->addr);
+	DEBUG_PAP_FMT(PTE_FIXUP, "called: ptep=%px, vma=%px, ptlp=%px, addr=%px",
+			mpi->ptep, mpi->vma, mpi->ptlp, (void*) mpi->addr);
 
 	/* 
 	 * the order of lock acquisition is important:
@@ -800,7 +814,8 @@ void pte_fixup_ptealtprot(
 	);
 
 	if(pgs->pap->init) {
-		DEBUG_PAP("pte-fixup", "pid=%d already inited", task_pid_nr(current));
+		DEBUG_PAP(PTE_FIXUP, "already inited");
+
 		goto __pap_unlock;
 	}
 
@@ -825,11 +840,11 @@ void pte_fixup_ptealtprot(
 	
 	__scid_flush_tlb_page(mpi->vma, mpi->addr);
 
-	DEBUG_PAP("pte-fixup", "pid=%d fixup: pap->noprot=%d, pap->write=%d, vma has VM_EXEC=%ld",
-			task_pid_nr(current), pgs->pap->noprot, pgs->pap->write, mpi->vma->vm_flags & VM_EXEC);
-
 __pap_unlock:
 	mutex_unlock(&pgs->pap->lock);
+
+	DEBUG_PAP_FMT(PTE_FIXUP, "fixup: pap->noprot=%d, pap->write=%d, vma has VM_EXEC=%ld",
+			pgs->pap->noprot, pgs->pap->write, mpi->vma->vm_flags & VM_EXEC);
 
 #endif
 

@@ -70,7 +70,7 @@ static bool __do_is_tracked_page_rmap_one(
 
 		/* ...match all whose mm is the same as this VMA */
 		if(vma->vm_mm == tsk->mm) {
-			if(unlikely(nla_put_s32(args->skb, SCID_GENL_ATTR_PID, task_pid_vnr(tsk)))) {
+			if(unlikely(nla_put_s32(args->skb, SCID_GENL_ATTR_PID, task_pid_nr(tsk)))) {
 				scid_err("unable to put pid in skb");
 				args->err = true;
 				return false;

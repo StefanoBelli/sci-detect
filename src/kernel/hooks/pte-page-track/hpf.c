@@ -9,6 +9,7 @@
 
 #ifdef DO_PTE_ALT_PROT
 #	include <linux/rcupdate.h>
+#	include <linux/pid.h>
 #	include <pgtrack.h>
 #	include <kpsleepable.h>
 #endif
@@ -96,7 +97,7 @@ static int handle_pte_fault__hkrphook(
 
 		DEFINE_MPI_BY_VMF(mpi, vmf(vmfe));
 		DEFINE_SNAPSHOT_EXTRAS_WITH_PTR(snapex, 
-				task_pid_vnr(current), pfn, vmf(vmfe)->real_address);
+				task_pid_nr(current), pfn, vmf(vmfe)->real_address);
 
 		/* 
 	 	 * this condition checks if either the mmap_read_lock or the per-VMA
