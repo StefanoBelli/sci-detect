@@ -434,6 +434,12 @@ static inline void do_snapshot(
 		struct page_status *pgs, struct snapshot_extras *snapex, 
 		enum fault_flag ff, bool irn, __maybe_unused const char* name)
 {
+	/*
+	 * irn stands for "initiated right now". We don't do the snapshot
+	 * again if do_snapshot is called by a initializer of ptealtprot
+	 * for the specific physical frame. This is because pgsnap already
+	 * did the snapshot at the wx-page detection in this control path
+	 */
 	if(!irn) {
 		DEBUG_PAP_FMT(name, "doing snapshot: pfn=%ld, raddr=%px, ff=%x", 
 				snapex->pfn, (void*) snapex->raddr, ff);

@@ -35,6 +35,10 @@ extern struct kprobe free_pages_and_swap_cache__kp;
 /* cpr.c */
 extern struct kretprobe change_pte_range__krp;
 
+#ifdef DO_PTE_ALT_PROT
+extern struct kretprobe change_protection_range__krp;
+#endif
+
 /* fuf.c */
 #ifdef DO_PTE_ALT_PROT
 extern struct kprobe force_sig_fault__kp;

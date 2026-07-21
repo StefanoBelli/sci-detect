@@ -28,7 +28,7 @@ static int upw_entry_pte(
 }
 
 /* don't use GUP, as it will alter PTEs, cause faultins, ... */
-struct page *user_page_walk(unsigned long addr, bool quiet, struct kprobe *kp)
+struct page *__user_page_walk(unsigned long addr, bool quiet, bool rlkmm, struct kprobe *kp)
 {
 	int rv;
 	struct mm_struct *mm = current->mm;
@@ -41,14 +41,16 @@ struct page *user_page_walk(unsigned long addr, bool quiet, struct kprobe *kp)
 	};
 
 	/* lock mm */
-	KPSLEEPABLE(kp,
-			mmap_read_lock(mm);
-	);
+	if(rlkmm)
+		KPSLEEPABLE(kp,
+				mmap_read_lock(mm);
+		);
 
 	rv = THUNK(walk_page_range)(mm, astart, aend, &wops, &page);
 
 	/* unlock mm */
-	mmap_read_unlock(mm);
+	if(rlkmm)
+		mmap_read_unlock(mm);
 
 	if(rv && !quiet)
 		scid_errf("walk_page_range failed with rv=%d", rv);
