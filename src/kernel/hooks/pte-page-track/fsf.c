@@ -90,7 +90,6 @@ static int force_sig_fault__phkphook(
 		return rv;
 
 	page = user_page_walk((unsigned long) addr, false, &force_sig_fault__kp);
-
 	if(!page)
 		return rv;
 

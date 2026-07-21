@@ -2,6 +2,7 @@
 #include <linux/spinlock.h>
 #include <linux/mm.h>
 #include <asm/pgtable_types.h>
+#include <asm-generic/rwonce.h>
 
 #include <resolve_syms/pte_offset_map_lock.h>
 #include <hooks/pte-page-track/utils/addpages.h>
@@ -9,6 +10,12 @@
 #include <testing/testing.h>
 #include <logging.h>
 #include <ptealtprot.h>
+
+#ifdef DO_PTE_ALT_PROT
+#	include <pgtrack.h>
+#	include <linux/pid.h>
+#	include <hooks/pte-page-track/utils/user_page_walk.h>
+#endif
 
 #define MY_TESTING_SUBSYS_NAME "pte-page-track-cpr-hook"
 
@@ -162,10 +169,58 @@ static int change_protection_range__ehkrphook(
 	return 0;
 }
 
+static inline void  __do_pte_fixup_ptealtprot(
+		struct page_status *pgs, unsigned long addr, struct vm_area_struct *vma,
+		pte_t *ptep, spinlock_t *ptlp, struct kprobe *kp)
+{
+	struct my_pte_info mpi = {
+		.addr = addr,
+		.ptep = ptep,
+		.ptlp = ptlp,
+		.vma = vma,
+	};
+	
+	pte_fixup_ptealtprot(pgs, &mpi, kp);
+}
+
 static void __do_ptealtprot(
 		unsigned long addr, struct vm_area_struct *vma, struct kprobe *kp)
 {
+	struct page *page;
+	struct page_status *pgs;
+	bool pgs_ok;
+	unsigned long pfn;
+	pte_t *ptep;
+	spinlock_t *ptlp;
 
+	page = user_page_walk_norlkmm_ptep(addr, true, &ptep, &ptlp, kp);
+	if(!page)
+		return;
+
+	pfn = page_to_pfn(page);
+
+	rcu_read_lock();
+	pgs = lookup_pfn_pgtrack(pfn);
+	pgs_ok = pgs && try_page_status_get(pgs);
+	rcu_read_unlock();
+
+	if(unlikely(!pgs_ok))
+		return;
+
+	if(likely(!READ_ONCE(pgs->pap)))
+		goto __pgs_put;
+
+	if(pgs->pap->init) {
+		DEFINE_SNAPSHOT_EXTRAS_WITH_PTR(snpex, 
+				task_pid_nr(current), pfn, addr);
+
+		none_ptealtprot(pgs, false, snpex, kp);
+		goto __pgs_put;
+	}
+
+	__do_pte_fixup_ptealtprot(pgs, addr, vma, ptep, ptlp, kp);
+__pgs_put:
+	page_status_put(pgs);
 }
 
 struct kretprobe change_protection_range__krp;
@@ -191,6 +246,8 @@ static int change_protection_range__hkrphook(
 	aend = cpr_args->end;
 	vma = cpr_args->vma;
 	kp = kpat(change_protection_range__krp, krpi);
+
+	BUG_ON(astart == aend);
 
 	for(; astart != aend; astart += PAGE_SIZE)
 		__do_ptealtprot(astart, vma, kp);

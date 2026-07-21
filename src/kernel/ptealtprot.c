@@ -475,8 +475,6 @@ static inline void maybe_mkwrite_mypte(bool shdw_write, struct my_pte_info *mpi)
 	}
 }
 
-#undef INVALID_PTE
-
 #endif /* DO_PTE_ALT_PROT */
 
 void new_ptealtprot(__maybe_unused struct page_status *pgs)
@@ -821,13 +819,18 @@ void pte_fixup_ptealtprot(
 
 	if(pgs->pap->init) {
 		DEBUG_PAP(PTE_FIXUP, "already inited");
-
 		goto __pap_unlock;
 	}
 
 	spin_lock(mpi->ptlp);
 
 	pte = ptep_get(mpi->ptep);
+	if(INVALID_PTE(pte)) {
+		spin_unlock(mpi->ptlp);
+		DEBUG_PAP(PTE_FIXUP, "invalid pte");
+		goto __pap_unlock;
+	}
+
 	pte = pte_wrprotect(pte);
 
 	if(pgs->pap->noprot)
@@ -843,14 +846,14 @@ void pte_fixup_ptealtprot(
 
 	set_pte(mpi->ptep, pte);
 	spin_unlock(mpi->ptlp);
-	
+
+	DEBUG_PAP_FMT(PTE_FIXUP, "fixup: pap->noprot=%d, pap->write=%d, vma has VM_EXEC=%ld",
+			pgs->pap->noprot, pgs->pap->write, mpi->vma->vm_flags & VM_EXEC);
+
 	__scid_flush_tlb_page(mpi->vma, mpi->addr);
 
 __pap_unlock:
 	mutex_unlock(&pgs->pap->lock);
-
-	DEBUG_PAP_FMT(PTE_FIXUP, "fixup: pap->noprot=%d, pap->write=%d, vma has VM_EXEC=%ld",
-			pgs->pap->noprot, pgs->pap->write, mpi->vma->vm_flags & VM_EXEC);
 
 #endif
 
