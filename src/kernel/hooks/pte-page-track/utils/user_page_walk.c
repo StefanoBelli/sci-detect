@@ -42,7 +42,7 @@ static int upw_entry_pte(
 }
 
 /* don't use GUP, as it will alter PTEs, cause faultins, ... */
-struct page *__user_page_walk(
+struct page *user_page_walk_ptep(
 		unsigned long addr, bool quiet, bool rlkmm, 
 		pte_t **ptep, spinlock_t **ptlp, struct kprobe *kp)
 {

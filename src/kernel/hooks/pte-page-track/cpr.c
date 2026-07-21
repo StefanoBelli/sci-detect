@@ -193,7 +193,7 @@ static void __do_ptealtprot(
 	pte_t *ptep;
 	spinlock_t *ptlp;
 
-	page = user_page_walk_norlkmm_ptep(addr, true, &ptep, &ptlp, kp);
+	page = user_page_walk_ptep(addr, true, false, &ptep, &ptlp, kp);
 	if(!page)
 		return;
 
@@ -214,7 +214,7 @@ static void __do_ptealtprot(
 		DEFINE_SNAPSHOT_EXTRAS_WITH_PTR(snpex, 
 				task_pid_nr(current), pfn, addr);
 
-		none_ptealtprot(pgs, false, snpex, kp);
+		none_ptealtprot(pgs, false, true, snpex, kp);
 		goto __pgs_put;
 	}
 

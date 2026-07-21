@@ -89,7 +89,7 @@ static int force_sig_fault__phkphook(
 	if(!fsf_checks_ok(regs, &addr))
 		return rv;
 
-	page = user_page_walk((unsigned long) addr, false, &force_sig_fault__kp);
+	page = user_page_walk((unsigned long) addr, false, true, &force_sig_fault__kp);
 	if(!page)
 		return rv;
 
@@ -112,7 +112,7 @@ static int force_sig_fault__phkphook(
 		 * As when force_sig_fault gets called, this lock or the per-VMA lock
 		 * has been released.
 		 */
-		exonly_ptealtprot(pgs, true, snapex, &force_sig_fault__kp);
+		exonly_ptealtprot(pgs, true, false, snapex, &force_sig_fault__kp);
 
 		rv = WITH_NEW_IP;
 		regs->ip = (unsigned long) &__return_from_subroutine;

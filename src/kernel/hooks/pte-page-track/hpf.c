@@ -116,7 +116,7 @@ static int handle_pte_fault__hkrphook(
 		 *  rlkmm = false when locked_mm = true (don't attempt to acquire the
 		 *    mmap read lock if current kernel control path still got it)
 		 */
-		wrex_ptealtprot(pgs, vmf_flags, !locked_mm, 
+		wrex_ptealtprot(pgs, vmf_flags, !locked_mm, false,
 				&mpi, snapex, kpat(handle_pte_fault__krp, krpi));
 	} else 
 		goto __end;

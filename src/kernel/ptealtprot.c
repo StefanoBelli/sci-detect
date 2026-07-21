@@ -5,6 +5,7 @@
 #include <linux/slab.h>
 #include <linux/types.h>
 #include <linux/list.h>
+#include <linux/list_sort.h>
 #include <linux/compiler.h>
 #include <linux/sched/mm.h>
 #include <linux/workqueue.h>
@@ -22,7 +23,7 @@
 #	include <pgsnap.h>
 #endif
 
-#define DEBUG_PRINTS_PTEALTPROT
+//#define DEBUG_PRINTS_PTEALTPROT
 #ifdef DEBUG_PRINTS_PTEALTPROT
 #	include <linux/pid.h>
 #	include <linux/sched.h>
@@ -185,8 +186,9 @@ __unlock:
 #define __for_each_addr_spc_do(name, addr_spcs_head, rlk_cur_mm, __action__) \
 	do { \
 		struct addr_spc *name; \
+		struct addr_spc *tmp; \
 		\
-		list_for_each_entry(name, (addr_spcs_head), node) { \
+		list_for_each_entry_safe(name, tmp, (addr_spcs_head), node) { \
 			if(!(rlk_cur_mm) && name->mm == current->mm) \
 				continue; \
 			\
@@ -195,12 +197,20 @@ __unlock:
 	} while(0)
 
 static inline void rlock_all_mm_in_addr_spcs(
-		struct list_head *addr_spcs_head, bool rlk_cur_mm, struct kprobe *kp)
+		struct list_head *addr_spcs_head, bool rlk_cur_mm, 
+		bool trylock, struct kprobe *kp)
 {
 	__for_each_addr_spc_do(entry, addr_spcs_head, rlk_cur_mm, 
-			KPSLEEPABLE(kp, 
-				mmap_read_lock(entry->mm);
-			);
+			if(!trylock)
+				KPSLEEPABLE(kp, 
+					mmap_read_lock(entry->mm);
+				);
+			else {
+				if(!mmap_read_trylock(entry->mm)) {
+					scid_warn("unable to acquire mmap_read_trylock");
+					free_addr_spc(entry, kp);
+				}
+			}
 	);
 }
 
@@ -351,9 +361,28 @@ static void wrex_pte_one(
 	__scid_flush_tlb_page(vma, addr);
 }
 
+/* used to ensure lock acquisition ordering, comparator callback, see below */
+static int __addr_spc_cmp_by_mm(
+		__always_unused void *priv, 
+		const struct list_head *a, const struct list_head *b)
+{
+	struct addr_spc *aspc_a = list_entry(a, struct addr_spc, node);
+	struct addr_spc *aspc_b = list_entry(b, struct addr_spc, node);
+	unsigned long mm_a = (unsigned long) aspc_a->mm;
+	unsigned long mm_b = (unsigned long) aspc_b->mm;
+
+	if(mm_a < mm_b)
+		return -1;
+
+	if(mm_a > mm_b)
+		return 1;
+
+	return 0;
+}
+
 static struct folio* __init_collect_aspcs_and_lock(
 		struct page_status *pgs, struct list_head **addr_spcs_head, 
-		bool rlkmm, struct kprobe *kp)
+		bool rlkmm, bool trylock, struct kprobe *kp)
 {
 	struct folio *folio;
 
@@ -364,7 +393,16 @@ static struct folio* __init_collect_aspcs_and_lock(
 	}
 
 	*addr_spcs_head = all_addr_spcs_from_folio(folio, kp);
-	rlock_all_mm_in_addr_spcs(*addr_spcs_head, rlkmm, kp);
+	if(!*addr_spcs_head) {
+		scid_warn("unable to collect addr spcs from folio");
+		folio_put(folio);
+		return NULL;
+	}
+
+	/* this is needed to ensure lock acquisition ordering */
+	list_sort(NULL, *addr_spcs_head, __addr_spc_cmp_by_mm);
+
+	rlock_all_mm_in_addr_spcs(*addr_spcs_head, rlkmm, trylock, kp);
 
 	KPSLEEPABLE(kp, 
 			mutex_lock(&pgs->pap->lock);
@@ -561,6 +599,7 @@ void wrex_ptealtprot(
 		__maybe_unused struct page_status *pgs, 
 		__maybe_unused enum fault_flag ff, 
 		__maybe_unused bool rlkmm,
+		__maybe_unused bool trylock,
 		__maybe_unused struct my_pte_info *mpi,
 		__maybe_unused struct snapshot_extras *snapex,
 		__maybe_unused struct kprobe *kp)
@@ -585,7 +624,7 @@ void wrex_ptealtprot(
 	if(unlikely(invalid_flags))
 		return;
 
-	folio = __init_collect_aspcs_and_lock(pgs, &addr_spcs_head, rlkmm, kp);
+	folio = __init_collect_aspcs_and_lock(pgs, &addr_spcs_head, rlkmm, trylock, kp);
 	if(!folio) {
 		scid_warn("unable to get folio");
 		return;
@@ -647,6 +686,7 @@ __finish:
 void exonly_ptealtprot(
 		__maybe_unused struct page_status *pgs, 
 		__maybe_unused bool rlkmm,
+		__maybe_unused bool trylock,
 		__maybe_unused struct snapshot_extras *snapex,
 		__maybe_unused struct kprobe *kp)
 {
@@ -658,7 +698,7 @@ void exonly_ptealtprot(
 
 	DEBUG_PAP_FMT(EXONLY, "called: rlkmm=%d", rlkmm);
 
-	folio = __init_collect_aspcs_and_lock(pgs, &addr_spcs_head, rlkmm, kp);
+	folio = __init_collect_aspcs_and_lock(pgs, &addr_spcs_head, rlkmm, trylock, kp);
 	if(!folio) {
 		scid_warn("unable to get folio");
 		return;
@@ -724,6 +764,7 @@ __finish:
 bool none_ptealtprot(
 		__maybe_unused struct page_status *pgs, 
 		__maybe_unused bool rlkmm,
+		__maybe_unused bool trylock,
 		__maybe_unused struct snapshot_extras *snapex,
 		__maybe_unused struct kprobe *kp)
 {
@@ -736,7 +777,7 @@ bool none_ptealtprot(
 
 	DEBUG_PAP_FMT(NONE, "called: rlkmm=%d", rlkmm);
 
-	folio = __init_collect_aspcs_and_lock(pgs, &addr_spcs_head, rlkmm, kp);
+	folio = __init_collect_aspcs_and_lock(pgs, &addr_spcs_head, rlkmm, trylock, kp);
 	if(!folio) {
 		scid_warn("unable to get folio");
 		return rv;

@@ -80,13 +80,15 @@ void free_ptealtprot(struct page_status *pgs);
  * @pgs: the pgs
  * @ff: the fault flags
  * @rlkmm: whether or not to acquire the mmap_read_lock for current->mm
+ * @trylock: whether or not to acquire for all collected mm's (**not only**
+ *           current->mm) the mmap_lock using a trylock
  * @mpi: fault handler's own manipulated PTE infos
  * @snapex: snapshot extra infos
  * @kp: the current kprobe
  */
 void wrex_ptealtprot(
 		struct page_status *pgs, enum fault_flag ff, 
-		bool rlkmm, struct my_pte_info *mpi, 
+		bool rlkmm, bool trylock, struct my_pte_info *mpi, 
 		struct snapshot_extras *snapex, struct kprobe *kp);
 
 /**
@@ -100,11 +102,13 @@ void wrex_ptealtprot(
  *
  * @pgs: the pgs
  * @rlkmm: whether or not to acquire the mmap_read_lock for current->mm
+ * @trylock: whether or not to acquire for all collected mm's (**not only**
+ *           current->mm) the mmap_lock using a trylock
  * @snapex: snapshot extra infos
  * @kp: the current kprobe
  */
 void exonly_ptealtprot(
-		struct page_status *pgs, bool rlkmm, 
+		struct page_status *pgs, bool rlkmm, bool trylock,
 		struct snapshot_extras *snapex, struct kprobe *kp);
 
 /**
@@ -123,12 +127,14 @@ void exonly_ptealtprot(
  *
  * @pgs: the pgs
  * @rlkmm: whether or not to acquire the mmap_read_lock for current->mm
+ * @trylock: whether or not to acquire for all collected mm's (**not only**
+ *           current->mm) the mmap_lock using a trylock
  * @snapex: snapshot extra infos
  * @kp: the current kprobe
  *
  * Returns: true if cleared all protection bits (->init was true), false otherwise
  */
-bool none_ptealtprot(struct page_status *pgs, bool rlkmm, 
+bool none_ptealtprot(struct page_status *pgs, bool rlkmm, bool trylock,
 		struct snapshot_extras *snapex, struct kprobe *kp);
 
 /**
