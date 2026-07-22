@@ -9,6 +9,7 @@
 #include <linux/compiler.h>
 #include <linux/sched/mm.h>
 #include <linux/workqueue.h>
+#include <linux/version.h>
 #include <asm-generic/rwonce.h>
 #include <asm-generic/barrier.h>
 
@@ -904,6 +905,8 @@ int setup_ptealtprot(void)
 {
 
 #ifdef DO_PTE_ALT_PROT
+	unsigned int wq_flgs;
+
 	pap_cachep = kmem_cache_create(
 			"scid__pap_cache", 
 			sizeof(struct ptealtprot_struct), 
@@ -916,7 +919,13 @@ int setup_ptealtprot(void)
 		return -ENOMEM;
 	}
 
-	drop_mm_wq = alloc_workqueue("scid-drop-mm-wq", WQ_PERCPU, 0);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 17, 0)
+	wq_flgs = 0;
+#else
+	wq_flgs = WQ_PERCPU;
+#endif
+
+	drop_mm_wq = alloc_workqueue("scid-drop-mm-wq", wq_flgs, 0);
 	if(!drop_mm_wq) {
 		scid_err("unable to create wq");
 		kmem_cache_destroy(pap_cachep);
