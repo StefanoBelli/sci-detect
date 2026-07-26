@@ -107,12 +107,14 @@ static int force_sig_fault__phkphook(
 		DEFINE_SNAPSHOT_EXTRAS_WITH_PTR(snapex, 
 				task_pid_nr(current), pfn, (unsigned long) addr);
 
+		DEFINE_MMS_LOCK_CONTROL(mmslk, current->mm, true, false);
+
 		/* 
 		 * here, we always acquire the mmap read lock for current->mm.
 		 * As when force_sig_fault gets called, this lock or the per-VMA lock
 		 * has been released.
 		 */
-		exonly_ptealtprot(pgs, true, false, snapex, &force_sig_fault__kp);
+		exonly_ptealtprot(pgs, &mmslk, snapex, &force_sig_fault__kp);
 
 		rv = WITH_NEW_IP;
 		regs->ip = (unsigned long) &__return_from_subroutine;

@@ -69,6 +69,8 @@ static int handle_pte_fault__hkrphook(
 	pte_t *vmf_ptep = vmf(vmfe)->pte;
 	enum fault_flag vmf_flags = orig_flags(vmfe);
 	bool locked_mm;
+	struct mm_struct *target_mm;
+	struct kprobe *kp;
 
 	if(unlikely(retval & VM_FAULT_ERROR))
 		goto __end;
@@ -103,9 +105,31 @@ static int handle_pte_fault__hkrphook(
 	 	 * this condition checks if either the mmap_read_lock or the per-VMA
 	 	 * lock is taken when exiting handle_pte_fault. Check handle_mm_fault code
 	 	 * for further details, but this serves to avoid potential deadlock condition
-	 	 * when ptealtprot code acquires the current->mm read lock.
+	 	 * when ptealtprot code acquires the target_mm read lock.
+	 	 *
+	 	 * If, on return, VM_FAULT_RETRY *and* VM_FAULT_COMPLETED are both *NOT* set, the
+	 	 * mmap_lock is held.
+	 	 *
+	 	 * Now, if VM_FAULT_COMPLETED is the one that is set, nothing to do, the mmap_lock
+	 	 * is not held anymore, that is, we need to rlock it later on.
+	 	 *
+	 	 * If VM_FAULT_RETRY is set, instead, this means the mmap_lock may or may not be held:
+	 	 * this depends on how handle_mm_fault got called: if FAULT_FLAG_RETRY_NOWAIT is enabled
+	 	 * then this means that on retry the mmap_lock is still held, otherwise, the mmap_lock
+	 	 * is not held. "@FAULT_FLAG_RETRY_NOWAIT: Don't drop mmap_lock and wait when retrying." 
+	 	 *
+	 	 * See: https://elixir.bootlin.com/linux/v7.1.4/source/include/linux/mm_types.h#L1751
 	 	 */
+
 		locked_mm = !(retval & (VM_FAULT_RETRY | VM_FAULT_COMPLETED));
+	 	if(retval & VM_FAULT_RETRY)
+			locked_mm = vmf_flags & FAULT_FLAG_RETRY_NOWAIT;
+
+		target_mm = vmf(vmfe)->vma->vm_mm;
+
+		DEFINE_MMS_LOCK_CONTROL(mmslk, target_mm, !locked_mm, false);
+
+		kp = kpat(handle_pte_fault__krp, krpi);
 
 		/*
 		 * argument @rlkmm indicates whether the current->mm read lock must
@@ -116,8 +140,7 @@ static int handle_pte_fault__hkrphook(
 		 *  rlkmm = false when locked_mm = true (don't attempt to acquire the
 		 *    mmap read lock if current kernel control path still got it)
 		 */
-		wrex_ptealtprot(pgs, vmf_flags, !locked_mm, false,
-				&mpi, snapex, kpat(handle_pte_fault__krp, krpi));
+		wrex_ptealtprot(pgs, vmf_flags, &mmslk, &mpi, snapex, kp);
 	} else 
 		goto __end;
 

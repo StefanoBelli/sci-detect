@@ -51,6 +51,19 @@ struct my_pte_info {
 	unsigned long addr;
 };
 
+struct mms_lock_control {
+	struct mm_struct *target_mm;        /* the mm we're operating on */
+	bool rlock_target_mm;               /* acquire the read lock, for the target_mm ? */
+	bool trylock;                       /* acquire ALL the mmap_locks via a trylock */
+};
+
+#define DEFINE_MMS_LOCK_CONTROL(__name, __target_mm, __rlock_target_mm, __trylock) \
+	struct mms_lock_control __name = { \
+		.target_mm = (__target_mm), \
+		.rlock_target_mm = (__rlock_target_mm), \
+		.trylock = (__trylock) \
+	}
+
 /* fwd decl */
 struct page_status;
 
@@ -79,16 +92,14 @@ void free_ptealtprot(struct page_status *pgs);
  *
  * @pgs: the pgs
  * @ff: the fault flags
- * @rlkmm: whether or not to acquire the mmap_read_lock for current->mm
- * @trylock: whether or not to acquire for all collected mm's (**not only**
- *           current->mm) the mmap_lock using a trylock
+ * @mmslk: the struct mms_lock_control
  * @mpi: fault handler's own manipulated PTE infos
  * @snapex: snapshot extra infos
  * @kp: the current kprobe
  */
 void wrex_ptealtprot(
 		struct page_status *pgs, enum fault_flag ff, 
-		bool rlkmm, bool trylock, struct my_pte_info *mpi, 
+		struct mms_lock_control *mmslk, struct my_pte_info *mpi, 
 		struct snapshot_extras *snapex, struct kprobe *kp);
 
 /**
@@ -101,14 +112,12 @@ void wrex_ptealtprot(
  * Usage: segmentation fault handler
  *
  * @pgs: the pgs
- * @rlkmm: whether or not to acquire the mmap_read_lock for current->mm
- * @trylock: whether or not to acquire for all collected mm's (**not only**
- *           current->mm) the mmap_lock using a trylock
+ * @mmslk: the struct mms_lock_control
  * @snapex: snapshot extra infos
  * @kp: the current kprobe
  */
 void exonly_ptealtprot(
-		struct page_status *pgs, bool rlkmm, bool trylock,
+		struct page_status *pgs, struct mms_lock_control *mmslk,
 		struct snapshot_extras *snapex, struct kprobe *kp);
 
 /**
@@ -126,15 +135,13 @@ void exonly_ptealtprot(
  * a system call returns.
  *
  * @pgs: the pgs
- * @rlkmm: whether or not to acquire the mmap_read_lock for current->mm
- * @trylock: whether or not to acquire for all collected mm's (**not only**
- *           current->mm) the mmap_lock using a trylock
+ * @mmslk: the struct mms_lock_control
  * @snapex: snapshot extra infos
  * @kp: the current kprobe
  *
  * Returns: true if cleared all protection bits (->init was true), false otherwise
  */
-bool none_ptealtprot(struct page_status *pgs, bool rlkmm, bool trylock,
+bool none_ptealtprot(struct page_status *pgs, struct mms_lock_control *mmslk,
 		struct snapshot_extras *snapex, struct kprobe *kp);
 
 /**

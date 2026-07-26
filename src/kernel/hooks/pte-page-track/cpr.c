@@ -214,7 +214,9 @@ static void __do_ptealtprot(
 		DEFINE_SNAPSHOT_EXTRAS_WITH_PTR(snpex, 
 				task_pid_nr(current), pfn, addr);
 
-		none_ptealtprot(pgs, false, true, snpex, kp);
+		DEFINE_MMS_LOCK_CONTROL(mmslk, current->mm, false, true);
+
+		none_ptealtprot(pgs, &mmslk, snpex, kp);
 		goto __pgs_put;
 	}
 
