@@ -107,6 +107,26 @@ static int force_sig_fault__phkphook(
 		DEFINE_SNAPSHOT_EXTRAS_WITH_PTR(snapex, 
 				task_pid_nr(current), pfn, (unsigned long) addr);
 
+		/*
+		 * segmentation faults are delivered (run when coming back to userspace)
+		 * in the page fault handler, which is called synchronously wrt the user
+		 * control path, so, the target_mm is always current->mm. Always do
+		 * mmap_read_lock since either the per-VMA lock or the whole mmap lock
+		 * is released earlier (by this kernel control path, see __bad_area:
+		 * https://elixir.bootlin.com/linux/v6.15/source/arch/x86/mm/fault.c#L837)
+		 *
+		 * If __bad_area_nosemaphore is called by the wrapper bad_area_nosemaphore,
+		 * with si_code=SEGV_MAPERR, the mmap_read_lock is not held as well: that's
+		 * because either bad_area_nosemaphore is called very early, so, no mmap_lock
+		 * acquired, or because the corresponding VMA could not be found in the mm
+		 * of current and auxiliary function lock_mm_and_find_vma releases the lock
+		 * before returning NULL. 
+		 * See: https://elixir.bootlin.com/linux/v6.15/source/arch/x86/mm/fault.c#L1360
+		 *
+		 * Anyway, we don't actually care about the SEGV_MAPERR case.
+		 *
+		 * No trylocks.
+		 */
 		DEFINE_MMS_LOCK_CONTROL(mmslk, current->mm, true, false);
 
 		/* 

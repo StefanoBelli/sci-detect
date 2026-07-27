@@ -125,8 +125,16 @@ static int handle_pte_fault__hkrphook(
 	 	if(retval & VM_FAULT_RETRY)
 			locked_mm = vmf_flags & FAULT_FLAG_RETRY_NOWAIT;
 
+		/* support for FAULT_FLAG_REMOTE, aka, remote mm */
 		target_mm = vmf(vmfe)->vma->vm_mm;
 
+		/*
+		 * if FAULT_FLAG_REMOTE is enabled then target_mm != current->mm. Anyway, rlock it
+		 * only if needed (that is, if !locked_mm is true) because paths that bring to
+		 * handle_mm_fault (GUP and page fault handler) already to the mmap_read_lock on the
+		 * target_mm, but within the function (handle_mm_fault) it may happen that the rlock 
+		 * is released (so we need to rlock), see locked_mm. Never trylock.
+		 */
 		DEFINE_MMS_LOCK_CONTROL(mmslk, target_mm, !locked_mm, false);
 
 		kp = kpat(handle_pte_fault__krp, krpi);

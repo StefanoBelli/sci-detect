@@ -183,6 +183,18 @@ static inline void  __do_pte_fixup_ptealtprot(
 	pte_fixup_ptealtprot(pgs, &mpi, kp);
 }
 
+/* 
+ * config whether the mms_lock_control struct's trylock
+ * field is true or not.
+ *
+ * be advised: disabling trylock means risk of ** DEADLOCK **
+ */
+#ifdef PAP_IN_CPR_MMSLK_DONT_TRYLOCK
+#	define mmslk_trylock false
+#else /* PAP_IN_CPR_MMSLK_DONT_TRYLOCK */
+#	define mmslk_trylock true
+#endif /* !PAP_IN_CPR_MMSLK_DONT_TRYLOCK */
+
 static void __do_ptealtprot(
 		unsigned long addr, struct vm_area_struct *vma, struct kprobe *kp)
 {
@@ -214,7 +226,12 @@ static void __do_ptealtprot(
 		DEFINE_SNAPSHOT_EXTRAS_WITH_PTR(snpex, 
 				task_pid_nr(current), pfn, addr);
 
-		DEFINE_MMS_LOCK_CONTROL(mmslk, current->mm, false, true);
+		/* 
+		 * target mm is current->mm, don't rlock it (NEVER: 100% deadlock since this
+		 * same control path acquired the wlock earlier), may or may not do the
+		 * trylock to lock all the mmaps
+		 */
+		DEFINE_MMS_LOCK_CONTROL(mmslk, current->mm, false, mmslk_trylock);
 
 		none_ptealtprot(pgs, &mmslk, snpex, kp);
 		goto __pgs_put;
@@ -224,6 +241,8 @@ static void __do_ptealtprot(
 __pgs_put:
 	page_status_put(pgs);
 }
+
+#undef mmslk_trylock
 
 struct kretprobe change_protection_range__krp;
 

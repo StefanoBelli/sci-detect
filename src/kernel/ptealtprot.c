@@ -399,8 +399,22 @@ static struct folio* __init_collect_aspcs_and_lock(
 		return NULL;
 	}
 
+	/* strict locking order required 
+	 * be advised: ** DEADLOCK ** risk */
+#ifdef PAP_INIT_LOCK_ORDER_STRICT
+	KPSLEEPABLE(kp,
+			mutex_lock(&pgs->pap->lock);
+	);
+#endif /* PAP_INIT_LOCK_ORDER_STRICT */
+
 	*addr_spcs_head = all_addr_spcs_from_folio(folio, kp);
 	if(!*addr_spcs_head) {
+
+		/* strict locking order required */
+#ifdef PAP_INIT_LOCK_ORDER_STRICT
+		mutex_unlock(&pgs->pap->lock);
+#endif /* PAP_INIT_LOCK_ORDER_STRICT */
+
 		scid_warn("unable to collect addr spcs from folio");
 		folio_put(folio);
 		return NULL;
@@ -411,9 +425,12 @@ static struct folio* __init_collect_aspcs_and_lock(
 
 	rlock_all_mm_in_addr_spcs(*addr_spcs_head, mmslk, kp);
 
+	/* default case: no strict locking order */
+#ifndef PAP_INIT_LOCK_ORDER_STRICT
 	KPSLEEPABLE(kp, 
 			mutex_lock(&pgs->pap->lock);
 	);
+#endif /* !PAP_INIT_LOCK_ORDER_STRICT */
 
 	return folio;
 }
@@ -422,8 +439,24 @@ static void __end_unlock_put_free_aspcs(
 		struct page_status *pgs, struct list_head **addr_spcs_head, 
 		struct mms_lock_control *mmslk, struct folio *folio, struct kprobe *kp)
 {
+
+	/*
+	 * the following two preprocessor directives are used to gurantee
+	 * the lock acquisition/release pattern
+	 */
+
+	/* default case: no strict locking order */
+#ifndef PAP_INIT_LOCK_ORDER_STRICT
 	mutex_unlock(&pgs->pap->lock);
+#endif /* !PAP_INIT_LOCK_ORDER_STRICT */
+
 	unlock_all_mm_in_addr_spcs(*addr_spcs_head, mmslk);
+
+	/* strict locking order required */
+#ifdef PAP_INIT_LOCK_ORDER_STRICT
+	mutex_unlock(&pgs->pap->lock);
+#endif /* PAP_INIT_LOCK_ORDER_STRICT */
+
 	folio_put(folio);
 
 	free_addr_spcs_list(addr_spcs_head, kp);

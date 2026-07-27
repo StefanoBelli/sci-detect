@@ -1,5 +1,8 @@
 # default all for everyone
 
+PAP_STRICTNESS ?=
+export PAP_STRICTNESS
+
 all: kernel user
 
 clean: kernel-clean user-clean
