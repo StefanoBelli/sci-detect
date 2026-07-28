@@ -50,6 +50,9 @@
 	reset_value_testing_for_me(WPC_SUBSYS_NAME, WPC_RETURN_OK_KEY); \
 	reset_value_testing_for_me(WPC_SUBSYS_NAME, WPC_COW_DONE_KEY)
 
+static struct memory_region locked_regions[500];
+static size_t nr_locked_regions;
+
 static int __write_via_syscall(char *mem)
 {
 	return trigger_syscall_pagewrite(mem, 10);
@@ -115,6 +118,8 @@ __finish:
 
 int __child_base(int (*fnchld)(char*, void*), char *mem, void *args) 
 {
+	mlock_already_locked(locked_regions, nr_locked_regions);
+
 	int rv;
 
 	enable_testing_for_me(SPR_SUBSYS_NAME);
@@ -139,26 +144,6 @@ int __child_base(int (*fnchld)(char*, void*), char *mem, void *args)
 	start_value_testing_for_me(WPC_SUBSYS_NAME, WPC_ENTRY_CHECKS_PASS_KEY);
 	start_value_testing_for_me(WPC_SUBSYS_NAME, WPC_RETURN_OK_KEY);
 	start_value_testing_for_me(WPC_SUBSYS_NAME, WPC_COW_DONE_KEY);
-
-	query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_ENTRY_KEY);
-	query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_WPR_PATH_TAKEN_KEY);
-	query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_WPR_MKWRITE_KEY);
-	query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_WPR_SHARED_KEY);
-	query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_WPR_ANONEXCL_KEY);
-	query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_WPR_PRIOR_CHECKS_PASS_KEY);
-	query_int_value_testing_for_me(DWP_SUBSYS_NAME, DWP_WPR_PAGE_OK_KEY);
-
-	query_int_value_testing_for_me(WPC_SUBSYS_NAME, WPC_ENTRY_KEY);
-	query_int_value_testing_for_me(WPC_SUBSYS_NAME, WPC_ENTRY_CHECKS_PASS_KEY);
-	query_int_value_testing_for_me(WPC_SUBSYS_NAME, WPC_RETURN_OK_KEY);
-	query_int_value_testing_for_me(WPC_SUBSYS_NAME, WPC_COW_DONE_KEY);
-
-	query_int_value_testing_for_me(SPR_SUBSYS_NAME, SPR_CALLER_FMP_KEY);
-	query_int_value_testing_for_me(SPR_SUBSYS_NAME, SPR_CALLER_DF_KEY);
-	query_int_value_testing_for_me(SPR_SUBSYS_NAME, SPR_CALLER_FF_KEY);
-	query_int_value_testing_for_me(SPR_SUBSYS_NAME, SPR_ENTRY_OK_KEY);
-	query_int_value_testing_for_me(SPR_SUBSYS_NAME, SPR_RETURN_OK_KEY);
-	query_int_value_testing_for_me(SPR_SUBSYS_NAME, SPR_PAGES_OK_KEY);
 
 	RESET_ALL();
 
@@ -194,6 +179,9 @@ int __child_base(int (*fnchld)(char*, void*), char *mem, void *args)
 
 int main()
 {
+	MLOCKALL_CURRENTONLY();
+	nr_locked_regions = locked_memory_regions(locked_regions, 500);
+
 	int rv = EXIT_SUCCESS;
 
 	enable_testing_for_me(SPR_SUBSYS_NAME);

@@ -435,4 +435,70 @@ static __unused void *flusher_process_shmem;
 	 	___rv___; \
 	 })
 
+#define MLOCKALL_CURRENTONLY() \
+	if(mlockall(MCL_CURRENT)) { \
+		perror("mlockall"); \
+		exit(EXIT_FAILURE); \
+	}
+
+struct memory_region {
+	unsigned long start;
+	unsigned long end;
+};
+
+__unused static size_t locked_memory_regions(struct memory_region *mrs, size_t max_mrs)
+{
+	FILE *fp;
+	char line[512];
+	unsigned long start;
+	unsigned long end;
+	unsigned long cur_start;
+	unsigned long cur_end;
+	size_t locked_kb;
+	size_t idx = 0;
+	
+	if(!max_mrs)
+		return 0;
+
+	fp = fopen("/proc/self/smaps", "r");
+	if (!fp) {
+		perror("fopen");
+		return 0;
+	}
+
+	memset(line, 0, sizeof(line));
+
+	while (fgets(line, sizeof(line), fp)) {
+		if (sscanf(line, "%lx-%lx", &start, &end) == 2) {
+			cur_start = start;
+			cur_end = end;
+		}
+
+		if (sscanf(line, "Locked: %lu kB", &locked_kb) == 1) {
+			if (locked_kb > 0) {
+				mrs[idx].start = cur_start;
+				mrs[idx].end = cur_end;
+				if(++idx == max_mrs)
+					break;
+			}
+		}
+	}
+
+	fclose(fp);
+	return idx;
+}
+
+__unused static void mlock_already_locked(struct memory_region *mrs, size_t nr_mrs)
+{
+	for(size_t i = 0; i < nr_mrs; i++) {
+#ifdef MAL_PRINT
+		printf("mlocking: %p, of size %ld\n", (void*) mrs[i].start, mrs[i].end - mrs[i].start);
+#endif
+		if(mlock((const void*) mrs[i].start, mrs[i].end - mrs[i].start)) {
+			perror("mlock");
+			exit(EXIT_FAILURE);
+		}
+	}
+}
+
 #endif
