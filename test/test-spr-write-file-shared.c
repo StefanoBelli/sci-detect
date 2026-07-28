@@ -55,6 +55,8 @@
 
 int main()
 {
+	MLOCKALL_CURRENTONLY();
+
 	int rv = EXIT_SUCCESS;
 
 	enable_testing_for_me(SPR_SUBSYS_NAME);
@@ -150,12 +152,12 @@ int main()
 			test_int_eq(wpc_return_ok, 0);
 			test_int_eq(wpc_cow_done, 0);
 	
-			test_int_ge_hard(spr_caller_fmp, 0);
-			test_int_eq(spr_caller_df, 1);
-			test_int_ge_hard(spr_caller_ff, 0);
-			test_int_eq(spr_entry_ok, 1);
-			test_int_eq(spr_return_ok, 1);
-			test_int_eq(spr_pages_ok, 1);
+			test_int_eq_hard(spr_caller_fmp, 1);
+			test_int_eq_hard(spr_caller_df, 1);
+			test_int_eq_hard(spr_caller_ff, 0);
+			test_int_eq_hard(spr_entry_ok, 1);
+			test_int_eq_hard(spr_return_ok, 1);
+			test_int_eq_hard(spr_pages_ok, 1);
 		}
 
 		RESET_ALL();
@@ -737,12 +739,12 @@ int main()
 			test_int_eq(wpc_return_ok, 0);
 			test_int_eq(wpc_cow_done, 0);
 	
-			test_int_ge_hard(spr_caller_fmp, 0);
-			test_int_eq(spr_caller_df, 1);
-			test_int_ge_hard(spr_caller_ff, 0);
-			test_int_eq(spr_entry_ok, 1);
-			test_int_eq(spr_return_ok, 1);
-			test_int_eq(spr_pages_ok, 1);
+			test_int_eq_hard(spr_caller_fmp, 1);
+			test_int_eq_hard(spr_caller_df, 1);
+			test_int_eq_hard(spr_caller_ff, 0);
+			test_int_eq_hard(spr_entry_ok, 1);
+			test_int_eq_hard(spr_return_ok, 1);
+			test_int_eq_hard(spr_pages_ok, 1);
 		}
 
 		RESET_ALL();
@@ -1230,12 +1232,12 @@ int main()
 			test_int_eq(wpc_return_ok, 0);
 			test_int_eq(wpc_cow_done, 0);
 	
-			test_int_ge_hard(spr_caller_fmp, 0);
-			test_int_eq(spr_caller_df, 1);
-			test_int_ge_hard(spr_caller_ff, 0);
-			test_int_eq(spr_entry_ok, 1);
-			test_int_eq(spr_return_ok, 1);
-			test_int_eq(spr_pages_ok, 1);
+			test_int_eq_hard(spr_caller_fmp, 1);
+			test_int_eq_hard(spr_caller_df, 1);
+			test_int_eq_hard(spr_caller_ff, 0);
+			test_int_eq_hard(spr_entry_ok, 1);
+			test_int_eq_hard(spr_return_ok, 1);
+			test_int_eq_hard(spr_pages_ok, 1);
 		}
 
 		RESET_ALL();
@@ -1771,9 +1773,9 @@ int main()
 			test_int_eq(wpc_return_ok, 0);
 			test_int_eq(wpc_cow_done, 0);
 	
-			test_int_ge_hard(spr_caller_fmp, 0);
-			test_int_eq(spr_caller_df, 1);
-			test_int_ge_hard(spr_caller_ff, 0);
+			test_int_eq_hard(spr_caller_fmp, 1);
+			test_int_eq_hard(spr_caller_df, 1);
+			test_int_eq_hard(spr_caller_ff, 0);
 			test_int_ge_hard(spr_entry_ok, 1);
 			test_int_ge_hard(spr_return_ok, 1);
 			test_int_ge_hard(spr_pages_ok, 1);
@@ -2360,9 +2362,9 @@ int main()
 			test_int_eq(wpc_return_ok, 0);
 			test_int_eq(wpc_cow_done, 0);
 	
-			test_int_ge_hard(spr_caller_fmp, 0);
-			test_int_eq(spr_caller_df, 1);
-			test_int_ge_hard(spr_caller_ff, 0);
+			test_int_eq_hard(spr_caller_fmp, 1);
+			test_int_eq_hard(spr_caller_df, 1);
+			test_int_eq_hard(spr_caller_ff, 0);
 			test_int_ge_hard(spr_entry_ok, 1);
 			test_int_ge_hard(spr_return_ok, 1);
 			test_int_ge_hard(spr_pages_ok, 1);
@@ -2855,9 +2857,9 @@ int main()
 			test_int_eq(wpc_return_ok, 0);
 			test_int_eq(wpc_cow_done, 0);
 	
-			test_int_ge_hard(spr_caller_fmp, 0);
-			test_int_eq(spr_caller_df, 1);
-			test_int_ge_hard(spr_caller_ff, 0);
+			test_int_eq_hard(spr_caller_fmp, 1);
+			test_int_eq_hard(spr_caller_df, 1);
+			test_int_eq_hard(spr_caller_ff, 0);
 			test_int_ge_hard(spr_entry_ok, 1);
 			test_int_ge_hard(spr_return_ok, 1);
 			test_int_ge_hard(spr_pages_ok, 1);
@@ -3575,9 +3577,9 @@ int main()
 			test_int_eq(wpc_return_ok, 0);
 			test_int_eq(wpc_cow_done, 0);
 	
-			test_int_ge_hard(spr_caller_fmp, 0);
-			test_int_eq(spr_caller_df, 1);
-			test_int_ge_hard(spr_caller_ff, 0);
+			test_int_eq_hard(spr_caller_fmp, 1);
+			test_int_eq_hard(spr_caller_df, 1);
+			test_int_eq_hard(spr_caller_ff, 0);
 			test_int_ge_hard(spr_entry_ok, 1);
 			test_int_ge_hard(spr_return_ok, 1);
 			test_int_ge_hard(spr_pages_ok, 1);

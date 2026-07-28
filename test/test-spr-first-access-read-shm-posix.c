@@ -25,6 +25,8 @@
 
 int main()
 {
+	MLOCKALL_CURRENTONLY();
+
 	int rv = EXIT_SUCCESS;
 
 	enable_testing_for_me(SUBSYS_NAME);

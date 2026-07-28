@@ -19,6 +19,8 @@
 
 int main()
 {
+	MLOCKALL_CURRENTONLY();
+
 	int rv = EXIT_SUCCESS;
 
 	enable_testing_for_me(SUBSYS_NAME);
@@ -73,12 +75,12 @@ int main()
 			int return_ok = query_int_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
 			int pages_ok = query_int_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
 
-			test_int_ge_hard(caller_fmp, 0);
-			test_int_eq(caller_df, 1);
-			test_int_ge_hard(caller_ff, 0);
-			test_int_eq(entry_ok, 1);
-			test_int_eq(return_ok, 1);
-			test_int_eq(pages_ok, 1);
+			test_int_eq_hard(caller_fmp, 1);
+			test_int_eq_hard(caller_df, 1);
+			test_int_eq_hard(caller_ff, 0);
+			test_int_ge_hard(entry_ok, 1);
+			test_int_ge_hard(return_ok, 1);
+			test_int_ge_hard(pages_ok, 1);
 		}
 
 		RESET_ALL();
@@ -194,9 +196,9 @@ int main()
 			int return_ok = query_int_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
 			int pages_ok = query_int_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
 
-			test_int_ge_hard(caller_fmp, 0);
-			test_int_eq(caller_df, 1);
-			test_int_ge_hard(caller_ff, 0);
+			test_int_eq_hard(caller_fmp, 1);
+			test_int_eq_hard(caller_df, 1);
+			test_int_eq_hard(caller_ff, 0);
 			test_int_eq(entry_ok, 1);
 			test_int_eq(return_ok, 1);
 			test_int_eq(pages_ok, 1);
@@ -295,9 +297,9 @@ int main()
 			int return_ok = query_int_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
 			int pages_ok = query_int_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
 
-			test_int_ge_hard(caller_fmp, 0);
-			test_int_eq(caller_df, 1);
-			test_int_ge_hard(caller_ff, 0);
+			test_int_eq_hard(caller_fmp, 1);
+			test_int_eq_hard(caller_df, 1);
+			test_int_eq_hard(caller_ff, 0);
 			test_int_ge_hard(entry_ok, 1);
 			test_int_ge_hard(return_ok, 1);
 			test_int_ge_hard(pages_ok, 1);
@@ -468,9 +470,9 @@ int main()
 			int return_ok = query_int_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
 			int pages_ok = query_int_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
 
-			test_int_ge_hard(caller_fmp, 0);
-			test_int_eq(caller_df, 1);
-			test_int_ge_hard(caller_ff, 0);
+			test_int_eq_hard(caller_fmp, 1);
+			test_int_eq_hard(caller_df, 1);
+			test_int_eq_hard(caller_ff, 0);
 			test_int_ge_hard(entry_ok, 1);
 			test_int_ge_hard(return_ok, 1);
 			test_int_ge_hard(pages_ok, 1);
