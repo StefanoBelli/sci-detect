@@ -177,7 +177,7 @@ __unused static int query_int_value_testing_for_me(const char* subsys, const cha
 #undef BASEDIR
 
 #ifndef SOFT_FAIL_TOLERANCE
-#define SOFT_FAIL_TOLERANCE 3
+#define SOFT_FAIL_TOLERANCE 1
 #endif
 
 #ifndef NO_FAIL
@@ -500,5 +500,9 @@ __unused static void mlock_already_locked(struct memory_region *mrs, size_t nr_m
 		}
 	}
 }
+
+#define MAX_NR_LOCKED_REGIONS 512
+__unused static struct memory_region locked_regions[MAX_NR_LOCKED_REGIONS];
+__unused size_t nr_locked_regions;
 
 #endif

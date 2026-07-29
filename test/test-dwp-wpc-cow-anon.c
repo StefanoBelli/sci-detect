@@ -33,9 +33,6 @@
 	reset_value_testing_for_me(WPC_SUBSYS_NAME, WPC_RETURN_OK_KEY); \
 	reset_value_testing_for_me(WPC_SUBSYS_NAME, WPC_COW_DONE_KEY)
 
-static struct memory_region locked_regions[500];
-static size_t nr_locked_regions;
-
 int child1_tests(char* mem)
 {
 	mlock_already_locked(locked_regions, nr_locked_regions);
@@ -208,7 +205,7 @@ __finish:
 int main()
 {
 	MLOCKALL_CURRENTONLY();
-	nr_locked_regions = locked_memory_regions(locked_regions, 500);
+	nr_locked_regions = locked_memory_regions(locked_regions, MAX_NR_LOCKED_REGIONS);
 
 	int rv = EXIT_SUCCESS;
 

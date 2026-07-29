@@ -109,9 +109,9 @@ static int chld2_doread_present(char *mem)
 	test_int_eq_hard(caller_fmp, 1);
 	test_int_eq_hard(caller_df, 1);
 	test_int_eq_hard(caller_ff, 0);
-	test_int_eq(entry_ok, 1);
-	test_int_eq(return_ok, 1);
-	test_int_eq(pages_ok, 1);
+	test_int_ge_hard(entry_ok, 1);
+	test_int_ge_hard(return_ok, 1);
+	test_int_ge_hard(pages_ok, 1);
 __finish:
 	return rv;
 }
@@ -139,6 +139,8 @@ __finish:
 
 int __child_base(int (*fnchld)(char*), char *mem) 
 {
+	mlock_already_locked(locked_regions, nr_locked_regions);
+
 	int rv;
 
 	enable_testing_for_me(SUBSYS_NAME);
@@ -148,14 +150,6 @@ int __child_base(int (*fnchld)(char*), char *mem)
 	start_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
 	start_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
 	start_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
-
-	/* doing this to flush values */
-	query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FMP_KEY);
-	query_int_value_testing_for_me(SUBSYS_NAME, CALLER_DF_KEY);
-	query_int_value_testing_for_me(SUBSYS_NAME, CALLER_FF_KEY);
-	query_int_value_testing_for_me(SUBSYS_NAME, ENTRY_OK_KEY);
-	query_int_value_testing_for_me(SUBSYS_NAME, RETURN_OK_KEY);
-	query_int_value_testing_for_me(SUBSYS_NAME, PAGES_OK_KEY);
 
 	RESET_ALL();
 
@@ -174,6 +168,9 @@ int __child_base(int (*fnchld)(char*), char *mem)
 
 int main()
 {
+	MLOCKALL_CURRENTONLY();
+	nr_locked_regions = locked_memory_regions(locked_regions, MAX_NR_LOCKED_REGIONS);
+
 	int rv = EXIT_SUCCESS;
 
 	enable_testing_for_me(SUBSYS_NAME);
