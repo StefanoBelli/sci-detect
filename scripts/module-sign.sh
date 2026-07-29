@@ -61,6 +61,19 @@ decrypt_privkey() {
 	echo ""
 }
 
+check_owner() {
+	_user=$(stat -c '%U' $1)
+	_group=$(stat -c '%G' $1)
+
+	[[ $_user == $USER ]] && [[ $_group == $USER ]]
+}
+
+check_perms() {
+	_perms=$(stat -c '%a' $1)
+
+	[[ $_perms == $2 ]]
+}
+
 sign_module() {
 	echo " --- sign module --- "
 
@@ -70,10 +83,29 @@ sign_module() {
 	echo -e "    \t\t:: $YOUR_STUFF/$RAW_PRIVKEY (UNENCRYPTED PRIVATE KEY)           "
 	echo -e "    \t\t:: $YOUR_STUFF/$CERT_PUBKEY (X.509 cert carrying public key)     "
 
-	sudo chown $USER:$USER $YOUR_STUFF/$RAW_PRIVKEY
-	sudo chown $USER:$USER $YOUR_STUFF/$CERT_PUBKEY
-	chmod $perms $YOUR_STUFF/$RAW_PRIVKEY
-	chmod $perms $YOUR_STUFF/$CERT_PUBKEY
+	if ! check_owner "$YOUR_STUFF/$RAW_PRIVKEY"; then
+		sudo chown $USER:$USER $YOUR_STUFF/$RAW_PRIVKEY
+	else
+		echo " -- $YOUR_STUFF/$RAW_PRIVKEY owner already ok"
+	fi
+
+	if ! check_owner "$YOUR_STUFF/$CERT_PUBKEY"; then
+		sudo chown $USER:$USER $YOUR_STUFF/$CERT_PUBKEY
+	else
+		echo " -- $YOUR_STUFF/$CERT_PUBKEY owner already ok"
+	fi
+	
+	if ! check_perms "$YOUR_STUFF/$RAW_PRIVKEY" "$perms"; then
+		chmod $perms $YOUR_STUFF/$RAW_PRIVKEY
+	else
+		echo " -- $YOUR_STUFF/$RAW_PRIVKEY perms already ok"
+	fi
+
+	if ! check_perms "$YOUR_STUFF/$CERT_PUBKEY" "$perms"; then
+		chmod $perms $YOUR_STUFF/$CERT_PUBKEY
+	else
+		echo " -- $YOUR_STUFF/$CERT_PUBKEY perms already ok"
+	fi
 
 	/lib/modules/$(uname -r)/build/scripts/sign-file \
 		$HASH_SIGN_ALGO \

@@ -13,9 +13,11 @@ static struct kretprobe *krps[] = {
 
 #ifdef DO_PTE_ALT_PROT
 	&change_protection_range__krp,
-	&__bad_area_nosemaphore__krp,
 #endif
 
+#if defined(DO_PTE_ALT_PROT) || defined(SCID_CONFIG_TESTING)
+	&__bad_area_nosemaphore__krp,
+#endif
 
 };
 
@@ -30,7 +32,7 @@ static struct kprobe *kps[] = {
 	&free_pages_and_swap_cache__kp,
 #endif
 
-#ifdef DO_PTE_ALT_PROT
+#if defined(DO_PTE_ALT_PROT) || defined(SCID_CONFIG_TESTING)
 	&force_sig_fault__kp,
 #endif
 
@@ -105,6 +107,15 @@ static const struct subsys_regi_args ppt_suts[] = {
 		.name = "pte-page-track-fuf-hook",
 		.kvt = {
 			ATOMICALLY_INCREMENTED_KEY("entry"),
+
+			END_OF_KVS
+		}
+	},
+	{
+		.name = "pte-page-track-fsf-hook",
+		.kvt = {
+			ATOMICALLY_INCREMENTED_KEY("entry"),
+			ATOMICALLY_INCREMENTED_KEY("checks-ok"),
 
 			END_OF_KVS
 		}

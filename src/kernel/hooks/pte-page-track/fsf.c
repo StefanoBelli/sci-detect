@@ -1,4 +1,8 @@
 #include <ptealtprot.h>
+#include <testing/testing.h>
+#define MY_TESTING_SUBSYS_NAME "pte-page-track-fsf-hook"
+
+#if defined(DO_PTE_ALT_PROT) || defined(SCID_CONFIG_TESTING)
 
 #ifdef DO_PTE_ALT_PROT
 
@@ -7,17 +11,20 @@
 #include <linux/mm.h>
 #include <linux/rcupdate.h>
 #include <asm/nospec-branch.h>
-#include <asm/trap_pf.h>
 #include <asm-generic/rwonce.h>
 
 #include <hooks/pte-page-track/utils/user_page_walk.h>
 #include <pgtrack.h>
-#include <ptealtprot.h>
 #include <logging.h>
+
+#define WITH_NEW_IP 1
+
+#endif /* DO_PTE_ALT_PROT */
+
+#include <asm/trap_pf.h>
 #include <sfes.h>
 
 #define WITH_ORIG_IP 0
-#define WITH_NEW_IP 1
 
 #define REQUIRED_CPU_ERROR_CODE ( \
 		X86_PF_PROT | \
@@ -63,7 +70,7 @@ static bool fsf_checks_ok(struct pt_regs *regs, void __user **_addr)
 	return true;
 }
 
-#define force_sig_fault__symbol "force_sig_fault"
+#ifdef DO_PTE_ALT_PROT
 
 #define __dont_optimize_no_frame_pointer \
 	__attribute__((__optimize__("-fomit-frame-pointer,-O0")))
@@ -76,18 +83,31 @@ void __return_from_subroutine(void)
 
 struct kprobe force_sig_fault__kp;
 
+#endif /* DO_PTE_ALT_PROT */
+
+#define force_sig_fault__symbol "force_sig_fault"
+
 static int force_sig_fault__phkphook(
 		__always_unused struct kprobe *kp, struct pt_regs *regs)
 {
 	void __user* addr;
+	int rv = WITH_ORIG_IP;
+
+#ifdef DO_PTE_ALT_PROT
 	struct page *page;
 	unsigned long pfn;
 	struct page_status *pgs;
 	bool pgs_success;
-	int rv = WITH_ORIG_IP;
+#endif /* DO_PTE_ALT_PROT */
+
+	__testing("entry");
 
 	if(!fsf_checks_ok(regs, &addr))
 		return rv;
+
+	__testing("checks-ok");
+
+#ifdef DO_PTE_ALT_PROT
 
 	page = user_page_walk((unsigned long) addr, false, true, &force_sig_fault__kp);
 	if(!page)
@@ -145,6 +165,9 @@ static int force_sig_fault__phkphook(
 
 __put_pgs:
 	page_status_put(pgs);
+
+#endif /* DO_PTE_ALT_PROT */
+
 	return rv;
 }
 
@@ -198,4 +221,4 @@ struct kretprobe __bad_area_nosemaphore__krp = {
 	.data_size = sizeof(struct sig_fault_extras_entry*),
 };
 
-#endif /* DO_PTE_ALT_PROT */
+#endif /* defined(DO_PTE_ALT_PROT) || defined(SCID_CONFIG_TESTING) */

@@ -3,7 +3,7 @@
 
 #include <ptealtprot.h>
 
-#ifdef DO_PTE_ALT_PROT
+#if defined(DO_PTE_ALT_PROT) || defined(SCID_CONFIG_TESTING)
 
 #include <linux/slab.h>
 #include <linux/sched.h>
@@ -94,6 +94,6 @@ static inline void del_sfe(struct sig_fault_extras_entry *sfee)
 	kfree(sfee);
 }
 
-#endif /* DO_PTE_ALT_PROT */
+#endif /* defined(DO_PTE_ALT_PROT) || defined(SCID_CONFIG_TESTING) */
 
 #endif /* SCID_SFES_H */
