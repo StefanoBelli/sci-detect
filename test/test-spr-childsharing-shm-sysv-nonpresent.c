@@ -168,7 +168,7 @@ int __child_base(int (*fnchld)(char*), char *mem)
 int main()
 {
 	MLOCKALL_CURRENTONLY();
-	nr_locked_regions = locked_memory_regions(locked_regions, nr_locked_regions);
+	nr_locked_regions = locked_memory_regions(locked_regions, MAX_NR_LOCKED_REGIONS);
 
 	int rv = EXIT_SUCCESS;
 
