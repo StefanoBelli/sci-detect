@@ -121,6 +121,7 @@ static int force_sig_fault__phkphook(
 	rcu_read_unlock();
 
 	if(likely(pgs_success)) {
+		scid_infof("success fsf: %d %s", task_pid_nr(current), current->comm);
 		if(likely(!READ_ONCE(pgs->pap)))
 			goto __put_pgs;
 
@@ -146,8 +147,9 @@ static int force_sig_fault__phkphook(
 		 * Anyway, we don't actually care about the SEGV_MAPERR case.
 		 *
 		 * No trylocks.
+		 * We are sure that target_vma = NULL because no per-VMA lock is held.
 		 */
-		DEFINE_MMS_LOCK_CONTROL(mmslk, current->mm, true, false);
+		DEFINE_MMS_LOCK_CONTROL(mmslk, current->mm, NULL, true, false);
 
 		/* 
 		 * here, we always acquire the mmap read lock for current->mm.

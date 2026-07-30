@@ -229,9 +229,12 @@ static void __do_ptealtprot(
 		/* 
 		 * target mm is current->mm, don't rlock it (NEVER: 100% deadlock since this
 		 * same control path acquired the wlock earlier), may or may not do the
-		 * trylock to lock all the mmaps
+		 * trylock to lock all the mmaps. We don't care about the per-VMA locks since
+		 * mprotect already acquires the current->mm->mmap_lock in write mode:
+		 *   - https://elixir.bootlin.com/linux/v7.1.4/source/mm/mprotect.c#L867
+		 *   - https://elixir.bootlin.com/linux/v7.1.4/source/mm/mprotect.c#L981
 		 */
-		DEFINE_MMS_LOCK_CONTROL(mmslk, current->mm, false, mmslk_trylock);
+		DEFINE_MMS_LOCK_CONTROL(mmslk, current->mm, NULL, false, mmslk_trylock);
 
 		none_ptealtprot(pgs, &mmslk, snpex, kp);
 		goto __pgs_put;

@@ -68,8 +68,9 @@ static int handle_pte_fault__hkrphook(
 	bool pfn_found;
 	pte_t *vmf_ptep = vmf(vmfe)->pte;
 	enum fault_flag vmf_flags = orig_flags(vmfe);
-	bool locked_mm = false;
+	bool locked = false; /* whether the per-VMA lock or mmap_lock is acquired */
 	struct mm_struct *target_mm;
+	struct vm_area_struct *target_vma = NULL;
 	struct kprobe *kp;
 
 	if(unlikely(retval & VM_FAULT_ERROR))
@@ -120,21 +121,26 @@ static int handle_pte_fault__hkrphook(
 	 	 *
 	 	 * Edit: introduced the check about whether the per-VMA lock or the whole mmap_lock was
 	 	 * acquired. This is because we need to, later on, acquire the whole mmap_lock to inspect
-	 	 * the mm. Only holding the per-VMA lock is not enough. If the per-VMA lock is held, 
-	 	 * then locked_mm = false, otherwise do further checks, as described above.
+	 	 * the mm. Only holding the per-VMA lock is not enough.
 	 	 *
 	 	 * See: https://elixir.bootlin.com/linux/v7.1.4/source/include/linux/mm_types.h#L1751
 	 	 */
 
-	 	if(unlikely(!(vmf_flags & FAULT_FLAG_VMA_LOCK))) {
-			locked_mm = !(retval & (VM_FAULT_RETRY | VM_FAULT_COMPLETED));
-	 		if(retval & VM_FAULT_RETRY)
-	 			/* 
-	 			 * if we get here, then locked_mm = false, it may change if i
-	 			 * FAULT_FLAG_RETRY_NOWAIT is set...
-	 			 */
-				locked_mm = vmf_flags & FAULT_FLAG_RETRY_NOWAIT;
-		}
+		locked = !(retval & (VM_FAULT_RETRY | VM_FAULT_COMPLETED));
+	 	if(retval & VM_FAULT_RETRY)
+	 		/* 
+	 		 * if we get here, then locked_mm = false, it may change if i
+	 		 * FAULT_FLAG_RETRY_NOWAIT is set...
+	 		 */
+			locked = vmf_flags & FAULT_FLAG_RETRY_NOWAIT;
+
+		/*
+		 * if the per-VMA lock is still acquired, use the VMA directly (skip the vma_lookup basically)
+		 * if the mmap_lock is still acquired, skip the mmap_read_lock but still, use the mm actively
+		 * if nothing held at all (locked = false), do the regular path: mmap_read_lock and so on...
+		 */
+		if(locked && likely(vmf_flags & FAULT_FLAG_VMA_LOCK))
+			target_vma = vmf(vmfe)->vma;
 
 		/* support for FAULT_FLAG_REMOTE, aka, remote mm */
 		target_mm = vmf(vmfe)->vma->vm_mm;
@@ -146,7 +152,7 @@ static int handle_pte_fault__hkrphook(
 		 * target_mm, but within the function (handle_mm_fault) it may happen that the rlock 
 		 * is released (so we need to rlock), see locked_mm. Never trylock.
 		 */
-		DEFINE_MMS_LOCK_CONTROL(mmslk, target_mm, !locked_mm, false);
+		DEFINE_MMS_LOCK_CONTROL(mmslk, target_mm, target_vma, !locked, false);
 
 		kp = kpat(handle_pte_fault__krp, krpi);
 

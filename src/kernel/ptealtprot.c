@@ -42,6 +42,7 @@ static inline void __scid_flush_tlb_page(struct vm_area_struct *vma, unsigned lo
 /* the mm and associated virtual addr */
 struct addr_spc {
 	struct mm_struct *mm;
+	struct vm_area_struct *vma;
 	unsigned long addr;
 
 	struct list_head node;
@@ -127,6 +128,12 @@ static bool __rmap_one_addr_spc(
 	}
 
 	aspc->mm = vma->vm_mm;
+
+	/* don't even think about it. 
+	 * Cannot assign aspc->vma = vma and later skip the
+	 * vma_lookup.
+	 */
+	aspc->vma = NULL;
 	aspc->addr = addr;
 	list_add(&aspc->node, args->head);
 
@@ -185,54 +192,64 @@ __unlock:
 	return NULL;
 }
 
-#define __for_each_addr_spc_do(name, head, tgt_mm, rlk_tgt_mm, __action__) \
-	do { \
-		struct addr_spc *name; \
-		struct addr_spc *tmp; \
-		\
-		list_for_each_entry_safe(name, tmp, (head), node) { \
-			if(!(rlk_tgt_mm) && name->mm == (tgt_mm)) { \
-				mmap_assert_locked((tgt_mm)); \
-				continue; \
-			} \
-			\
-			__action__\
-		} \
-	} while(0)
-
 static inline void rlock_all_mm_in_addr_spcs(
 		struct list_head *addr_spcs_head, 
 		struct mms_lock_control *mmslk, struct kprobe *kp)
 {
+	struct addr_spc *entry;
+	struct addr_spc *tmp;
 	struct mm_struct *target_mm = mmslk->target_mm;
+	struct vm_area_struct *target_vma = mmslk->target_vma;
 	bool rlock_target_mm = mmslk->rlock_target_mm;
 
-	__for_each_addr_spc_do(entry, addr_spcs_head, target_mm, rlock_target_mm, 
-			if(!mmslk->trylock)
-				KPSLEEPABLE(kp, 
-					mmap_read_lock(entry->mm);
-				);
-			else {
-				if(!mmap_read_trylock(entry->mm)) {
-					scid_warn("unable to acquire mmap_read_trylock");
-					free_addr_spc(entry, kp);
-				}
+	list_for_each_entry_safe(entry, tmp, addr_spcs_head, node) {
+		if(!rlock_target_mm && entry->mm == target_mm) {
+			if(target_vma) {
+				vma_assert_locked(target_vma);
+				entry->vma = target_vma;
+			} else {
+				mmap_assert_locked(target_mm);
+				entry->vma = NULL;
 			}
-	);
+
+			continue;
+		}
+
+		if(!mmslk->trylock)
+			KPSLEEPABLE(kp, 
+					mmap_read_lock(entry->mm);
+			);
+		else {
+			if(!mmap_read_trylock(entry->mm)) {
+				scid_warn("unable to acquire mmap_read_trylock");
+				free_addr_spc(entry, kp);
+			}
+		}
+	}
 }
 
 static inline void unlock_all_mm_in_addr_spcs(
 		struct list_head *addr_spcs_head, struct mms_lock_control *mmslk)
 {
+	struct addr_spc *entry;
+	struct addr_spc *tmp;
 	struct mm_struct *target_mm = mmslk->target_mm;
+	struct vm_area_struct *target_vma = mmslk->target_vma;
 	bool rlock_target_mm = mmslk->rlock_target_mm;
 
-	__for_each_addr_spc_do(entry, addr_spcs_head, target_mm, rlock_target_mm, 
-			mmap_read_unlock(entry->mm);
-	);
-}
+	list_for_each_entry_safe(entry, tmp, addr_spcs_head, node) {
+		if(!rlock_target_mm && entry->mm == target_mm) {
+			if(!target_vma)
+				mmap_assert_locked(target_mm);
+			else
+				vma_assert_locked(target_vma);
 
-#undef __for_each_addr_spc_do
+			continue;
+		}
+
+		mmap_read_unlock(entry->mm);
+	}
+}
 
 /* callback that passes one pte (one for each call)
  *
@@ -263,17 +280,25 @@ static void ptes_walk_from_folio_locked(
 	);
 
 	list_for_each_entry_safe(entry, pos, addr_spcs_head, node) {
-		struct vm_area_struct *vma;
+		struct vm_area_struct *vma = entry->vma;
 		bool map_ok;
 
 		/* the whole address space is not valid anymore */
 		if(!mmget_not_zero(entry->mm))
 			goto __failure_put;
 
-		/* lookup the vma */
-		vma = vma_lookup(entry->mm, entry->addr);
-		if(!vma)
-			goto __failure_put;
+		/* lookup the vma if not already present 
+		 * (the per-VMA-locked target_vma is not present) */
+		if(!vma) {
+			/* don't even think about skipping this by assigning
+			 * the vma found in the rmap phase. mmap_lock acq/rel/acq
+			 * In other words, the read vma ptr from rmap phase 
+			 * may not be valid anymore due to the mmap_lock being dropped.
+			 */
+			vma = vma_lookup(entry->mm, entry->addr);
+			if(!vma)
+				goto __failure_put;
+		}
 
 		/* page_vma_mapped_walk */
 		DEFINE_FOLIO_VMA_WALK(pvmw, folio, vma, entry->addr, 0);

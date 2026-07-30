@@ -53,13 +53,17 @@ struct my_pte_info {
 
 struct mms_lock_control {
 	struct mm_struct *target_mm;        /* the mm we're operating on */
+	struct vm_area_struct *target_vma;  /* if this is set (not null), then vma is locked
+										 * via a per-vma lock. This VMA will be used 
+										 * instead of the regular mm_struct's control path */
 	bool rlock_target_mm;               /* acquire the read lock, for the target_mm ? */
 	bool trylock;                       /* acquire ALL the mmap_locks via a trylock */
 };
 
-#define DEFINE_MMS_LOCK_CONTROL(__name, __target_mm, __rlock_target_mm, __trylock) \
+#define DEFINE_MMS_LOCK_CONTROL(__name, __target_mm, __target_vma, __rlock_target_mm, __trylock) \
 	struct mms_lock_control __name = { \
 		.target_mm = (__target_mm), \
+		.target_vma = (__target_vma), \
 		.rlock_target_mm = (__rlock_target_mm), \
 		.trylock = (__trylock) \
 	}
