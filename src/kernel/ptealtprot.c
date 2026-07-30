@@ -2,6 +2,7 @@
 
 #ifdef DO_PTE_ALT_PROT
 
+#include <linux/mmap_lock.h>
 #include <linux/slab.h>
 #include <linux/types.h>
 #include <linux/list.h>
@@ -190,8 +191,10 @@ __unlock:
 		struct addr_spc *tmp; \
 		\
 		list_for_each_entry_safe(name, tmp, (head), node) { \
-			if(!(rlk_tgt_mm) && name->mm == (tgt_mm)) \
+			if(!(rlk_tgt_mm) && name->mm == (tgt_mm)) { \
+				mmap_assert_locked((tgt_mm)); \
 				continue; \
+			} \
 			\
 			__action__\
 		} \

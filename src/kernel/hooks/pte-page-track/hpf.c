@@ -68,7 +68,7 @@ static int handle_pte_fault__hkrphook(
 	bool pfn_found;
 	pte_t *vmf_ptep = vmf(vmfe)->pte;
 	enum fault_flag vmf_flags = orig_flags(vmfe);
-	bool locked_mm;
+	bool locked_mm = false;
 	struct mm_struct *target_mm;
 	struct kprobe *kp;
 
@@ -118,12 +118,23 @@ static int handle_pte_fault__hkrphook(
 	 	 * then this means that on retry the mmap_lock is still held, otherwise, the mmap_lock
 	 	 * is not held. "@FAULT_FLAG_RETRY_NOWAIT: Don't drop mmap_lock and wait when retrying." 
 	 	 *
+	 	 * Edit: introduced the check about whether the per-VMA lock or the whole mmap_lock was
+	 	 * acquired. This is because we need to, later on, acquire the whole mmap_lock to inspect
+	 	 * the mm. Only holding the per-VMA lock is not enough. If the per-VMA lock is held, 
+	 	 * then locked_mm = false, otherwise do further checks, as described above.
+	 	 *
 	 	 * See: https://elixir.bootlin.com/linux/v7.1.4/source/include/linux/mm_types.h#L1751
 	 	 */
 
-		locked_mm = !(retval & (VM_FAULT_RETRY | VM_FAULT_COMPLETED));
-	 	if(retval & VM_FAULT_RETRY)
-			locked_mm = vmf_flags & FAULT_FLAG_RETRY_NOWAIT;
+	 	if(unlikely(!(vmf_flags & FAULT_FLAG_VMA_LOCK))) {
+			locked_mm = !(retval & (VM_FAULT_RETRY | VM_FAULT_COMPLETED));
+	 		if(retval & VM_FAULT_RETRY)
+	 			/* 
+	 			 * if we get here, then locked_mm = false, it may change if i
+	 			 * FAULT_FLAG_RETRY_NOWAIT is set...
+	 			 */
+				locked_mm = vmf_flags & FAULT_FLAG_RETRY_NOWAIT;
+		}
 
 		/* support for FAULT_FLAG_REMOTE, aka, remote mm */
 		target_mm = vmf(vmfe)->vma->vm_mm;
