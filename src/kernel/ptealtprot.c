@@ -678,7 +678,7 @@ void wrex_ptealtprot(
 	struct list_head *addr_spcs_head;
 	DEFINE_INITIATED_RIGHT_NOW();
 
-	DEBUG_PAP_FMT(WREX, "called: addr=%px, rlkmm=%d", (void*) mpi->addr, rlkmm);
+	DEBUG_PAP_FMT(WREX, "called: addr=%px", (void*) mpi->addr);
 
 	invalid_flags = 
 		!ff || 
@@ -762,7 +762,7 @@ void exonly_ptealtprot(
 	struct folio *folio;
 	DEFINE_INITIATED_RIGHT_NOW();
 
-	DEBUG_PAP_FMT(EXONLY, "called: rlkmm=%d", rlkmm);
+	DEBUG_PAP(EXONLY, "called");
 
 	folio = __init_collect_aspcs_and_lock(pgs, &addr_spcs_head, mmslk, kp);
 	if(!folio) {
@@ -840,7 +840,7 @@ bool none_ptealtprot(
 	struct folio *folio;
 	DEFINE_INITIATED_RIGHT_NOW();
 
-	DEBUG_PAP_FMT(NONE, "called: rlkmm=%d", rlkmm);
+	DEBUG_PAP(NONE, "called");
 
 	folio = __init_collect_aspcs_and_lock(pgs, &addr_spcs_head, mmslk, kp);
 	if(!folio) {

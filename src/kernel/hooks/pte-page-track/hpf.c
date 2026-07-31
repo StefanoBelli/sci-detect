@@ -106,22 +106,27 @@ static int handle_pte_fault__hkrphook(
 	 	 * this condition checks if either the mmap_read_lock or the per-VMA
 	 	 * lock is taken when exiting handle_pte_fault. Check handle_mm_fault code
 	 	 * for further details, but this serves to avoid potential deadlock condition
-	 	 * when ptealtprot code acquires the target_mm read lock.
+	 	 * when ptealtprot code acquires the target_mm mmap_lock (read).
 	 	 *
 	 	 * If, on return, VM_FAULT_RETRY *and* VM_FAULT_COMPLETED are both *NOT* set, the
-	 	 * mmap_lock is held.
+	 	 * mmap_lock or the per-VMA lock is held.
 	 	 *
-	 	 * Now, if VM_FAULT_COMPLETED is the one that is set, nothing to do, the mmap_lock
-	 	 * is not held anymore, that is, we need to rlock it later on.
+	 	 * Now, if VM_FAULT_COMPLETED is the one that is set, nothing to do, the mmap_lock 
+	 	 * (or the per-VMA lock) is not held anymore, that is, we need to rlock it later on.
 	 	 *
-	 	 * If VM_FAULT_RETRY is set, instead, this means the mmap_lock may or may not be held:
+	 	 * If VM_FAULT_RETRY is set and the per-VMA lock was held, nothing to do,
+	 	 * it is not held anymore.
+	 	 *
+	 	 * If VM_FAULT_RETRY is set and the mmap_lock is held, this means it may or may not be held:
 	 	 * this depends on how handle_mm_fault got called: if FAULT_FLAG_RETRY_NOWAIT is enabled
-	 	 * then this means that on retry the mmap_lock is still held, otherwise, the mmap_lock
-	 	 * is not held. "@FAULT_FLAG_RETRY_NOWAIT: Don't drop mmap_lock and wait when retrying." 
+	 	 * then this means that on retry the mmap_lock is still held, otherwise, 
+	 	 * the mmap_lock is not held. "@FAULT_FLAG_RETRY_NOWAIT: Don't drop mmap_lock and wait when retrying." 
 	 	 *
-	 	 * Edit: introduced the check about whether the per-VMA lock or the whole mmap_lock was
-	 	 * acquired. This is because we need to, later on, acquire the whole mmap_lock to inspect
-	 	 * the mm. Only holding the per-VMA lock is not enough.
+	 	 * Why the split on VM_FAULT_RETRY? Because FAULT_FLAG_RETRY_NOWAIT is actively used by GUP but
+	 	 * not the #PF handler and GUP only uses the mmap_read_lock, while the #PF handler can both acquire
+	 	 * the mmap_read_lock or the per-VMA lock. If FAULT_FLAG_RETRY_NOWAIT is set then for sure the
+	 	 * mmap_lock was taken (at least for our limited cases, that is when handle_mm_fault is called by
+	 	 * the #PF handler or GUP).
 	 	 *
 	 	 * See: https://elixir.bootlin.com/linux/v7.1.4/source/include/linux/mm_types.h#L1751
 	 	 */
@@ -130,14 +135,17 @@ static int handle_pte_fault__hkrphook(
 	 	if(retval & VM_FAULT_RETRY)
 	 		/* 
 	 		 * if we get here, then locked_mm = false, it may change if i
-	 		 * FAULT_FLAG_RETRY_NOWAIT is set...
+	 		 * FAULT_FLAG_RETRY_NOWAIT is set... (if set the mmap_lock is NOT DROPPED, locked = true)
 	 		 */
 			locked = vmf_flags & FAULT_FLAG_RETRY_NOWAIT;
 
 		/*
-		 * if the per-VMA lock is still acquired, use the VMA directly (skip the vma_lookup basically)
-		 * if the mmap_lock is still acquired, skip the mmap_read_lock but still, use the mm actively
+		 * if the per-VMA lock is the one still acquired, use the VMA directly (skip the mmap_read_lock, vma_lookup later on, basically).
+		 * if the mmap_lock is the one still acquired, skip the mmap_read_lock but still, use the mm actively.
 		 * if nothing held at all (locked = false), do the regular path: mmap_read_lock and so on...
+		 *
+		 * support for FAULT_FLAG_REMOTE?? If REMOTE is set, then GUP is used, but GUP never acquires the per-VMA lock... 
+		 *  this should never happen in this case.
 		 */
 		if(locked && likely(vmf_flags & FAULT_FLAG_VMA_LOCK))
 			target_vma = vmf(vmfe)->vma;
@@ -150,21 +158,12 @@ static int handle_pte_fault__hkrphook(
 		 * only if needed (that is, if !locked_mm is true) because paths that bring to
 		 * handle_mm_fault (GUP and page fault handler) already to the mmap_read_lock on the
 		 * target_mm, but within the function (handle_mm_fault) it may happen that the rlock 
-		 * is released (so we need to rlock), see locked_mm. Never trylock.
+		 * is released (so we need to rlock), see locked and comments above. Never trylock.
 		 */
 		DEFINE_MMS_LOCK_CONTROL(mmslk, target_mm, target_vma, !locked, false);
 
 		kp = kpat(handle_pte_fault__krp, krpi);
 
-		/*
-		 * argument @rlkmm indicates whether the current->mm read lock must
-		 * be acquired or not (see above),
-		 *  rlkmm = true when locked_mm = false (take the lock if the current
-		 *    kernel control path released it)
-		 *
-		 *  rlkmm = false when locked_mm = true (don't attempt to acquire the
-		 *    mmap read lock if current kernel control path still got it)
-		 */
 		wrex_ptealtprot(pgs, vmf_flags, &mmslk, &mpi, snapex, kp);
 	} else 
 		goto __end;

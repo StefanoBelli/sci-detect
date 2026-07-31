@@ -42,5 +42,5 @@ extern struct kretprobe change_protection_range__krp;
 /* fsf.c */
 #if defined(DO_PTE_ALT_PROT) || defined(SCID_CONFIG_TESTING)
 extern struct kprobe force_sig_fault__kp;
-extern struct kretprobe __bad_area_nosemaphore__krp;
+extern struct kretprobe __bad_area__krp;
 #endif

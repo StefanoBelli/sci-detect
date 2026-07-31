@@ -16,7 +16,7 @@ static struct kretprobe *krps[] = {
 #endif
 
 #if defined(DO_PTE_ALT_PROT) || defined(SCID_CONFIG_TESTING)
-	&__bad_area_nosemaphore__krp,
+	&__bad_area__krp,
 #endif
 
 };

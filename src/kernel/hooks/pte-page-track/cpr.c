@@ -33,10 +33,9 @@
 		} \
 	} while(0)
 
-#define CHECK_NONHARMFUL_PGPROT_RETURN(pgp) \
+#define CHECK_NONHARMFUL_VMAFLAGS_RETURN(vma) \
 	do { \
-		pgprotval_t val = pgprot_val((pgp)); \
-		if((val & __NX) && !(val & __RW)) \
+		if(!((vma)->vm_flags & (VM_WRITE | VM_EXEC))) \
 			return 1; \
 	} while(0)
 
@@ -57,17 +56,17 @@ static int change_pte_range__ehkrphook(
 	__testing("entry");
 
 	struct change_pte_range_args *cpr_args;
+	struct vm_area_struct *vma;
 	unsigned long cp_flags = *((unsigned long*) regs->sp + 1);
-	pgprot_t newprot;
 
 	CHECK_UNHANDLED_CP_FLAGS_RETURN(cp_flags);
 
-	newprot = __pgprot((pgprotval_t) regs->r8);
-	CHECK_NONHARMFUL_PGPROT_RETURN(newprot);
+	vma = (struct vm_area_struct *) regs->si;
+	CHECK_NONHARMFUL_VMAFLAGS_RETURN(vma);
 
 	cpr_args = (struct change_pte_range_args*) krpi->data;
 
-	cpr_args->vma = (struct vm_area_struct *) regs->si;
+	cpr_args->vma = vma;
 	cpr_args->pmd = (pmd_t*) regs->dx;
 	cpr_args->addr = regs->cx;
 	cpr_args->end = regs->r8;
@@ -153,16 +152,16 @@ static int change_protection_range__ehkrphook(
 {
 	struct change_protection_range_args *cpr_args;
 	unsigned long cp_flags = regs->r9;
-	pgprot_t newprot;
+	struct vm_area_struct *vma;
 
 	CHECK_UNHANDLED_CP_FLAGS_RETURN(cp_flags);
 
-	newprot = __pgprot((pgprotval_t) regs->r8);
-	CHECK_NONHARMFUL_PGPROT_RETURN(newprot);
+	vma = (struct vm_area_struct *) regs->si;
+	CHECK_NONHARMFUL_VMAFLAGS_RETURN(vma);
 
 	cpr_args = (struct change_protection_range_args *) krpi->data;
 
-	cpr_args->vma = (struct vm_area_struct *) regs->si;
+	cpr_args->vma = vma;
 	cpr_args->start = regs->dx;
 	cpr_args->end = regs->cx;
 

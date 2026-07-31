@@ -9,8 +9,9 @@
 #include <logging.h>
 
 struct sympair {
-	const char* sym;
-	void* addr;
+	const char* sym; /* symbol name; must be set initially */
+	void* addr; /* resolved addr; must be NULL initially */
+	bool dontfail; /* don't fail if addr resolution fails */
 };
 
 #define NR_SYMPAIRS 256
@@ -31,8 +32,9 @@ extern struct sympair sp[NR_SYMPAIRS];
 	{ \
 		FPTR_TYPE(sym) symaddr = ((FPTR_TYPE(sym)) sp[(symnr)].addr); \
 		if(!symaddr) { \
-			scid_err(#sym " needs to be resolved: " \
-					"will *not* do this now, fix your code"); \
+			if(!sp[(symnr)].dontfail) \
+				scid_err(#sym " needs to be resolved: will *not* do this now, fix your code"); \
+			\
 			on_error \
 		} \
 		\

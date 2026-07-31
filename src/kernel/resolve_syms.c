@@ -8,13 +8,24 @@
 #include <resolve_syms/flush_tlb_mm_range.h>
 #include <resolve_syms/walk_page_range.h>
 
+#ifdef CONFIG_KALLSYMS
+#	include <resolve_syms/kallsyms_lookup_name.h>
+#endif
+
 #define __expand_tos(x) #x
 
-#define INIT_SYMPAIR(_sym) \
+#define __INIT_SYMPAIR(_sym, _dontfail) \
 	[sympair_nr(_sym)] = { \
 		.addr = NULL, \
 		.sym = __expand_tos(_sym), \
+		.dontfail = (_dontfail), \
 	}
+
+#define INIT_SYMPAIR(_sym) \
+	__INIT_SYMPAIR(_sym, false)
+
+#define INIT_SYMPAIR_DONTFAIL(_sym) \
+	__INIT_SYMPAIR(_sym, true)
 
 struct sympair sp[NR_SYMPAIRS] = {
 	INIT_SYMPAIR(pte_offset_map_lock),
@@ -22,6 +33,11 @@ struct sympair sp[NR_SYMPAIRS] = {
 	INIT_SYMPAIR(flush_tlb_mm_range),
 	INIT_SYMPAIR(page_vma_mapped_walk),
 	INIT_SYMPAIR(walk_page_range),
+
+#ifdef CONFIG_KALLSYMS
+	INIT_SYMPAIR_DONTFAIL(kallsyms_lookup_name),
+#endif
+
 };
 
 #undef INIT_SYMPAIR
@@ -55,7 +71,8 @@ int setup_resolve_all_syms(void)
 			sp[i].addr = resolve_sym(sp[i].sym);
 			if(!sp[i].addr) {
 				scid_errf("unable to resolve %s", sp[i].sym);
-				return -ENODATA;
+				if(!sp[i].dontfail)
+					return -ENODATA;
 			}
 		}
 	}
