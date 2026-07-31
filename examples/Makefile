@@ -91,7 +91,7 @@ examples: $(EXAMPLES)
 examples-snapshot: $(EXAMPLES_SNAPSHOT)
 
 clean:
-	rm $(EXAMPLES) $(EXAMPLES_SNAPSHOT)
+	rm -f $(ALL_EXAMPLES)
 
 # Thanks: https://stackoverflow.com/questions/42113237/undefined-reference-when-linking-dynamic-library-in-ubuntu-system
 
