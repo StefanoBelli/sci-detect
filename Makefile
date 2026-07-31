@@ -64,8 +64,20 @@ tests-clean:
 run-examples:
 	make -C examples run-examples
 
+run-snapshot-examples:
+	make -C examples run-snapshot-examples
+
+run-all-examples:
+	make -C examples run-all-examples
+
 run-mlocked-examples:
 	make -C examples MLOCK_ALL=yes run-examples
+
+run-mlocked-snapshot-examples:
+	make -C examples MLOCK_ALL=yes run-snapshot-examples
+
+run-mlocked-all-examples:
+	make -C examples MLOCK_ALL=yes run-all-examples
 
 examples-clean:
 	make -C examples clean
