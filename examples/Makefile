@@ -54,7 +54,8 @@ EXAMPLES= \
 	   example-shm-sysv-mremap-fork-prefault.example
 
 EXAMPLES_SNAPSHOT= \
-	   examplesnap-single-one.example
+	   examplesnap-single-simple.example \
+	   examplesnap-single-mprofixup.example
 
 ALL_EXAMPLES= $(EXAMPLES) $(EXAMPLES_SNAPSHOT)
 

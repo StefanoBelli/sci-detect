@@ -11,6 +11,8 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <signal.h>
+#include <setjmp.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <sys/mman.h>
@@ -206,12 +208,13 @@ __unused static inline void __scid_terminate(void *desc)
 			break; \
 	}
 
-#define __do_snapshot_check(_evt, _va, _nr_seq, ____ok_kode____) \
+#define __do_snapshot_check(_evt, _va, _nr_seq, _fault, ____ok_kode____) \
 	struct snapshot_event *snap = &(_evt).event.snap; \
 	if( \
 			snap->va != ((unsigned long) (_va)) || \
 			snap->pid != getpid() || \
-			snap->seq != (_nr_seq)){ \
+			snap->seq != (_nr_seq) || \
+			snap->fault != (_fault)){ \
 		\
 		char *oldbuf = (_va); \
 		if(snap->fault == SNAPSHOT_WRITE_FAULT) \
@@ -250,6 +253,7 @@ __unused static inline void __scid_terminate(void *desc)
 			_evt, \
 			_va, \
 			1, \
+			(_evt).event.snap.fault, \
 			\
 	 		__wxw_event_ok( \
 	 				__got_snapshot_printf(); \
@@ -257,7 +261,7 @@ __unused static inline void __scid_terminate(void *desc)
 	 	); \
 	}
 
-#define __snapshot_test_block(_evt, _va, _seq) \
+#define __snapshot_test_block(_evt, _va, _seq, _fault) \
 	if((_evt).type != SNAPSHOT) { \
 		__test_block_failed(); \
 	 	continue; \
@@ -267,6 +271,7 @@ __unused static inline void __scid_terminate(void *desc)
 			_evt, \
 			_va, \
 			_seq, \
+			_fault, \
 			\
 			__got_snapshot_printf(); \
 			break; \
@@ -324,7 +329,7 @@ __unused static inline void __scid_terminate(void *desc)
 
 /* snapshot-only checks */
 
-#define check_scid_bcast_snapshot_pre(_va, _seq, op, ret) \
+#define check_scid_bcast_snapshot_pre(_va, _seq, _fault, op, ret) \
 	__check_scid_bcast_base( \
 			char pre_or_post_op_buffer[SCID_PAGE_SIZE]; \
 			memcpy(pre_or_post_op_buffer, (char*) (_va), SCID_PAGE_SIZE); \
@@ -335,9 +340,9 @@ __unused static inline void __scid_terminate(void *desc)
 			ret \
 			, \
 			, \
-			__snapshot_test_block(bcasted_event, _va, _seq))
+			__snapshot_test_block(bcasted_event, _va, _seq, _fault))
 
-#define check_scid_bcast_snapshot_post(_va, _seq, op, ret) \
+#define check_scid_bcast_snapshot_post(_va, _seq, _fault, op, ret) \
 	__check_scid_bcast_base( \
 			, \
 			op \
@@ -348,10 +353,10 @@ __unused static inline void __scid_terminate(void *desc)
 			ret \
 			, \
 			, \
-			__snapshot_test_block(bcasted_event, _va, _seq))
+			__snapshot_test_block(bcasted_event, _va, _seq, _fault))
 
-#define check_scid_bcast_snapshot(_va, _seq, op, ret) \
-	check_scid_bcast_snapshot_pre(_va, _seq, op, ret)
+#define check_scid_bcast_snapshot(_va, _seq, _fault, op, ret) \
+	check_scid_bcast_snapshot_pre(_va, _seq, _fault, op, ret)
 
 #define example_passed() \
 	puts("OK! Example passed!")
@@ -376,13 +381,13 @@ __unused static inline void __scid_terminate(void *desc)
 #define check_scid_bcast_wxwarning_post(arg1, __op, __ret) \
 	__check_scid_noop(__op, __ret)
 
-#define check_scid_bcast_snapshot(arg1, arg2, __op, __ret) \
+#define check_scid_bcast_snapshot(arg1, arg2, arg3, __op, __ret) \
 	__check_scid_noop(__op, __ret)
 
-#define check_scid_bcast_snapshot_pre(arg1, arg2, __op, __ret) \
+#define check_scid_bcast_snapshot_pre(arg1, arg2, arg3, __op, __ret) \
 	__check_scid_noop(__op, __ret)
 
-#define check_scid_bcast_snapshot_post(arg1, arg2, __op, __ret) \
+#define check_scid_bcast_snapshot_post(arg1, arg2, arg3, __op, __ret) \
 	__check_scid_noop(__op, __ret)
 
 #define example_passed()
@@ -420,5 +425,41 @@ __unused static void __maybe_mlock_all_addr_space(void)
 {
 }
 #endif /* EXAMPLE_MLOCK_ALL */
+
+static __unused jmp_buf ljmpbuf;
+
+/*
+ * to avoid feature test macros madness, the example TUs that
+ * want to use siglongjmp: define it along the proper ftm
+ */
+#ifndef SIGLONGJMP
+#	define SIGLONGJMP(x, y)
+#endif
+
+static __unused void sigsegv_handler(__unused int signum) 
+{
+	SIGLONGJMP(ljmpbuf, 1);
+}
+
+static inline void register_sigsegv_handler(void)
+{
+	signal(SIGSEGV, sigsegv_handler);
+}
+
+#define catch_sigsegv(__op__) \
+	({ \
+	 	register_sigsegv_handler(); \
+	 	int ____ok____ = 0; \
+	 	if(!sigsetjmp(ljmpbuf, 1)) { \
+	 		__op__ \
+	 		printf("%s:%d SIGSEGV NOT CATCHED!!!!!!\n", __FILE__, __LINE__); \
+	 		example_failed(); \
+	 		exit(EXIT_FAILURE); \
+	 	} else { \
+	 		____ok____ = 1; \
+	 		printf("%s:%d SIGSEGV catched successfully!\n", __FILE__, __LINE__); \
+	 	} \
+	 	____ok____; \
+	 })
 
 #endif 

@@ -16,7 +16,50 @@ MODULE_LICENSE("GPL");
 int setup_module(void);
 void teardown_module(void);
 
-int setup_module(void) 
+#define BUILD "build: "
+
+#define TYPE "type - "
+#define STRICTNESS_ON "strictness[on] - "
+#define STRICTNESS_OFF "strictness[off] - "
+#define FEATURE_ON "feature[on] - "
+#define FEATURE_OFF "feature[off] - "
+
+static inline void print_build_specific_infos(void)
+{
+
+#ifdef SCID_CONFIG_TESTING
+	scid_info(BUILD TYPE "testing");
+#else
+	scid_info(BUILD TYPE "release");
+#endif
+
+#ifdef PAP_INIT_LOCK_ORDER_STRICT
+	scid_info(BUILD STRICTNESS_ON "init-lock-order");
+#else
+	scid_info(BUILD STRICTNESS_OFF "init-lock-order");
+#endif
+
+#ifdef PAP_IN_CPR_MMSLK_DONT_TRYLOCK
+	scid_info(BUILD STRICTNESS_ON "no-cpr-trylock");
+#else
+	scid_info(BUILD STRICTNESS_OFF "no-cpr-trylock");
+#endif
+
+#ifdef DISABLE_PTE_ALT_PROT
+	scid_info(BUILD FEATURE_OFF "ptealtprot");
+#else
+	scid_info(BUILD FEATURE_ON "ptealtprot");
+#endif
+
+#ifdef DISABLE_PAGE_SNAPSHOT
+	scid_info(BUILD FEATURE_OFF "snapshot");
+#else
+	scid_info(BUILD FEATURE_ON "snapshot");
+#endif
+
+}
+
+int __init setup_module(void) 
 {
 	int rv = 0;
 
@@ -88,6 +131,8 @@ int setup_module(void)
 		goto __teardown_from_kcps_pcp_lists;
 	}
 
+	print_build_specific_infos();
+
 	return rv;
 
 __teardown_from_kcps_pcp_lists:
@@ -108,7 +153,7 @@ __teardown_from_testing:
 	return rv;
 }
 
-void teardown_module(void) 
+void __exit teardown_module(void) 
 {
 	teardown_hooks();
 	teardown_kcps_pcp_lists();
