@@ -2,6 +2,7 @@
 #include <linux/xarray.h>
 #include <linux/mm.h>
 #include <linux/types.h>
+#include <linux/pid.h>
 
 #include <pgtrack.h>
 #include <netlink/pgtrack/events.h>
@@ -114,6 +115,7 @@ void del_page_wxwarn(struct page_wxwarn *wxw)
 static void free_pgs(struct page_status *pgs)
 {
 	free_page_snap_from_pgs(pgs);
+	free_ptealtprot(pgs);
 	kmem_cache_free(page_status_cachep, pgs);
 }
 
@@ -254,7 +256,7 @@ __retry:
 
 	/* one thread only will get to execute this */
 	if((new_perms | old_perms) == PERM_BITS) {
-		pid_t pid = task_pid_vnr(current);
+		pid_t pid = task_pid_nr(current);
 		struct page_wxwarn *wxw = new_page_wxwarn(pfn, va, pid);
 		if(!wxw)
 			/* fallback to dmesg */
@@ -262,6 +264,7 @@ __retry:
 		else {
 			bcast_pgtrack_event_wxwarning(wxw);
 			make_page_snap(pgs, pid, pfn, va, flags);
+			new_ptealtprot(pgs);
 		}
 	}
 }

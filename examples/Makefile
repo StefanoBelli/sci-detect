@@ -53,6 +53,11 @@ EXAMPLES= \
 	   example-shm-posix-vfork-prefault.example \
 	   example-shm-sysv-mremap-fork-prefault.example
 
+EXAMPLES_SNAPSHOT= \
+	   examplesnap-single-simple.example \
+	   examplesnap-single-mprofixup.example
+
+ALL_EXAMPLES= $(EXAMPLES) $(EXAMPLES_SNAPSHOT)
 
 valid_mlock_all = yes no
 MLOCK_ALL ?= no
@@ -80,26 +85,47 @@ ifeq ($(MLOCK_ALL), yes)
 	CFLAGS += -DEXAMPLE_MLOCK_ALL
 endif
 
-all: $(EXAMPLES)
+all: examples examples-snapshot
+
+examples: $(EXAMPLES)
+
+examples-snapshot: $(EXAMPLES_SNAPSHOT)
 
 clean:
-	rm $(EXAMPLES)
+	rm -f $(ALL_EXAMPLES)
 
 # Thanks: https://stackoverflow.com/questions/42113237/undefined-reference-when-linking-dynamic-library-in-ubuntu-system
 
-example-%.example: example-%.c
+define BUILD_EXAMPLE
 	@echo -ne "\tCC [example] $@\n"
 	@$(CC) $(CFLAGS) $< \
 		-I$(LIBSCID_HDRS) -I$(SCID_SHARED_HDRS) \
 		-L$(LIBSCID_BASE) -l$(LIBSCID_LNK) \
 		-o $@
+endef
 
-run-examples: all
-	@echo -e "\033[1;37m**\033[0m Running \033[1;37mall the examples\033[0m..."
-	@for example in $(EXAMPLES); do \
+example-%.example: example-%.c
+	$(BUILD_EXAMPLE)
+
+examplesnap-%.example: examplesnap-%.c
+	$(BUILD_EXAMPLE)
+
+define RUN_EXAMPLES 
+	@echo -e "\033[1;37m**\033[0m Running\033[1;37m $2 examples\033[0m..."
+	@for example in $1; do \
 		echo -e "\n \033[1;33m-->\033[0m Running \033[1;33m$$example\033[0m..."; \
 		LD_LIBRARY_PATH=$(LIBSCID_BASE) ./$$example || { \
 			echo -e "\n\033[1;31m!!\033[0m Examples \033[1;31mfailure\033[0m, aborting..."; \
 			exit 1; }; \
 	done
 	@echo -e "\n\033[1;32m++\033[0m Examples \033[1;32msuccess\033[0m!"
+endef
+
+run-snapshot-examples: examples-snapshot
+	$(call RUN_EXAMPLES,$(EXAMPLES_SNAPSHOT),snapshot)
+
+run-examples: examples
+	$(call RUN_EXAMPLES,$(EXAMPLES),base)
+
+run-all-examples: all
+	$(call RUN_EXAMPLES,$(ALL_EXAMPLES),all)

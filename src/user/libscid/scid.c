@@ -1,10 +1,11 @@
 #include <netlink/genl/ctrl.h>
+#include <limits.h>
 
 #include "scid-internals.h"
 
 /* tunables */
 #define NL_SOCKET_TXBUF_SIZE 0
-#define NL_SOCKET_RXBUF_SIZE (8 * 1024 * 1024)
+#define NL_SOCKET_RXBUF_SIZE INT_MAX /* (1 * 1024 * 1024 * 1024) */
 
 /* handle, descriptor */
 struct scid_nl_sk {

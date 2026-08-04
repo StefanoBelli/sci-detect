@@ -12,6 +12,8 @@
 
 int main()
 {
+	MLOCKALL_CURRENTONLY();
+
 	int rv = EXIT_SUCCESS;
 
 	enable_testing_for_me(SUBSYS_NAME);
@@ -167,7 +169,7 @@ int main()
 			int returnok = query_int_value_testing_for_me(SUBSYS_NAME, RETURNOK_KEY);
 			int pagesok = query_int_value_testing_for_me(SUBSYS_NAME, PAGESOK_KEY);
 
-			test_int_ge_hard(entry, 0);
+			test_int_eq_hard(entry, 1);
 			test_int_eq_hard(returnok, 0);
 			test_int_eq_hard(pagesok, 0);
 		}
@@ -252,7 +254,7 @@ int main()
 			int returnok = query_int_value_testing_for_me(SUBSYS_NAME, RETURNOK_KEY);
 			int pagesok = query_int_value_testing_for_me(SUBSYS_NAME, PAGESOK_KEY);
 
-			test_int_ge_hard(entry, 0);
+			test_int_eq_hard(entry, 1);
 			test_int_eq_hard(returnok, 0);
 			test_int_eq_hard(pagesok, 0);
 		}

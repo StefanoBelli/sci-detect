@@ -7,6 +7,7 @@
 #include <logging.h>
 #include <hooks/pte-page-track/utils/addpages.h>
 #include <hooks/pte-page-track/utils/check_orig_pte.h>
+#include <hooks/activekps.h>
 #include <testing/testing.h>
 
 #define MY_TESTING_SUBSYS_NAME "pte-page-track-wpc-hook"
@@ -19,9 +20,13 @@ static_assert(
 
 #define wp_page_copy__symbol "wp_page_copy"
 
+struct kretprobe wp_page_copy__krp;
+
 static int wp_page_copy__ehkrphook(
 		struct kretprobe_instance *krpi, struct pt_regs *regs) 
 {
+	show_kp_nmissed(wp_page_copy__krp.kp, "wp_page_copy");
+
 	struct vm_fault *vmf = (struct vm_fault*) regs->di;
 
 	/* are we on the right kernel control path? */
@@ -128,4 +133,5 @@ struct kretprobe wp_page_copy__krp = {
 	.handler = wp_page_copy__hkrphook,
 	.kp.symbol_name = wp_page_copy__symbol,
 	.data_size = sizeof(struct vm_fault*),
+	.maxactive = KPS_MAXACTIVE,
 };

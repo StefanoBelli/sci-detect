@@ -33,6 +33,7 @@ TESTS= \
 	   test-cpr-sysv-shared.test \
 	   test-cpr-file-shared.test \
 	   test-cpr-file-private.test \
+	   test-fsf.test \
 	   test-fuf-anon-private.test \
 	   test-fuf-anon-shared.test \
 	   test-fuf-sysv-shared.test \

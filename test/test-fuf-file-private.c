@@ -8,6 +8,8 @@
 
 int main()
 {
+	MLOCKALL_CURRENTONLY();
+
 	int rv = EXIT_SUCCESS;
 	pid_t flusher_child;
 

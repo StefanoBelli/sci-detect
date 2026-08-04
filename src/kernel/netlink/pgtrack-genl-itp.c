@@ -70,7 +70,7 @@ static bool __do_is_tracked_page_rmap_one(
 
 		/* ...match all whose mm is the same as this VMA */
 		if(vma->vm_mm == tsk->mm) {
-			if(unlikely(nla_put_s32(args->skb, SCID_GENL_ATTR_PID, task_pid_vnr(tsk)))) {
+			if(unlikely(nla_put_s32(args->skb, SCID_GENL_ATTR_PID, task_pid_nr(tsk)))) {
 				scid_err("unable to put pid in skb");
 				args->err = true;
 				return false;
@@ -100,16 +100,24 @@ static bool __do_is_tracked_page_pids(struct sk_buff *skb, struct page_status *p
 
 	struct folio *folio = page_folio(pgs->page);
 
+	if(!folio_try_get(folio)) {
+		scid_warn("unable to get folio");
+		return false;
+	}
+
 	folio_lock(folio);
 
 	nest = nla_nest_start(skb, SCID_GENL_ATTR_ARRAY);
 
 	if(!folio_mapped(folio))
-		goto __endnest_unlock;
+		goto __unlock_put_endnest;
 
 	THUNK(rmap_walk)(folio, &rwc);
 
-__endnest_unlock:
+__unlock_put_endnest:
+	folio_unlock(folio);
+	folio_put(folio);
+
 	nla_nest_end(skb, nest);
 
 	if(!args.err && unlikely(nla_put_u32(
@@ -117,8 +125,7 @@ __endnest_unlock:
 		scid_err("unable to put array's nr_elems");
 		args.err = true;
 	}
-
-	folio_unlock(folio);
+	
 	return !args.err;
 }
 

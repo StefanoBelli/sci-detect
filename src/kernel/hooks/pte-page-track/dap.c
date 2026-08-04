@@ -6,15 +6,20 @@
 #include <vmfs.h>
 #include <logging.h>
 #include <hooks/pte-page-track/utils/addpages.h>
+#include <hooks/activekps.h>
 #include <testing/testing.h>
 
 #define MY_TESTING_SUBSYS_NAME "pte-page-track-dap-hook"
+
+struct kretprobe do_anonymous_page__krp;
 
 #define do_anonymous_page__symbol "do_anonymous_page"
 
 static int do_anonymous_page__ehkrphook(
 		struct kretprobe_instance *krpi, struct pt_regs *regs)
 {
+	show_kp_nmissed(do_anonymous_page__krp.kp, "do_anonymous_page");
+
 	struct vm_fault *vmf = (struct vm_fault*) regs->di;
 
 	/* are we on the right kernel control path? */
@@ -120,5 +125,6 @@ struct kretprobe do_anonymous_page__krp = {
 	.entry_handler = do_anonymous_page__ehkrphook,
 	.handler = do_anonymous_page__hkrphook,
 	.kp.symbol_name = do_anonymous_page__symbol,
-	.data_size = sizeof(struct vm_fault*)
+	.data_size = sizeof(struct vm_fault*),
+	.maxactive = KPS_MAXACTIVE,
 };

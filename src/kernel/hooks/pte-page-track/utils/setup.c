@@ -1,4 +1,5 @@
 #include <hooks/setuputils.h>
+#include <ptealtprot.h>
 
 #include "../hooks.h"
 
@@ -9,6 +10,15 @@ static struct kretprobe *krps[] = {
 	&do_wp_page__krp,
 	&set_pte_range__krp,
 	&change_pte_range__krp,
+
+#ifdef DO_PTE_ALT_PROT
+	&change_protection_range__krp,
+#endif
+
+#if defined(DO_PTE_ALT_PROT) || defined(SCID_CONFIG_TESTING)
+	&__bad_area__krp,
+#endif
+
 };
 
 static struct kprobe *kps[] = {
@@ -20,6 +30,10 @@ static struct kprobe *kps[] = {
 
 #ifdef SCID_CONFIG_TESTING
 	&free_pages_and_swap_cache__kp,
+#endif
+
+#if defined(DO_PTE_ALT_PROT) || defined(SCID_CONFIG_TESTING)
+	&force_sig_fault__kp,
 #endif
 
 };
@@ -93,6 +107,15 @@ static const struct subsys_regi_args ppt_suts[] = {
 		.name = "pte-page-track-fuf-hook",
 		.kvt = {
 			ATOMICALLY_INCREMENTED_KEY("entry"),
+
+			END_OF_KVS
+		}
+	},
+	{
+		.name = "pte-page-track-fsf-hook",
+		.kvt = {
+			ATOMICALLY_INCREMENTED_KEY("entry"),
+			ATOMICALLY_INCREMENTED_KEY("checks-ok"),
 
 			END_OF_KVS
 		}

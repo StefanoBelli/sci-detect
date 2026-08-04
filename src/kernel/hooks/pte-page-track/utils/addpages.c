@@ -53,6 +53,7 @@ bool add_pages_byfolio(
 		const struct pg_track_forward_args *pgt_args)
 {
 	struct page *page = NULL;
+	struct folio *folio;
 
 	if(!add_one_page(ptep, checks, args, &page, pgt_args))
 		return false;
@@ -60,13 +61,7 @@ bool add_pages_byfolio(
 	if(nr_pages)
 		(*nr_pages)++;
 	
-	struct folio *folio = page_folio(page);
-
-	/* this should not happen */
-	if(unlikely(!folio)) {
-		scid_err("unable to get the associated folio");
-		return false;
-	}
+	folio = page_folio(page);
 
 	if(!folio_try_get(folio)) {
 		scid_err("unable to get ref to the folio");

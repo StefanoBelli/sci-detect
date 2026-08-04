@@ -6,7 +6,7 @@
 #error not supported 
 #endif
 
-/* hpr.c */
+/* hpf.c */
 extern struct kretprobe handle_pte_fault__krp;
 
 /* dap.c */
@@ -34,3 +34,13 @@ extern struct kprobe free_pages_and_swap_cache__kp;
 
 /* cpr.c */
 extern struct kretprobe change_pte_range__krp;
+
+#ifdef DO_PTE_ALT_PROT
+extern struct kretprobe change_protection_range__krp;
+#endif
+
+/* fsf.c */
+#if defined(DO_PTE_ALT_PROT) || defined(SCID_CONFIG_TESTING)
+extern struct kprobe force_sig_fault__kp;
+extern struct kretprobe __bad_area__krp;
+#endif
