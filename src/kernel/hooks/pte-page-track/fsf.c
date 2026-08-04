@@ -1,5 +1,7 @@
 #include <ptealtprot.h>
 #include <testing/testing.h>
+#include <hooks/activekps.h>
+
 #define MY_TESTING_SUBSYS_NAME "pte-page-track-fsf-hook"
 
 #if defined(DO_PTE_ALT_PROT) || defined(SCID_CONFIG_TESTING)
@@ -13,7 +15,6 @@
 #include <asm/nospec-branch.h>
 #include <asm-generic/rwonce.h>
 
-#include <hooks/activekps.h>
 #include <hooks/pte-page-track/utils/user_page_walk.h>
 #include <pgtrack.h>
 #include <logging.h>
