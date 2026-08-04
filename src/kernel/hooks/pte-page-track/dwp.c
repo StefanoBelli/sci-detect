@@ -7,6 +7,7 @@
 #include <logging.h>
 #include <hooks/pte-page-track/utils/addpages.h>
 #include <hooks/pte-page-track/utils/check_orig_pte.h>
+#include <hooks/activekps.h>
 #include <testing/testing.h>
 
 #define MY_TESTING_SUBSYS_NAME "pte-page-track-dwp-hook"
@@ -23,6 +24,8 @@ static int finish_mkwrite_fault__phkphook(
 		__maybe_unused struct kprobe *kp, 
 		struct pt_regs *regs)
 {
+	show_kp_nmissed(*kp, "finish_mkwrite_fault");
+
 	struct vm_fault *vmf = (struct vm_fault*) regs->di;
 
 	struct vm_fault_entry *entry = got_this_vmf(vmf);
@@ -47,11 +50,15 @@ struct kprobe finish_mkwrite_fault__kp = {
  * converting it into a hook for do_wp_page
  */
 
+struct kretprobe do_wp_page__krp;
+
 #define do_wp_page__symbol "do_wp_page"
 
 static int do_wp_page__ehkrphook(
 		struct kretprobe_instance *krpi, struct pt_regs *regs) 
 {
+	show_kp_nmissed(do_wp_page__krp.kp, "do_wp_page");
+
 	struct vm_fault *vmf = (struct vm_fault*) regs->di;
 
 	/* are we on the right kernel control path? */
@@ -162,6 +169,7 @@ struct kretprobe do_wp_page__krp = {
 	.handler = do_wp_page__hkrphook,
 	.kp.symbol_name = do_wp_page__symbol,
 	.data_size = sizeof(struct vm_fault_entry*),
+	.maxactive = KPS_MAXACTIVE,
 };
 
 static bool ____do_wpr_prior_checks(struct vm_fault *vmf)

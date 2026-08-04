@@ -6,6 +6,7 @@
 #include <vmfs.h>
 #include <logging.h>
 #include <ptealtprot.h>
+#include <hooks/activekps.h>
 
 #ifdef DO_PTE_ALT_PROT
 #	include <linux/rcupdate.h>
@@ -16,9 +17,13 @@
 
 #define handle_pte_fault__symbol "handle_pte_fault"
 
+struct kretprobe handle_pte_fault__krp;
+
 static int handle_pte_fault__ehkrphook(
 		struct kretprobe_instance *krpi, struct pt_regs *regs) 
 {
+	show_kp_nmissed(handle_pte_fault__krp.kp, "handle_pte_fault");
+
 	WARN_ON(irqs_disabled());
 
 	struct vm_fault *vmf;
@@ -42,8 +47,6 @@ static int handle_pte_fault__ehkrphook(
 }
 
 #ifdef DO_PTE_ALT_PROT
-
-struct kretprobe handle_pte_fault__krp;
 
 #define DEFINE_MPI_BY_VMF(__mpivar, __vmf) \
 	struct my_pte_info __mpivar = { \
@@ -158,7 +161,9 @@ static int handle_pte_fault__hkrphook(
 		 * only if needed (that is, if !locked_mm is true) because paths that bring to
 		 * handle_mm_fault (GUP and page fault handler) already to the mmap_read_lock on the
 		 * target_mm, but within the function (handle_mm_fault) it may happen that the rlock 
-		 * is released (so we need to rlock), see locked and comments above. Never trylock.
+		 * is released (so we need to rlock), see locked and comments above. 
+		 *
+		 * Never trylock.
 		 */
 		DEFINE_MMS_LOCK_CONTROL(mmslk, target_mm, target_vma, !locked, false);
 
@@ -183,4 +188,5 @@ struct kretprobe handle_pte_fault__krp = {
 	.handler = handle_pte_fault__hkrphook,
 	.kp.symbol_name = handle_pte_fault__symbol,
 	.data_size = sizeof(struct vm_fault_entry*),
+	.maxactive = KPS_MAXACTIVE,
 };

@@ -6,6 +6,7 @@
 
 #include <resolve_syms/pte_offset_map_lock.h>
 #include <hooks/pte-page-track/utils/addpages.h>
+#include <hooks/activekps.h>
 #include <kpsleepable.h>
 #include <testing/testing.h>
 #include <logging.h>
@@ -48,11 +49,15 @@ struct change_pte_range_args {
 	unsigned long end;
 };
 
+struct kretprobe change_pte_range__krp;
+
 #define change_pte_range__symbol "change_pte_range"
 
 static int change_pte_range__ehkrphook(
 		struct kretprobe_instance *krpi, struct pt_regs *regs)
 {
+	show_kp_nmissed(change_pte_range__krp.kp, "change_pte_range");
+
 	__testing("entry");
 
 	struct change_pte_range_args *cpr_args;
@@ -135,6 +140,7 @@ struct kretprobe change_pte_range__krp = {
 	.handler = change_pte_range__hkrphook,
 	.kp.symbol_name = change_pte_range__symbol,
 	.data_size = sizeof(struct change_pte_range_args),
+	.maxactive = KPS_MAXACTIVE,
 };
 
 #ifdef DO_PTE_ALT_PROT
@@ -147,9 +153,13 @@ struct change_protection_range_args {
 	unsigned long end;
 };
 
+struct kretprobe change_protection_range__krp;
+
 static int change_protection_range__ehkrphook(
 		struct kretprobe_instance *krpi, struct pt_regs *regs)
 {
+	show_kp_nmissed(change_protection_range__krp.kp, "change_protection_range");
+
 	struct change_protection_range_args *cpr_args;
 	unsigned long cp_flags = regs->r9;
 	struct vm_area_struct *vma;
@@ -246,8 +256,6 @@ __pgs_put:
 
 #undef mmslk_trylock
 
-struct kretprobe change_protection_range__krp;
-
 static int change_protection_range__hkrphook(
 		struct kretprobe_instance *krpi, struct pt_regs *regs)
 {
@@ -283,6 +291,7 @@ struct kretprobe change_protection_range__krp = {
 	.handler = change_protection_range__hkrphook,
 	.kp.symbol_name = change_protection_range__symbol,
 	.data_size = sizeof(struct change_protection_range_args),
+	.maxactive = KPS_MAXACTIVE,
 };
 
 #endif /* DO_PTE_ALT_PROT */

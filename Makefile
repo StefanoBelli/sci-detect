@@ -3,6 +3,12 @@
 PAP_STRICTNESS ?=
 export PAP_STRICTNESS
 
+WARNINGS ?=
+export WARNINGS
+
+KPS_MAXACTIVE ?=
+export KPS_MAXACTIVE
+
 all: kernel user
 
 clean: kernel-clean user-clean

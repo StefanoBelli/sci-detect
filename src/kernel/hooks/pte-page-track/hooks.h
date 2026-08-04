@@ -6,7 +6,7 @@
 #error not supported 
 #endif
 
-/* hpr.c */
+/* hpf.c */
 extern struct kretprobe handle_pte_fault__krp;
 
 /* dap.c */

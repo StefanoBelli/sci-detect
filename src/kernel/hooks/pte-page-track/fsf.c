@@ -13,6 +13,7 @@
 #include <asm/nospec-branch.h>
 #include <asm-generic/rwonce.h>
 
+#include <hooks/activekps.h>
 #include <hooks/pte-page-track/utils/user_page_walk.h>
 #include <pgtrack.h>
 #include <logging.h>
@@ -102,8 +103,10 @@ struct kprobe force_sig_fault__kp;
 #define force_sig_fault__symbol "force_sig_fault"
 
 static int force_sig_fault__phkphook(
-		__always_unused struct kprobe *kp, struct pt_regs *regs)
+		__maybe_unused struct kprobe *kp, struct pt_regs *regs)
 {
+	show_kp_nmissed(*kp, "force_sig_fault");
+
 	void __user* addr;
 	int rv = WITH_ORIG_IP;
 
@@ -229,11 +232,15 @@ struct kprobe force_sig_fault__kp = {
  * first place, since no valid mapping is out there), but this is another story.
  */
 
+struct kretprobe __bad_area__krp;
+
 #define __bad_area__symbol "__bad_area"
 
 static int __bad_area__ehkrphook(
 		struct kretprobe_instance *krpi, struct pt_regs *regs)
 {
+	show_kp_nmissed(__bad_area__krp.kp, "__bad_area");
+
 	unsigned long error_code = regs->si;
 	unsigned long address = regs->dx;
 	struct vm_area_struct *vma = (struct vm_area_struct *) regs->r8;
@@ -264,6 +271,7 @@ struct kretprobe __bad_area__krp = {
 	.entry_handler = __bad_area__ehkrphook,
 	.handler = __bad_area__hkrphook,
 	.data_size = sizeof(struct sig_fault_extras_entry*),
+	.maxactive = KPS_MAXACTIVE,
 };
 
 #endif /* defined(DO_PTE_ALT_PROT) || defined(SCID_CONFIG_TESTING) */

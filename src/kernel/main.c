@@ -8,6 +8,7 @@
 #include <ptealtprot.h>
 #include <netlink/pgtrack/setup.h>
 #include <testing/testing.h>
+#include <hooks/activekps.h>
 
 MODULE_AUTHOR("Stefano Belli");
 MODULE_DESCRIPTION("Stealth code injection detector");
@@ -23,6 +24,9 @@ void teardown_module(void);
 #define STRICTNESS_OFF "strictness[off] - "
 #define FEATURE_ON "feature[on] - "
 #define FEATURE_OFF "feature[off] - "
+#define WARNING_ON "warning[on] - "
+#define WARNING_OFF "warning[off] - "
+#define PARAM "parameter - "
 
 static inline void print_build_specific_infos(void)
 {
@@ -57,6 +61,13 @@ static inline void print_build_specific_infos(void)
 	scid_info(BUILD FEATURE_ON "snapshot");
 #endif
 
+#ifdef KP_SHOW_NMISSED
+	scid_info(BUILD WARNING_ON "show-kp-nmissed");
+#else
+	scid_info(BUILD WARNING_OFF "show-kp-nmissed");
+#endif
+
+	scid_infof(BUILD PARAM "KPS_MAXACTIVE = %d", KPS_MAXACTIVE);
 }
 
 int __init setup_module(void) 

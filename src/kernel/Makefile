@@ -109,6 +109,21 @@ ifneq ($(filter no-cpr-trylock, $(STRICTNESS_LIST)),)
     ccflags-y += -DPAP_IN_CPR_MMSLK_DONT_TRYLOCK
 endif
 
+WARNINGS ?=
+WARNINGS_LIST := $(subst $(comma),$(space),$(WARNINGS))
+
+ifneq ($(filter show-kp-nmissed, $(WARNINGS_LIST)),)
+    $(info WARNINGS=show-kp-nmissed ok)
+    ccflags-y += -DKP_SHOW_NMISSED
+endif
+
+KPS_MAXACTIVE ?=
+
+ifneq ($(KPS_MAXACTIVE),)
+    $(info KPS_MAXACTIVE=$(KPS_MAXACTIVE) ok)
+    ccflags-y += -DKPS_MAXACTIVE=$(KPS_MAXACTIVE)
+endif
+
 # -----------------------------
 
 all:
