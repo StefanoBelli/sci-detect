@@ -68,6 +68,69 @@ Quindi la recv, che è bloccante, rimane in attesa senza mai ricevere nulla.
  ma anche il bit di presenza della pagina: read su PTE non presente, forse
  meccanismo software per protezione simile da certe vm_operations_struct??**
 
+ * L'esempio di ```ptrace``` (example-ptrace-splitperm.c) riguarda l'uso della tecnica split permission simulando quello che avviene su windows: target di processo remoto già esistente e in cui
+ nascondere l'esecuzione di shellcode!
+
+ Applicativo che effettua l'injection:
+
+ ![appptrace](ptrace-injection.png)
+
+ Snapshot effettuato al fetch del remote:
+
+ ![snapremote](wxdetection-ptrace.png)
+
+ * Alcuni esempi legati allo snapshot (examplesnap-) riguardo il CoW potrebbero fallire, in particolare il check dello snapshot dell'operazione DOPO il waitpid del parent sul child terminato.
+ Il punto è che il kernel potrebbe non accorgersi (ancora) che il parent è ora l'unico a "referenziare" la pagina fisica in questione e non deve più gestire il CoW.
+ Ricordarsi che il kernel rende RO **tutte** le PTEs che puntano alla pagina fisica (ad esempio al fork(), per poter gestire il CoW). In pratica quindi, se il kernel si accorge (e.g. wp_page_reuse) che
+ il processo corrente (che ha subito il page fault a causa del RO) può usare la pagina senza problemi (unica ref) allora non deve fare alcuna copia etc etc... e il frame è quello di prima, con il seq.
+ num. associato che viene incrementato as-expected, altrimenti **il kernel alloca nuovo frame e copia i dati da quello di prima al nuovo!** (oltre poi a settare PTE hw etc etc...) e quindi, dato che
+ il frame è NUOVO il suo seq. num. associato viene resettato a 1 per lo snapshot (è una nuova wx page detection con snapshot associato, ma il comportamento è **CORRETTO**).
+
+ In particolare, i due esempi sono ```examplesnap-fork-v2``` e ```examplesnap-fork-v3```: al fine di evitare di evitare di fare confusione ricordarsi brevemente come funziona il CoW - il primo processo che 
+ tenta di scrivere verso una pagina CoW non modifia quella pagina, ma il kernel alloca nuova pagina, effettua la copia del contenuto dalla vecchia alla nuova ed è la nuova pagina ad essere modificata!
+
+#### ```examplesnap-fork-v3```
+
+ *il processo child **non** modifica la pagina (CoW ancora ok)*
+
+ **Esempio che fallisce:** 
+
+ ![failed](fail-v3-example-ok.png)
+
+ L'ultimo numero di sequenza 1 è corretto: il kernel non si accorge che il frame originale è "referenziato" solo da una PTE -> effettua alloc + copia nuovo frame -> nuova wx detection -> nuovo seqnum.
+Il child *NON* ha mai tentato la modifica del frame originale, quindi il seqnum procede regolarmente.
+
+ **Esempio che ha successo:**
+
+ ![succ](succ-v3-example-ok.png)
+
+ L'ultimo numero di sequenza 5 è corretto: è correlato al frame originale che il kernel ha riconosciuto essere "referenziato" solo da una PTE (CoW non più necessario).
+ Il child *NON* ha mai tentato la modifica del frame originale, quindi il seqnum procede regolarmente.
+
+ *(entrambi ok)*
+
+#### ```examplesnap-fork-v2```
+
+ *il processo child modifica la pagina (CoW è broken)*
+
+ **Esempio che fallisce:** 
+
+ ![failed](fail-v2-example-ok.png)
+
+ L'ultimo numero di sequenza 1 è corretto: il kernel non si accorge che il frame originale è "referenziato" solo da una PTE -> effettua alloc + copia nuovo frame -> nuova wx detection -> nuovo seqnum.
+ Il child che ha tentato la modifica del frame originale, ne ha ottenuto uno nuovo da poter modificare liberamente.
+
+ **Esempio che ha successo:**
+
+ ![succ](succ-v2-example-ok.png)
+
+ L'ultimo numero di sequenza 3 è corretto: è correlato al frame originale che il kernel ha riconosciuto essere "referenziato" solo da una PTE (CoW non più necessario).
+ Il child che ha tentato la modifica del frame originale, ne ha ottenuto uno nuovo da poter modificare liberamente.
+
+ *(entrambi ok)*
+
+ * Per il problema del run direttamente della zeropage iniziale, vedere 11-snapshotting.md
+
 ## Testing
 
  * **Soft fail/hard fail**

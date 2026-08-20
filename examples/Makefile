@@ -10,6 +10,7 @@ LIBSCID_LNK=scid
 EXAMPLES= \
 	   example-single-one.example \
 	   example-fork.example \
+	   example-fork-pvw.example \
 	   example-vfork.example \
 	   example-shm-posix-fork.example \
 	   example-shm-anon-fork.example \
@@ -55,7 +56,25 @@ EXAMPLES= \
 
 EXAMPLES_SNAPSHOT= \
 	   examplesnap-single-simple.example \
-	   examplesnap-single-mprofixup.example
+	   examplesnap-single-mprofixup.example \
+	   examplesnap-single-pvrw.example \
+	   examplesnap-shm-posix-noncorr-1.example \
+	   examplesnap-shm-posix-noncorr-2.example \
+	   examplesnap-shm-posix-noncorr-1-v2.example \
+	   examplesnap-shm-posix-noncorr-2-v2.example \
+	   examplesnap-fork-v1.example \
+	   examplesnap-fork-v2.example \
+	   examplesnap-fork-v3.example \
+	   examplesnap-fork-v4.example \
+	   examplesnap-fork-v5.example \
+	   examplesnap-fork-v6.example \
+	   examplesnap-fork-v7.example \
+	   examplesnap-fork-v8.example \
+	   examplesnap-fork-pvrw.example \
+	   examplesnap-vfork-v1.example \
+	   examplesnap-vfork-v2.example \
+	   examplesnap-vfork-v3.example \
+	   examplesnap-vfork-pvrw.example
 
 ALL_EXAMPLES= $(EXAMPLES) $(EXAMPLES_SNAPSHOT)
 

@@ -399,7 +399,7 @@ __unused static inline void __scid_terminate(void *desc)
 #define wait_for_child(pid) \
 	do { \
 		int status; \
-		if(waitpid(child_pid, &status, 0) < 0) { \
+		if(waitpid((pid), &status, 0) < 0) { \
 			perror("waitpid"); \
 			exit(EXIT_FAILURE); \
 		} \
