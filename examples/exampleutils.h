@@ -11,6 +11,8 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <signal.h>
+#include <setjmp.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <sys/mman.h>
@@ -189,55 +191,91 @@ __unused static inline void __scid_terminate(void *desc)
 	scid_del_socket(desc);
 }
 
+#define __test_block_failed() \
+	do { \
+		fprintf(stderr, "FAILED attempt (remaining retries: %d)\n", --nr_retry); \
+		if(!nr_retry) { \
+			example_failed(); \
+	 		_exit(EXIT_FAILURE); \
+		} \
+	} while(0)
+
+#define __wxw_event_ok(____code____) \
+	{ \
+		wxw_count++; \
+		____code____ \
+		if(wxw_count == 2) \
+			break; \
+	}
+
+#define __do_snapshot_check(_evt, _va, _nr_seq, _fault, ____ok_kode____) \
+	struct snapshot_event *snap = &(_evt).event.snap; \
+	if( \
+			snap->va != ((unsigned long) (_va)) || \
+			snap->pid != getpid() || \
+			snap->seq != (_nr_seq) || \
+			snap->fault != (_fault)){ \
+		\
+		char *oldbuf = (_va); \
+		if(snap->fault == SNAPSHOT_WRITE_FAULT) \
+			oldbuf = pre_or_post_op_buffer; \
+		\
+		if(memcmp(snap->buffer, oldbuf, SCID_PAGE_SIZE)) \
+			__test_block_failed(); \
+	 	\
+	} else { \
+		____ok_kode____ \
+	}
+
+#define __got_snapshot_printf() \
+	printf("[ YES! we got the snapshot! ]\n" \
+	 		"\t--> fault: %d\n" \
+	 		"\t--> seq: %ld\n" \
+	 		"\t--> evt_datetime: %ld\n", \
+	 		snap->fault, snap->seq, snap->evt_datetime); \
+
 #define __wxwarning_test_block(_evt, _va) \
 	if((_evt).type == WXWARNING) { \
 	 	struct wxwarning_event *wxw = &(_evt).event.wxw; \
-	 	if(wxw->va != ((unsigned long) (_va)) || wxw->pid != getpid()) { \
-	 		fprintf(stderr, "FAILED attempt (remaining retries: %d)\n", --nr_retry); \
-	 		if(!nr_retry) { \
-	 			example_failed(); \
-	 			_exit(EXIT_FAILURE); \
-	 		} \
-	 	} else { \
-	 		wxw_count++; \
-	 		printf("YES! we got the wxwarning!\n" \
-	 				"\t--> pfn: %ld\n" \
-	 				"\t--> pid: %d\n" \
-	 				"\t--> va: 0x%lx\n" \
-	 				"\t--> evt_datetime: %ld\n", \
-	 				wxw->pfn, wxw->pid, wxw->va, wxw->evt_datetime); \
-	 		if(wxw_count == 2) \
-	 			break; \
-	 	} \
+	 	if(wxw->va != ((unsigned long) (_va)) || wxw->pid != getpid()) \
+	 		__test_block_failed(); \
+	 	else \
+	 		__wxw_event_ok( \
+	 				printf("YES! we got the wxwarning!\n" \
+	 					"\t--> pfn: %ld\n" \
+	 					"\t--> pid: %d\n" \
+	 					"\t--> va: 0x%lx\n" \
+	 					"\t--> evt_datetime: %ld\n", \
+	 					wxw->pfn, wxw->pid, wxw->va, wxw->evt_datetime); \
+	 		); \
 	} else if((_evt).type == SNAPSHOT) { \
-		struct snapshot_event *snap = &(_evt).event.snap; \
-		if( \
-				snap->va != ((unsigned long) (_va)) || \
-				snap->pid != getpid() || \
-				snap->seq != 1){ \
+		__do_snapshot_check(\
+			_evt, \
+			_va, \
+			1, \
+			(_evt).event.snap.fault, \
 			\
-			char *oldbuf = (_va); \
-			if(snap->fault == SNAPSHOT_WRITE_FAULT) \
-				oldbuf = pre_or_post_op_buffer; \
-			\
-			if(memcmp(snap->buffer, oldbuf, SCID_PAGE_SIZE)) { \
-	 			fprintf(stderr, "FAILED attempt (remaining retries: %d)\n", --nr_retry); \
-	 			if(!nr_retry) { \
-	 				example_failed(); \
-	 				_exit(EXIT_FAILURE); \
-	 			} \
-	 		} \
-	 	} else { \
-	 		wxw_count++; \
-	 		printf("[ YES! we got the snapshot! ]\n" \
-	 				"\t--> fault: %d\n" \
-	 				"\t--> seq: %ld\n" \
-	 				"\t--> evt_datetime: %ld\n", \
-	 				snap->fault, snap->seq, snap->evt_datetime); \
-	 		if(wxw_count == 2) \
-	 			break; \
-	 	} \
+	 		__wxw_event_ok( \
+	 				__got_snapshot_printf(); \
+	 		); \
+	 	); \
 	}
+
+#define __snapshot_test_block(_evt, _va, _seq, _fault) \
+	if((_evt).type != SNAPSHOT) { \
+		__test_block_failed(); \
+	 	continue; \
+	} \
+	\
+	__do_snapshot_check( \
+			_evt, \
+			_va, \
+			_seq, \
+			_fault, \
+			\
+			__got_snapshot_printf(); \
+			break; \
+	)
 
 #define __check_scid_bcast_base(__pre_op, __op, __post_op, __ret, __cond_var__, __test_block__) \
 	({ \
@@ -255,6 +293,8 @@ __unused static inline void __scid_terminate(void *desc)
 	 	__scid_terminate(desc); \
 	 	__ret \
 	})
+
+/* wxwarn + first snapshot checks */
 
 #define check_scid_bcast_wxwarning_pre(_va, op, ret) \
 	__check_scid_bcast_base( \
@@ -287,6 +327,37 @@ __unused static inline void __scid_terminate(void *desc)
 #define check_scid_bcast_wxwarning(_va, op, ret) \
 	check_scid_bcast_wxwarning_pre(_va, op, ret)
 
+/* snapshot-only checks */
+
+#define check_scid_bcast_snapshot_pre(_va, _seq, _fault, op, ret) \
+	__check_scid_bcast_base( \
+			char pre_or_post_op_buffer[SCID_PAGE_SIZE]; \
+			memcpy(pre_or_post_op_buffer, (char*) (_va), SCID_PAGE_SIZE); \
+			, \
+			op \
+			, \
+			, \
+			ret \
+			, \
+			, \
+			__snapshot_test_block(bcasted_event, _va, _seq, _fault))
+
+#define check_scid_bcast_snapshot_post(_va, _seq, _fault, op, ret) \
+	__check_scid_bcast_base( \
+			, \
+			op \
+			, \
+			char pre_or_post_op_buffer[SCID_PAGE_SIZE]; \
+			memcpy(pre_or_post_op_buffer, (char*) (_va), SCID_PAGE_SIZE); \
+			, \
+			ret \
+			, \
+			, \
+			__snapshot_test_block(bcasted_event, _va, _seq, _fault))
+
+#define check_scid_bcast_snapshot(_va, _seq, _fault, op, ret) \
+	check_scid_bcast_snapshot_pre(_va, _seq, _fault, op, ret)
+
 #define example_passed() \
 	puts("OK! Example passed!")
 
@@ -304,6 +375,21 @@ __unused static inline void __scid_terminate(void *desc)
 #define check_scid_bcast_wxwarning(arg1, __op, __ret) \
 	__check_scid_noop(__op, __ret)
 
+#define check_scid_bcast_wxwarning_pre(arg1, __op, __ret) \
+	__check_scid_noop(__op, __ret)
+
+#define check_scid_bcast_wxwarning_post(arg1, __op, __ret) \
+	__check_scid_noop(__op, __ret)
+
+#define check_scid_bcast_snapshot(arg1, arg2, arg3, __op, __ret) \
+	__check_scid_noop(__op, __ret)
+
+#define check_scid_bcast_snapshot_pre(arg1, arg2, arg3, __op, __ret) \
+	__check_scid_noop(__op, __ret)
+
+#define check_scid_bcast_snapshot_post(arg1, arg2, arg3, __op, __ret) \
+	__check_scid_noop(__op, __ret)
+
 #define example_passed()
 
 #define example_failed()
@@ -313,7 +399,7 @@ __unused static inline void __scid_terminate(void *desc)
 #define wait_for_child(pid) \
 	do { \
 		int status; \
-		if(waitpid(child_pid, &status, 0) < 0) { \
+		if(waitpid((pid), &status, 0) < 0) { \
 			perror("waitpid"); \
 			exit(EXIT_FAILURE); \
 		} \
@@ -339,5 +425,41 @@ __unused static void __maybe_mlock_all_addr_space(void)
 {
 }
 #endif /* EXAMPLE_MLOCK_ALL */
+
+static __unused jmp_buf ljmpbuf;
+
+/*
+ * to avoid feature test macros madness, the example TUs that
+ * want to use siglongjmp: define it along the proper ftm
+ */
+#ifndef SIGLONGJMP
+#	define SIGLONGJMP(x, y)
+#endif
+
+static __unused void sigsegv_handler(__unused int signum) 
+{
+	SIGLONGJMP(ljmpbuf, 1);
+}
+
+static inline void register_sigsegv_handler(void)
+{
+	signal(SIGSEGV, sigsegv_handler);
+}
+
+#define catch_sigsegv(__op__) \
+	({ \
+	 	register_sigsegv_handler(); \
+	 	int ____ok____ = 0; \
+	 	if(!sigsetjmp(ljmpbuf, 1)) { \
+	 		__op__ \
+	 		printf("%s:%d SIGSEGV NOT CATCHED!!!!!!\n", __FILE__, __LINE__); \
+	 		example_failed(); \
+	 		exit(EXIT_FAILURE); \
+	 	} else { \
+	 		____ok____ = 1; \
+	 		printf("%s:%d SIGSEGV catched successfully!\n", __FILE__, __LINE__); \
+	 	} \
+	 	____ok____; \
+	 })
 
 #endif 

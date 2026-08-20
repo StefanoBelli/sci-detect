@@ -14,6 +14,7 @@
 #include <logging.h>
 #include <pgtrack.h>
 #include <testing/testing.h>
+#include <hooks/activekps.h>
 
 #define MY_TESTING_SUBSYS_NAME "pte-page-track-fuf-hook"
 
@@ -235,8 +236,10 @@ void free_all_fuf_test_list(void)
 #define free_unref_folios__symbol "free_unref_folios"
 
 static int free_unref_folios__phkphook(
-		__always_unused struct kprobe *kp, struct pt_regs *regs)
+		__maybe_unused struct kprobe *kp, struct pt_regs *regs)
 {
+	show_kp_nmissed(*kp, "free_unref_folios");
+
 	/* you should not check this key in the user-testing code
 	 * ... more like a placeholder */
 	__testing("entry");
@@ -245,6 +248,13 @@ static int free_unref_folios__phkphook(
 
 	for(unsigned char i = 0; i < folios->nr; i++) {
 		struct folio *folio = folios->folios[i];
+
+		/*
+		 * don't try to get the folio (folio_try_get) or forcefully
+		 * get a reference to the folio. When this hook is reached,
+		 * this means that the folio reached refcnf = 0 (that is,
+		 * unreffed. folio_try_get would fail.)
+		 */
 
 		FUF_TESTING_CALL(fuf_check_folio(folio));
 

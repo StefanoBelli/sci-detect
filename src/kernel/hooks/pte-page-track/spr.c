@@ -7,6 +7,7 @@
 #include <vmfs.h>
 #include <logging.h>
 #include <hooks/pte-page-track/utils/addpages.h>
+#include <hooks/activekps.h>
 #include <testing/testing.h>
 
 #define MY_TESTING_SUBSYS_NAME "pte-page-track-spr-hook"
@@ -53,6 +54,8 @@ static int filemap_map_pages__phkphook(
 		__maybe_unused struct kprobe *kp, 
 		struct pt_regs *regs)
 {
+	show_kp_nmissed(*kp, "filemap_map_pages");
+
 	__testing("caller-fmp");
 	__raise_caller(CALLER_FILEMAP_MAP_PAGES_BITNR, regs);
 	return 0;
@@ -71,6 +74,8 @@ static int do_fault__phkphook(
 		__maybe_unused struct kprobe *kp, 
 		struct pt_regs *regs)
 {
+	show_kp_nmissed(*kp, "do_fault");
+
 	__testing("caller-df");
 	__raise_caller(CALLER_DO_FAULT_BITNR, regs);
 	return 0;
@@ -89,6 +94,8 @@ static int finish_fault__phkphook(
 		__maybe_unused struct kprobe *kp, 
 		struct pt_regs *regs)
 {
+	show_kp_nmissed(*kp, "finish_fault");
+
 	__testing("caller-ff");
 	__raise_caller(CALLER_FINISH_FAULT_BITNR, regs);
 	return 0;
@@ -143,9 +150,13 @@ struct set_pte_range_args {
 #define is_legit_kcp(bm) \
 	(is_regular_kcp(bm) || is_fault_around_kcp(bm) || is_fallback_kcp(bm))
 
+struct kretprobe set_pte_range__krp;
+
 static int set_pte_range__ehkrphook(
 		struct kretprobe_instance *krpi, struct pt_regs *regs)
 {
+	show_kp_nmissed(set_pte_range__krp.kp, "set_pte_range");
+
 	struct vm_fault *vmf = (struct vm_fault*) regs->di;
 	struct vm_fault_entry *entry;
 
@@ -243,4 +254,5 @@ struct kretprobe set_pte_range__krp = {
 	.handler = set_pte_range__hkrphook,
 	.kp.symbol_name = set_pte_range__symbol,
 	.data_size = sizeof(struct set_pte_range_args),
+	.maxactive = KPS_MAXACTIVE,
 };

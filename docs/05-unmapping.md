@@ -187,6 +187,8 @@ Before seeing the operations of ```folios_put_batch``` let's get back to the "wr
 
  * Release the previously-taken, ```folio_batch```-protecting, ```local_lock``` of per-CPU ```cpu_fbatches``` data structure, also reenable irqs if previously disabled.
 
+# See also ```exit_mmap()```, see what happens when ```mm``` reference counter reaches 0, similar stuff, but on the whole ```mmap``` being released/freed
+
 ```__folio_batch_add_and_move``` is called using the macro ```folio_batch_add_and_move``` (https://elixir.bootlin.com/linux/v7.1.2/source/mm/swap.c#L204) which allows to make code more readable (for
 example here: https://elixir.bootlin.com/linux/v7.1.2/source/mm/swap.c#L339). Per-CPU batches are named as the ```move_fn```s.
 
