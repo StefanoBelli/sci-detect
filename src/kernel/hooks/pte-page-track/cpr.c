@@ -15,7 +15,7 @@
 #ifdef DO_PTE_ALT_PROT
 #	include <pgtrack.h>
 #	include <linux/pid.h>
-#	include <hooks/pte-page-track/utils/user_page_walk.h>
+#	include <user_page_walk.h>
 #endif
 
 #define MY_TESTING_SUBSYS_NAME "pte-page-track-cpr-hook"

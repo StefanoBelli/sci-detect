@@ -10,6 +10,11 @@
 #include <linux/compiler.h>
 #include <linux/sched/mm.h>
 #include <linux/workqueue.h>
+#include <linux/notifier.h>
+#include <linux/kdebug.h>
+#include <linux/jiffies.h>
+#include <linux/task_work.h>
+#include <linux/hashtable.h>
 #include <linux/version.h>
 #include <asm-generic/rwonce.h>
 #include <asm-generic/barrier.h>
@@ -17,9 +22,11 @@
 #include <resolve_syms/rmap_walk.h>
 #include <resolve_syms/flush_tlb_mm_range.h>
 #include <resolve_syms/page_vma_mapped_walk.h>
+#include <resolve_syms/task_work_add.h>
 #include <kpsleepable.h>
 #include <pgtrack.h>
 #include <logging.h>
+#include <user_page_walk.h>
 
 #ifndef DISABLE_PAGE_SNAPSHOT
 #	include <pgsnap.h>
@@ -558,11 +565,128 @@ static inline void do_snapshot(
 #	define do_snapshot(pgs, snapex, ff, irn, name)
 #endif
 
-static inline void maybe_mkwrite_mypte(bool shdw_write, struct my_pte_info *mpi)
-{
-	if(shdw_write && mpi->vma->vm_flags & VM_WRITE) {
-		pte_t pte;
+struct orig_ip {
+	struct task_struct *tsk;
+	unsigned long ip;
+	struct hlist_node node;
+};
 
+struct orig_ip_dwork {
+	struct delayed_work dwork;
+	bool rearm;
+};
+
+static DEFINE_HASHTABLE(ht_orig_ips, 7);
+static DEFINE_SPINLOCK(ht_orig_ips_lock);
+static struct orig_ip_dwork ht_orig_ips_cleanup_dwork;
+
+static inline void orig_ip_task_add(unsigned long orig_ip)
+{
+	unsigned long cpu_flags;
+	struct orig_ip *oip = kmalloc(sizeof(struct orig_ip), GFP_ATOMIC);
+
+	if(!oip) {
+		scid_err("memory exhausted");
+		return;
+	}
+
+	/* save orig ip */
+	oip->ip = orig_ip;
+	oip->tsk = current;
+	INIT_HLIST_NODE(&oip->node);
+
+	/* 
+	 * we may need to inspect task descriptor in cleanup work 
+	 * this is completely safe since oip->tsk = current 
+	 */
+	get_task_struct(oip->tsk);
+
+	spin_lock_irqsave(&ht_orig_ips_lock, cpu_flags);
+	hash_add(ht_orig_ips, &oip->node, (u64) oip->tsk);
+	spin_unlock_irqrestore(&ht_orig_ips_lock, cpu_flags);
+}
+
+static inline void __remove_orig_ip_task(struct orig_ip *entry)
+{
+	/* 
+	 * entry->tsk is current (see stmt above),
+	 * put_task_struct cannot trigger any kind of
+	 * resource release (no BUG related to sched while atomic)
+	 */
+	put_task_struct(entry->tsk);
+	hash_del(&entry->node);
+	kfree(entry);
+}
+
+static inline bool orig_ip_task_lookup(unsigned long *ip)
+{
+	struct orig_ip *entry;
+	struct hlist_node *tmp;
+
+	unsigned long cpu_flags;
+
+	spin_lock_irqsave(&ht_orig_ips_lock, cpu_flags);
+
+	hash_for_each_possible_safe(ht_orig_ips, entry, tmp, node, (u64) current) {
+		if(entry->tsk == current) {
+			/* restore orig ip */
+			*ip = entry->ip;
+
+			/* destroy */
+			__remove_orig_ip_task(entry);
+
+			/* unlock */
+			spin_unlock_irqrestore(&ht_orig_ips_lock, cpu_flags);
+			return true;
+		}
+	}
+
+	/* unlock */
+	spin_unlock_irqrestore(&ht_orig_ips_lock, cpu_flags);
+	return false;
+}
+
+#define FIVE_MINUTES_MS 300000 
+
+static void orig_ip_task_cleanup_dwork(struct work_struct *work)
+{
+	unsigned long cpu_flags;
+	struct hlist_node *node;
+	struct hlist_node *tmp;
+	struct orig_ip *entry;
+	struct orig_ip_dwork *mywork = container_of(work, struct orig_ip_dwork, dwork.work);
+
+	/* take the lock */
+	spin_lock_irqsave(&ht_orig_ips_lock, cpu_flags);
+
+	/* iterate on each element of the hashtable */
+	hlist_for_each_safe(node, tmp, ht_orig_ips) {
+		entry = container_of(node, struct orig_ip, node);
+
+		/* if task has done... */
+		if(entry->tsk->exit_state & (EXIT_ZOMBIE | EXIT_DEAD))
+			/* ... destroy */
+			__remove_orig_ip_task(entry);
+	}
+
+	/* release the lock */
+	spin_unlock_irqrestore(&ht_orig_ips_lock, cpu_flags);
+
+	/* schedule this work 5 mins from now on the system wq */
+	if(smp_load_acquire(&mywork->rearm)) {
+		if(!schedule_delayed_work(&ht_orig_ips_cleanup_dwork.dwork, msecs_to_jiffies(FIVE_MINUTES_MS)))
+			scid_err("unable to schedule_delayed_work");
+	}
+}
+
+/* also checks for ip == addr situation, e.g. instr "0x00 0x00" with pointing "rax" */
+static void maybe_mkwrite_mypte(bool shdw_write, struct my_pte_info *mpi, struct kprobe *kp)
+{
+	pte_t pte;
+	unsigned long user_ip;
+	struct pt_regs *current_pt_regs;
+
+	if(shdw_write && mpi->vma->vm_flags & VM_WRITE) {
 		spin_lock(mpi->ptlp);
 
 		pte = ptep_get(mpi->ptep);
@@ -573,8 +697,26 @@ static inline void maybe_mkwrite_mypte(bool shdw_write, struct my_pte_info *mpi)
 
 		DEBUG_PAP(WREX, "making my own pte writable and non-exec");
 
+		current_pt_regs = task_pt_regs(current);
+		user_ip = instruction_pointer(current_pt_regs);
+
 		pte = pte_mkwrite_novma(pte);
-		pte = pte_set_flags(pte, _PAGE_NX);
+
+		/* check if the ran instruction is trying to change the same page it resides into */
+		if((user_ip & PAGE_MASK) == (mpi->addr & PAGE_MASK)) {
+			if(likely(mpi->vma->vm_flags & VM_EXEC)) {
+				/* make it executable */
+				pte = pte_mkexec(pte);
+
+				/* enable single stepping */
+				current_pt_regs->flags |= X86_EFLAGS_TF;
+
+				/* add entry to the hashtable */
+				orig_ip_task_add(user_ip);
+			}
+		} else 
+			pte = pte_set_flags(pte, _PAGE_NX);
+
 		set_pte(mpi->ptep, pte);
 		spin_unlock(mpi->ptlp);
 		__scid_flush_tlb_page(mpi->vma, mpi->addr);
@@ -742,7 +884,7 @@ void wrex_ptealtprot(
 			folio, wrex_pte_one, pgs->pap, addr_spcs_head, mpi->ptep, kp);
 
 __finish:
-	maybe_mkwrite_mypte(pgs->pap->write, mpi);
+	maybe_mkwrite_mypte(pgs->pap->write, mpi, kp);
 
 	__end_unlock_put_free_aspcs(pgs, &addr_spcs_head, mmslk, folio, kp);
 
@@ -887,6 +1029,32 @@ __finish:
 	return rv;
 }
 
+#ifdef DO_PTE_ALT_PROT
+
+static void __do_pte_fixup(
+		pte_t pte, pte_t *ptep, struct vm_area_struct *vma,
+		spinlock_t *ptlp, struct page_status *pgs, unsigned long addr)
+{
+	pte = pte_wrprotect(pte);
+
+	if(pgs->pap->noprot)
+		pte = pte_set_flags(pte, _PAGE_NX);
+	else {
+		if(pgs->pap->write)
+			pte = pte_set_flags(pte, _PAGE_NX);
+		else {
+			if(vma->vm_flags & VM_EXEC)
+				pte = pte_mkexec(pte);
+		}
+	}
+
+	set_pte(ptep, pte);
+	spin_unlock(ptlp);
+	__scid_flush_tlb_page(vma, addr);
+}
+
+#endif /* DO_PTE_ALT_PROT */
+
 /* 
  * the per-VMA or mmap read lock (that protects vma inspection in 
  * pte_fixup_ptealtprot) must be properly held by the caller.
@@ -937,26 +1105,10 @@ void pte_fixup_ptealtprot(
 		goto __pap_unlock;
 	}
 
-	pte = pte_wrprotect(pte);
-
-	if(pgs->pap->noprot)
-		pte = pte_set_flags(pte, _PAGE_NX);
-	else {
-		if(pgs->pap->write)
-			pte = pte_set_flags(pte, _PAGE_NX);
-		else {
-			if(mpi->vma->vm_flags & VM_EXEC)
-				pte = pte_mkexec(pte);
-		}
-	}
-
-	set_pte(mpi->ptep, pte);
-	spin_unlock(mpi->ptlp);
+	__do_pte_fixup(pte, mpi->ptep, mpi->vma, mpi->ptlp, pgs, mpi->addr);
 
 	DEBUG_PAP_FMT(PTE_FIXUP, "fixup: pap->noprot=%d, pap->write=%d, vma has VM_EXEC=%ld",
 			pgs->pap->noprot, pgs->pap->write, mpi->vma->vm_flags & VM_EXEC);
-
-	__scid_flush_tlb_page(mpi->vma, mpi->addr);
 
 __pap_unlock:
 	mutex_unlock(&pgs->pap->lock);
@@ -965,11 +1117,167 @@ __pap_unlock:
 
 }
 
+#ifdef DO_PTE_ALT_PROT
+
+/* 
+ * unluckily, we have to use task_work to
+ * run a callback in process context when
+ * thread is about to return to userspace...
+ */
+struct pte_fixup_sameip_task_work {
+	struct callback_head cb_head;
+	unsigned long ip;
+};
+
+static void pte_fixup_sameip_twork(struct callback_head *cb_head)
+{
+	struct pte_fixup_sameip_task_work *twork = container_of(cb_head, struct pte_fixup_sameip_task_work, cb_head);
+	struct page *page;
+	pte_t *ptep;
+	spinlock_t *ptlp;
+	pte_t pte;
+	struct page_status *pgs;
+	bool pgs_ok;
+	struct vm_area_struct *vma;
+	unsigned long ip = twork->ip;
+	struct pt_regs *regs = task_pt_regs(current);
+
+	/* free here twork, now, once and for all */
+	kfree(twork);
+
+	/* big mmap_lock critical section (othw. we would need to reacquire later and redo vma_lookup?) */
+	mmap_read_lock(current->mm);
+
+	/* Do the page table walk to retrieve the ptep and page frame */
+	page = user_page_walk_ptep_vma(ip, true, false, &ptep, &ptlp, &vma, NULL);
+	if(!page) 
+		goto __unlockmm_disabless;
+
+	/* Get associated page_status */
+	rcu_read_lock();
+	pgs = lookup_pfn_pgtrack(page_to_pfn(page));
+	pgs_ok = pgs && try_page_status_get(pgs);
+	rcu_read_unlock();
+
+	/* if this is true either pgs is NULL or failed to get ref to pgs */
+	if(!pgs_ok)
+		goto __unlockmm_disabless;
+
+	/* mmh... */
+	if(!pgs->pap)
+		goto __putpgs_unlockmm_disabless;
+
+	/* pap->lock critical section */
+	mutex_lock(&pgs->pap->lock);
+
+	/* ptl critical section */
+	spin_lock(ptlp);
+
+	/* read pte */
+	pte = ptep_get(ptep);
+
+	/* Recheck pte under ptl */
+	if(INVALID_PTE(pte) || 
+			!pte_exec(pte) || !pte_write(pte) || 
+			pte_page(pte) != page) {
+
+		spin_unlock(ptlp);
+		goto __unlockpap_putpgs_unlockmm_disabless;
+	}
+
+	/* __do_pte_fixup releases the ptl */
+	__do_pte_fixup(pte, ptep, vma, ptlp, pgs, ip);
+
+__unlockpap_putpgs_unlockmm_disabless:
+	mutex_unlock(&pgs->pap->lock);
+__putpgs_unlockmm_disabless:
+	page_status_put(pgs);
+__unlockmm_disabless:
+	mmap_read_unlock(current->mm);
+	regs->flags &= ~X86_EFLAGS_TF;
+}
+
+static int pte_fixup_sameip_notify(
+		__always_unused struct notifier_block *nb, 
+		unsigned long action, void *data)
+{
+	struct pt_regs *regs;
+	unsigned long ip;
+	struct pte_fixup_sameip_task_work *twork;
+
+	/* Is this action the one we are looking for? */
+	if(action != DIE_DEBUG)
+		return NOTIFY_DONE;
+
+	/* Yes, processor thrown #DB exception. */
+	regs = ((struct die_args*)data)->regs;
+
+	/* Debug exception caused by trap flag? */
+	if(!(regs->flags & X86_EFLAGS_TF))
+		return NOTIFY_DONE;
+
+	/* 
+	 * Yes, recover the PREVIOUS instruction.
+	 *
+	 * Refer to Intel SDM, for single stepping,
+	 * processor saves ip to the **next** instruction,
+	 * we need the previous one: 
+	 *
+	 * INSTR0 INSTR1 ... INSTRi <SS> INSTR(i+1) ....
+	 *                   ^           ^
+	 *                   |           |--- processor-saved RIP (regs->ip)
+	 *                   |
+	 *                   |--------------- what we actually need (orig_ip)
+	 *
+	 * Furthermore, this answers the question: did we actually
+	 * set the single-stepping for current (this) task?
+	 */
+	if(!orig_ip_task_lookup(&ip))
+		return NOTIFY_DONE;
+
+	/* alloc twork */
+	twork = kmalloc(sizeof(struct pte_fixup_sameip_task_work), GFP_ATOMIC);
+	if(!twork) {
+		scid_err("memory exhausted");
+		return NOTIFY_STOP;
+	}
+
+	/* init twork */
+	twork->ip = ip;
+	init_task_work(&twork->cb_head, pte_fixup_sameip_twork);
+
+	/* 
+	 * we need process context at all cost, so defer control when thread
+	 * is about to return to userspace
+	 */
+	if (THUNK(task_work_add)(current, &twork->cb_head, TWA_RESUME)) {
+		scid_err("unable to task_work_add");
+        kfree(twork);
+    }
+
+	return NOTIFY_STOP;
+}
+
+/* execute the notify handler lastly */
+static struct notifier_block pte_fixup_sameip_nb = {
+	.notifier_call = pte_fixup_sameip_notify,
+	.priority = INT_MIN
+};
+
+#endif /* DO_PTE_ALT_PROT */
+
 int setup_ptealtprot(void)
 {
 
 #ifdef DO_PTE_ALT_PROT
 	unsigned int wq_flgs;
+
+	smp_store_release(&ht_orig_ips_cleanup_dwork.rearm, true);
+	INIT_DELAYED_WORK(&ht_orig_ips_cleanup_dwork.dwork, orig_ip_task_cleanup_dwork);
+	if(!schedule_delayed_work(&ht_orig_ips_cleanup_dwork.dwork, msecs_to_jiffies(FIVE_MINUTES_MS))) {
+		scid_err("unable to schedule_delayed_work");
+		return -EBUSY;
+	}
 
 	pap_cachep = kmem_cache_create(
 			"scid__pap_cache", 
@@ -982,6 +1290,8 @@ int setup_ptealtprot(void)
 		scid_err("unable to create cache");
 		return -ENOMEM;
 	}
+
+	register_die_notifier(&pte_fixup_sameip_nb);
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 17, 0)
 	wq_flgs = 0;
@@ -1008,7 +1318,12 @@ void teardown_ptealtprot(void)
 	drain_workqueue(drop_mm_wq);
 	destroy_workqueue(drop_mm_wq);
 
+	unregister_die_notifier(&pte_fixup_sameip_nb);
+
 	kmem_cache_destroy(pap_cachep);
+
+	smp_store_release(&ht_orig_ips_cleanup_dwork.rearm, false);
+	cancel_delayed_work_sync(&ht_orig_ips_cleanup_dwork.dwork);
 #endif
 
 }

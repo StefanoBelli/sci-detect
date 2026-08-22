@@ -7,6 +7,7 @@
 #include <resolve_syms/page_vma_mapped_walk.h>
 #include <resolve_syms/flush_tlb_mm_range.h>
 #include <resolve_syms/walk_page_range.h>
+#include <resolve_syms/task_work_add.h>
 
 #ifdef CONFIG_KALLSYMS
 #	include <resolve_syms/kallsyms_lookup_name.h>
@@ -38,6 +39,7 @@ struct sympair sp[NR_SYMPAIRS] = {
 	INIT_SYMPAIR_DONTFAIL(kallsyms_lookup_name),
 #endif
 
+	INIT_SYMPAIR(task_work_add),
 };
 
 #undef INIT_SYMPAIR
