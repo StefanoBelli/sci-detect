@@ -15,7 +15,7 @@
 #include <asm/nospec-branch.h>
 #include <asm-generic/rwonce.h>
 
-#include <hooks/pte-page-track/utils/user_page_walk.h>
+#include <user_page_walk.h>
 #include <pgtrack.h>
 #include <logging.h>
 

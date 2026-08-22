@@ -8,6 +8,7 @@ $(modname)-objs += \
     pgtrack.o \
     pgsnap.o \
     kpsleepable.o \
+    user_page_walk.o \
     ptealtprot.o \
     \
     	testing/testing.o \
@@ -38,8 +39,7 @@ $(modname)-objs += \
     \
     	hooks/pte-page-track/utils/addpages.o \
     	hooks/pte-page-track/utils/setup.o \
-    	hooks/pte-page-track/utils/check_orig_pte.o \
-    	hooks/pte-page-track/utils/user_page_walk.o 
+    	hooks/pte-page-track/utils/check_orig_pte.o
 
 ccflags-y += -Wall -W -Wextra -I$(src)/include -Wno-shadow
 
