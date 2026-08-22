@@ -13,7 +13,6 @@
 #include <linux/notifier.h>
 #include <linux/kdebug.h>
 #include <linux/jiffies.h>
-#include <linux/task_work.h>
 #include <linux/hashtable.h>
 #include <linux/version.h>
 #include <asm-generic/rwonce.h>
@@ -23,6 +22,7 @@
 #include <resolve_syms/flush_tlb_mm_range.h>
 #include <resolve_syms/page_vma_mapped_walk.h>
 #include <resolve_syms/task_work_add.h>
+#include <resolve_syms/task_work_cancel_match.h>
 #include <kpsleepable.h>
 #include <pgtrack.h>
 #include <logging.h>
@@ -565,12 +565,14 @@ static inline void do_snapshot(
 #	define do_snapshot(pgs, snapex, ff, irn, name)
 #endif
 
+/* data structures and functions for the "code changes WX page it resides into" case */
 struct orig_ip {
 	struct task_struct *tsk;
 	unsigned long ip;
 	struct hlist_node node;
 };
 
+/* delayed cleanup work */
 struct orig_ip_dwork {
 	struct delayed_work dwork;
 	bool rearm;
@@ -702,13 +704,13 @@ static void maybe_mkwrite_mypte(bool shdw_write, struct my_pte_info *mpi, struct
 
 		pte = pte_mkwrite_novma(pte);
 
-		/* check if the ran instruction is trying to change the same page it resides into */
+		/* check if the ran instruction is trying to change the same (WX) page it resides into */
 		if((user_ip & PAGE_MASK) == (mpi->addr & PAGE_MASK)) {
 			if(likely(mpi->vma->vm_flags & VM_EXEC)) {
 				/* make it executable */
 				pte = pte_mkexec(pte);
 
-				/* enable single stepping */
+				/* enable single stepping for "current" */
 				current_pt_regs->flags |= X86_EFLAGS_TF;
 
 				/* add entry to the hashtable */
@@ -1120,8 +1122,7 @@ __pap_unlock:
 #ifdef DO_PTE_ALT_PROT
 
 /* 
- * unluckily, we have to use task_work to
- * run a callback in process context when
+ * unluckily, we have to use task_work to run a callback in process context, when
  * thread is about to return to userspace...
  */
 struct pte_fixup_sameip_task_work {
@@ -1129,6 +1130,7 @@ struct pte_fixup_sameip_task_work {
 	unsigned long ip;
 };
 
+/* tw callback */
 static void pte_fixup_sameip_twork(struct callback_head *cb_head)
 {
 	struct pte_fixup_sameip_task_work *twork = container_of(cb_head, struct pte_fixup_sameip_task_work, cb_head);
@@ -1140,7 +1142,6 @@ static void pte_fixup_sameip_twork(struct callback_head *cb_head)
 	bool pgs_ok;
 	struct vm_area_struct *vma;
 	unsigned long ip = twork->ip;
-	struct pt_regs *regs = task_pt_regs(current);
 
 	/* free here twork, now, once and for all */
 	kfree(twork);
@@ -1151,7 +1152,7 @@ static void pte_fixup_sameip_twork(struct callback_head *cb_head)
 	/* Do the page table walk to retrieve the ptep and page frame */
 	page = user_page_walk_ptep_vma(ip, true, false, &ptep, &ptlp, &vma, NULL);
 	if(!page) 
-		goto __unlockmm_disabless;
+		goto __unlockmm;
 
 	/* Get associated page_status */
 	rcu_read_lock();
@@ -1161,11 +1162,11 @@ static void pte_fixup_sameip_twork(struct callback_head *cb_head)
 
 	/* if this is true either pgs is NULL or failed to get ref to pgs */
 	if(!pgs_ok)
-		goto __unlockmm_disabless;
+		goto __unlockmm;
 
 	/* mmh... */
 	if(!pgs->pap)
-		goto __putpgs_unlockmm_disabless;
+		goto __putpgs_unlockmm;
 
 	/* pap->lock critical section */
 	mutex_lock(&pgs->pap->lock);
@@ -1182,21 +1183,48 @@ static void pte_fixup_sameip_twork(struct callback_head *cb_head)
 			pte_page(pte) != page) {
 
 		spin_unlock(ptlp);
-		goto __unlockpap_putpgs_unlockmm_disabless;
+		goto __unlockpap_putpgs_unlockmm;
 	}
 
 	/* __do_pte_fixup releases the ptl */
 	__do_pte_fixup(pte, ptep, vma, ptlp, pgs, ip);
 
-__unlockpap_putpgs_unlockmm_disabless:
+	/* cleanup... */
+__unlockpap_putpgs_unlockmm:
 	mutex_unlock(&pgs->pap->lock);
-__putpgs_unlockmm_disabless:
+__putpgs_unlockmm:
 	page_status_put(pgs);
-__unlockmm_disabless:
+__unlockmm:
 	mmap_read_unlock(current->mm);
-	regs->flags &= ~X86_EFLAGS_TF;
 }
 
+/* tw cleanup stuff */
+static bool __scid_task_work_func_match(struct callback_head *cb, void *data)
+{
+	return cb->func == data;
+}
+
+static struct callback_head *
+__scid_task_work_cancel_func(struct task_struct *task, task_work_func_t func)
+{
+	return THUNK(task_work_cancel_match)(task, __scid_task_work_func_match, func);
+}
+
+static void try_to_cancel_tworks(void)
+{
+	struct task_struct *p, *t;
+
+	rcu_read_lock();
+	for_each_process_thread(p, t)
+		__scid_task_work_cancel_func(t, pte_fixup_sameip_twork);
+
+	rcu_read_unlock();
+}
+
+/* 
+ * notifier part of the die_chain, NOT in process context, 
+ * we can't do much here other than defer work 
+ */
 static int pte_fixup_sameip_notify(
 		__always_unused struct notifier_block *nb, 
 		unsigned long action, void *data)
@@ -1211,6 +1239,10 @@ static int pte_fixup_sameip_notify(
 
 	/* Yes, processor thrown #DB exception. */
 	regs = ((struct die_args*)data)->regs;
+
+	/* Ensure that when that #DB exception was raised, we were user */
+	if(!user_mode(regs))
+		return NOTIFY_DONE;
 
 	/* Debug exception caused by trap flag? */
 	if(!(regs->flags & X86_EFLAGS_TF))
@@ -1235,7 +1267,7 @@ static int pte_fixup_sameip_notify(
 	if(!orig_ip_task_lookup(&ip))
 		return NOTIFY_DONE;
 
-	/* alloc twork */
+	/* alloc twork, deferred work */
 	twork = kmalloc(sizeof(struct pte_fixup_sameip_task_work), GFP_ATOMIC);
 	if(!twork) {
 		scid_err("memory exhausted");
@@ -1253,8 +1285,10 @@ static int pte_fixup_sameip_notify(
 	if (THUNK(task_work_add)(current, &twork->cb_head, TWA_RESUME)) {
 		scid_err("unable to task_work_add");
         kfree(twork);
-    }
+	}
 
+	/* disable singlestep and STOP anyway, we required "current" to singlestep */
+	regs->flags &= ~X86_EFLAGS_TF;
 	return NOTIFY_STOP;
 }
 
@@ -1324,6 +1358,8 @@ void teardown_ptealtprot(void)
 
 	smp_store_release(&ht_orig_ips_cleanup_dwork.rearm, false);
 	cancel_delayed_work_sync(&ht_orig_ips_cleanup_dwork.dwork);
+
+	try_to_cancel_tworks();
 #endif
 
 }

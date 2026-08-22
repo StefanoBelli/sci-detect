@@ -1,7 +1,10 @@
 #ifndef SCID_RESOLVE_SYMS_TASK_WORK_ADD_H
 #define SCID_RESOLVE_SYMS_TASK_WORK_ADD_H
 
+#include <linux/types.h>
+#include <linux/sched.h>
 #include <linux/task_work.h>
+
 #include <resolve_syms.h>
 
 #define task_work_add_SYMPAIR_INDEX 6

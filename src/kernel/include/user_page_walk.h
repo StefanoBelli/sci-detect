@@ -20,7 +20,7 @@
  * @ptep: the ptep which points to the page, may be null.
  * @ptlp: the associated page table lock, may be null.
  * @vma: the associated vma, may be null.
- * @kp: the current kp
+ * @kp: the current kp, may be null.
  *
  * Returns: the page descriptor if found, NULL othw
  */
@@ -35,7 +35,6 @@ static inline struct page* user_page_walk_ptep(
 {
 	return user_page_walk_ptep_vma(addr, quiet, rlkmm, ptep, ptlp, NULL, kp);
 }
-
 
 static inline struct page *user_page_walk(unsigned long addr, bool quiet, 
 		bool rlkmm, struct kprobe *kp)

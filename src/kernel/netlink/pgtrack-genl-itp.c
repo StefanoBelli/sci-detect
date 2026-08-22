@@ -65,6 +65,8 @@ static bool __do_is_tracked_page_rmap_one(
 	struct __ditp_rmap_args *args = __arg;
 	struct task_struct *tsk;
 
+	rcu_read_lock();
+
 	/* for each task in the system... */
 	for_each_process(tsk) {
 
@@ -73,6 +75,8 @@ static bool __do_is_tracked_page_rmap_one(
 			if(unlikely(nla_put_s32(args->skb, SCID_GENL_ATTR_PID, task_pid_nr(tsk)))) {
 				scid_err("unable to put pid in skb");
 				args->err = true;
+
+				rcu_read_unlock();
 				return false;
 			}
 
@@ -82,6 +86,7 @@ static bool __do_is_tracked_page_rmap_one(
 		}
 	}
 
+	rcu_read_unlock();
 	return true;
 }
 
