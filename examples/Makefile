@@ -66,14 +66,23 @@ EXAMPLES_SNAPSHOT= \
 	   examplesnap-fork-v2.example \
 	   examplesnap-fork-v3.example \
 	   examplesnap-fork-v4.example \
+	   examplesnap-fork-v4-mremap.example \
 	   examplesnap-fork-v5.example \
 	   examplesnap-fork-v6.example \
 	   examplesnap-fork-v7.example \
+	   examplesnap-fork-v7-mremap.example \
 	   examplesnap-fork-v8.example \
 	   examplesnap-fork-pvrw.example \
+	   examplesnap-fork-v1-multiplepages.example \
+	   examplesnap-fork-v2-multiplepages.example \
+	   examplesnap-fork-v3-multiplepages.example \
+	   examplesnap-fork-v4-multiplepages.example \
+	   examplesnap-fork-v5-multiplepages.example \
+	   examplesnap-fork-v6-multiplepages.example \
 	   examplesnap-vfork-v1.example \
 	   examplesnap-vfork-v2.example \
 	   examplesnap-vfork-v3.example \
+	   examplesnap-vfork-v3-mremap.example \
 	   examplesnap-vfork-pvrw.example
 
 ALL_EXAMPLES= $(EXAMPLES) $(EXAMPLES_SNAPSHOT)

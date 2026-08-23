@@ -13,6 +13,7 @@
 #	include <linux/pid.h>
 #	include <pgtrack.h>
 #	include <kpsleepable.h>
+#	include <resolve_syms/pte_offset_map_lock.h>
 #endif
 
 #define handle_pte_fault__symbol "handle_pte_fault"
@@ -69,24 +70,45 @@ static int handle_pte_fault__hkrphook(
 	pte_t pte;
 	unsigned long pfn;
 	bool pfn_found;
-	pte_t *vmf_ptep = vmf(vmfe)->pte;
+	pte_t *ptep = vmf(vmfe)->pte;
+	spinlock_t *ptl;
 	enum fault_flag vmf_flags = orig_flags(vmfe);
 	bool locked = false; /* whether the per-VMA lock or mmap_lock is acquired */
-	struct mm_struct *target_mm;
+	struct mm_struct *target_mm = vmf(vmfe)->vma->vm_mm; /* support for FAULT_FLAG_REMOTE */
 	struct vm_area_struct *target_vma = NULL;
 	struct kprobe *kp;
 
-	if(unlikely(retval & VM_FAULT_ERROR))
-		goto __end;
-
-	if(!vmf_ptep)
-		goto __end;
-
 	/* 
-	 * try not to acquire the ptl since this is 
-	 * only an atomic read, let's see... 
+	 * also don't do stuff here if VM_FAULT_RETRY 
+	 * handling of the fault not yet completed 
 	 */
-	pte = ptep_get(vmf_ptep);
+	if(unlikely(retval & (VM_FAULT_ERROR | VM_FAULT_RETRY)))
+		goto __end;
+
+	/* if VM_FAULT_NOPAGE is NOT set, ptep is expected to be NOT NULL and VALID */
+	if(unlikely(!(retval & VM_FAULT_NOPAGE) && !ptep))
+		goto __end;
+
+	/* if VM_FAULT_NOPAGE is set, ptep is not valid!! */
+	if(retval & VM_FAULT_NOPAGE) {
+		ptep = THUNK(pte_offset_map_lock)(target_mm, vmf(vmfe)->pmd, vmf(vmfe)->address, &ptl);
+		if(!ptep) {
+			scid_err("unable to pte_offset_map_lock");
+			goto __end;
+		}
+	} else {
+		ptl = vmf(vmfe)->ptl;
+		spin_lock(ptl);
+	}
+
+	/* changed my mind on this, acquired the ptl... */
+	pte = ptep_get(ptep);
+
+	if(retval & VM_FAULT_NOPAGE)
+		pte_unmap_unlock(ptep, ptl);
+	else
+		spin_unlock(ptl);
+
 	if(unlikely(pte_none(pte) || !pte_present(pte)))
 		goto __end;
 
@@ -135,12 +157,17 @@ static int handle_pte_fault__hkrphook(
 	 	 */
 
 		locked = !(retval & (VM_FAULT_RETRY | VM_FAULT_COMPLETED));
+
+#if 0 /* --- disabled --- */
+
 	 	if(retval & VM_FAULT_RETRY)
 	 		/* 
 	 		 * if we get here, then locked_mm = false, it may change if i
 	 		 * FAULT_FLAG_RETRY_NOWAIT is set... (if set the mmap_lock is NOT DROPPED, locked = true)
 	 		 */
 			locked = vmf_flags & FAULT_FLAG_RETRY_NOWAIT;
+
+#endif /* 0 */
 
 		/*
 		 * if the per-VMA lock is the one still acquired, use the VMA directly (skip the mmap_read_lock, vma_lookup later on, basically).
@@ -152,9 +179,6 @@ static int handle_pte_fault__hkrphook(
 		 */
 		if(locked && likely(vmf_flags & FAULT_FLAG_VMA_LOCK))
 			target_vma = vmf(vmfe)->vma;
-
-		/* support for FAULT_FLAG_REMOTE, aka, remote mm */
-		target_mm = vmf(vmfe)->vma->vm_mm;
 
 		/*
 		 * if FAULT_FLAG_REMOTE is enabled then target_mm != current->mm. Anyway, rlock it
