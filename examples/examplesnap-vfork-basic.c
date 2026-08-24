@@ -22,7 +22,7 @@ int main()
 		/* split perm, with the vfork the wxwarning happens here due to 
 		 * the page table being already setup*/
 
-		check_scid_bcast_wxwarning_post(
+		check_scid_bcast_wxwarning(
 				mem
 				,
 				mprotect(mem, PAGE_SIZE, PROT_READ | PROT_EXEC /* | PROT_WRITE */ );
@@ -33,7 +33,7 @@ int main()
 		 * (if enabled in vma)
 		 */
 #if 1
-		check_scid_bcast_snapshot_post(
+		check_scid_bcast_snapshot(
 				mem
 				,
 				2
@@ -44,7 +44,7 @@ int main()
 				,
 		);
 #else /* remember to enable PROT_WRITE */
-		check_scid_bcast_snapshot_post(
+		check_scid_bcast_snapshot(
 				mem
 				,
 				2

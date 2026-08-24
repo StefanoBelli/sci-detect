@@ -34,7 +34,7 @@ int main()
 		 * correctly intercepted the exec even after
 		 * lazy PTE reconstruction of hw PTE assoc. to non-anon VMA!
 		 */
-		check_scid_bcast_snapshot_post(
+		check_scid_bcast_snapshot(
 				mem
 				,
 				2
@@ -54,7 +54,7 @@ int main()
 
 	((void(*)(void))mem)();
 
-	check_scid_bcast_snapshot_post(
+	check_scid_bcast_snapshot(
 				mem
 				,
 				3

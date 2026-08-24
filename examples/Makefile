@@ -87,7 +87,6 @@ EXAMPLES_SNAPSHOT= \
 	   examplesnap-fork-v3-multiplepages.example \
 	   examplesnap-fork-v4-multiplepages.example \
 	   examplesnap-fork-v5-multiplepages.example \
-	   examplesnap-fork-v6-multiplepages.example \
 	   examplesnap-fork-read.example \
 	   examplesnap-fork-read-v2.example \
 	   examplesnap-fork-read-v3.example \

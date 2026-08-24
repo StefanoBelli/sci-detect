@@ -27,7 +27,7 @@ int main()
 
 	if(!child) {
 		/* here we get the second one */
-		check_scid_bcast_snapshot_post(
+		check_scid_bcast_snapshot(
 				/* the virtual address */
 				mem
 				,
@@ -62,7 +62,7 @@ int main()
 			,
 	);
 
-	check_scid_bcast_snapshot_post(
+	check_scid_bcast_snapshot(
 			mem + 4096
 			,
 			2

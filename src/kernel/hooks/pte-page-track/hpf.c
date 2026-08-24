@@ -49,11 +49,11 @@ static int handle_pte_fault__ehkrphook(
 
 #ifdef DO_PTE_ALT_PROT
 
-#define DEFINE_MPI_BY_VMF(__mpivar, __vmf) \
+#define DEFINE_MPI(__mpivar, __vmf, __ptlp, __ptep) \
 	struct my_pte_info __mpivar = { \
 		.vma = (__vmf)->vma, \
-		.ptlp = (__vmf)->ptl, \
-		.ptep = (__vmf)->pte, \
+		.ptlp = (__ptlp), \
+		.ptep = (__ptep), \
 		.addr = (__vmf)->address, \
 	}
 
@@ -123,7 +123,7 @@ static int handle_pte_fault__hkrphook(
 		if(likely(!pgs->pap))
 			goto __put_pgs_end;
 
-		DEFINE_MPI_BY_VMF(mpi, vmf(vmfe));
+		DEFINE_MPI(mpi, vmf(vmfe), ptl, ptep);
 		DEFINE_SNAPSHOT_EXTRAS_WITH_PTR(snapex, 
 				task_pid_nr(current), pfn, vmf(vmfe)->real_address);
 

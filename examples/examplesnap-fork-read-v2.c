@@ -31,7 +31,7 @@ int main()
 		);
 
 		/* here we get the second one */
-		check_scid_bcast_snapshot_post(
+		check_scid_bcast_snapshot(
 				/* the virtual address */
 				mem
 				,

@@ -22,6 +22,8 @@ int main()
 
 		/* the post variant doesn't trigger the wxwarning due to
 		 * initial read access instead of actual ifetch
+		 *
+		 * Here we explicitly want the _post variant
 		 */
 		check_scid_bcast_wxwarning_post(
 				mem

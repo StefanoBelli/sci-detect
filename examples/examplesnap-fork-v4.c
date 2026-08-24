@@ -50,7 +50,7 @@ int main()
 
 	if(!child) {
 		/* The instruction fetch TRIGGERS the snapshot! CoW not broken */
-		check_scid_bcast_snapshot_post(
+		check_scid_bcast_snapshot(
 				/* the virtual address */
 				mem
 				,

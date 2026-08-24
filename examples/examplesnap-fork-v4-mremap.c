@@ -56,7 +56,7 @@ int main()
 		mem = __mremap_move(mem, 1);
 
 		/* The instruction fetch TRIGGERS the snapshot! CoW not broken */
-		check_scid_bcast_snapshot_post(
+		check_scid_bcast_snapshot(
 				/* the virtual address */
 				mem
 				,

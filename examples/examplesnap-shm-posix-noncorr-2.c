@@ -30,7 +30,7 @@ int main()
 	 */
 	printf("%d\n", *mem);
 
-	check_scid_bcast_snapshot_post(
+	check_scid_bcast_snapshot(
 			mem
 			,
 			4

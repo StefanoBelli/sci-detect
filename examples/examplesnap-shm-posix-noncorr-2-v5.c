@@ -25,6 +25,7 @@ int main()
 		return EXIT_FAILURE;
 	}
 
+	/* post variant to explicitly catch ifetch fault */
 	check_scid_bcast_snapshot_post(
 			mem
 			,

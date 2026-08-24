@@ -27,7 +27,7 @@ int main()
 	/* this should enforce write protection. */
 	printf("%d\n", *mem);
 
-	check_scid_bcast_snapshot_post(
+	check_scid_bcast_snapshot(
 			mem
 			,
 			3

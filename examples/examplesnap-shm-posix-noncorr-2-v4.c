@@ -24,6 +24,7 @@ int main()
 		return EXIT_FAILURE;
 	}
 
+	/* post variant to cause wxwarning via ifetch */
 	check_scid_bcast_wxwarning_post(
 			mem
 			,
