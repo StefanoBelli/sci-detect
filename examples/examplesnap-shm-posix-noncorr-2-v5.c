@@ -15,25 +15,20 @@ int main()
 		return EXIT_FAILURE;
 	}
 
+	/* check prefault */
 	mem = mmap(NULL, 
 			PAGE_SIZE, PROT_READ | PROT_EXEC, 
-			MAP_SHARED, shm_fd, 0);
+			MAP_SHARED | MAP_POPULATE, shm_fd, 0);
 	if(mem == MAP_FAILED) {
 		perror("mmap");
 		shm_unlink(POSIX_SHM_NAME);
 		return EXIT_FAILURE;
 	}
 
-	/* this should enforce exec protection.
-	 * If we do the first access read, and PTE is setup
-	 * we must enforce protection
-	 */
-	printf("%d\n", *mem);
-
 	check_scid_bcast_snapshot_post(
 			mem
 			,
-			4
+			2
 			,
 			SNAPSHOT_IFETCH_FAULT
 			,

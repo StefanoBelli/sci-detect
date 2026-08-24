@@ -28,12 +28,18 @@ int main()
 	 * If we do the first access read, and PTE is setup
 	 * we must enforce protection
 	 */
-	printf("%d\n", *mem);
 
-	check_scid_bcast_snapshot_post(
+	check_scid_bcast_wxwarning(
 			mem
 			,
-			4
+			printf("%d %d\n", getpid(), *mem);
+			,
+	);
+
+	check_scid_bcast_snapshot(
+			mem
+			,
+			2
 			,
 			SNAPSHOT_IFETCH_FAULT
 			,

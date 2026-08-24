@@ -23,7 +23,7 @@ int main()
 	/* here the first snapshot happens */
 	*mem = x86_opcode_ret;
 
-	child = fork();
+	child = vfork();
 
 	if(!child) {
 		/* here we get the second one */

@@ -24,18 +24,8 @@ int main()
 		return EXIT_FAILURE;
 	}
 
-	/* this should enforce exec protection.
-	 * If we do the first access read, and PTE is setup
-	 * we must enforce protection
-	 */
-	printf("%d\n", *mem);
-
-	check_scid_bcast_snapshot_post(
+	check_scid_bcast_wxwarning_post(
 			mem
-			,
-			4
-			,
-			SNAPSHOT_IFETCH_FAULT
 			,
 			((void(*)(void))mem)();
 			,

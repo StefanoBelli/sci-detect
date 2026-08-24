@@ -725,6 +725,47 @@ static void maybe_mkwrite_mypte(bool shdw_write, struct my_pte_info *mpi, struct
 	}
 }
 
+static void __do_pte_fixup(
+		pte_t pte, pte_t *ptep, struct vm_area_struct *vma,
+		spinlock_t *ptlp, struct page_status *pgs, unsigned long addr)
+{
+	pte = pte_wrprotect(pte);
+
+	if(pgs->pap->noprot)
+		pte = pte_set_flags(pte, _PAGE_NX);
+	else {
+		if(pgs->pap->write)
+			pte = pte_set_flags(pte, _PAGE_NX);
+		else {
+			if(vma->vm_flags & VM_EXEC)
+				pte = pte_mkexec(pte);
+		}
+	}
+
+	set_pte(ptep, pte);
+	spin_unlock(ptlp);
+	__scid_flush_tlb_page(vma, addr);
+}
+
+static void __pte_fixup_locked(struct my_pte_info *mpi, struct page_status *pgs)
+{
+	pte_t pte;
+
+	spin_lock(mpi->ptlp);
+
+	pte = ptep_get(mpi->ptep);
+	if(INVALID_PTE(pte)) {
+		spin_unlock(mpi->ptlp);
+		DEBUG_PAP(PTE_FIXUP, "invalid pte");
+		return;
+	}
+
+	__do_pte_fixup(pte, mpi->ptep, mpi->vma, mpi->ptlp, pgs, mpi->addr);
+
+	DEBUG_PAP_FMT(PTE_FIXUP, "fixup: pap->noprot=%d, pap->write=%d, vma has VM_EXEC=%ld",
+			pgs->pap->noprot, pgs->pap->write, mpi->vma->vm_flags & VM_EXEC);
+}
+
 #endif /* DO_PTE_ALT_PROT */
 
 void new_ptealtprot(__maybe_unused struct page_status *pgs)
@@ -796,7 +837,6 @@ void free_ptealtprot(__maybe_unused struct page_status *pgs)
 			/* here we need to choose the noprot mode */ \
 			__on_noprot__ \
 			\
-			(__pap)->noprot = false; \
 		} else { \
 			\
 			/* do regular operations */ \
@@ -824,6 +864,9 @@ void wrex_ptealtprot(
 
 	DEBUG_PAP_FMT(WREX, "called: addr=%px", (void*) mpi->addr);
 
+	/* we must use this to determine read accesses, whether it is initing ptealtprot
+	 * or setupping the process' PTE
+	 */
 	invalid_flags = 
 		!ff || 
 		(!(ff & FAULT_FLAG_INSTRUCTION) && !(ff & FAULT_FLAG_WRITE)) ||
@@ -831,9 +874,6 @@ void wrex_ptealtprot(
 
 	DEBUG_PAP_FMT(WREX, "fault_flag infos: invalid=%d, ff=%d, write=%d, instr=%d", 
 			invalid_flags, ff, ff & FAULT_FLAG_WRITE, ff & FAULT_FLAG_INSTRUCTION);
-
-	if(unlikely(invalid_flags))
-		return;
 
 	folio = __init_collect_aspcs_and_lock(pgs, &addr_spcs_head, mmslk, kp);
 	if(!folio) {
@@ -846,48 +886,85 @@ void wrex_ptealtprot(
 			,
 
 			/* on init */
+
+			/* UNLIKELY TO HAPPEN: if init of ptealtprot due to read access, enforce noprot */
 			SET_INITIATED_RIGHT_NOW();
-			pgs->pap->write = ff & FAULT_FLAG_WRITE;
+			pgs->pap->write = ff & FAULT_FLAG_WRITE; /* if this is true... */
+			pgs->pap->noprot = invalid_flags; /* this is false */
 
 			DEBUG_PAP_FMT(WREX, "init: pap->write=%d", pgs->pap->write);
 			,
 
 			/* on noprot */
-			pgs->pap->write = ff & FAULT_FLAG_WRITE;
+
+			/* If ptealtprot already inited, we're on noprot mode and this PTE got setup 
+			 * after read access, keep the noprot mode */
+			pgs->pap->write = ff & FAULT_FLAG_WRITE; /* if this is true... */
+			pgs->pap->noprot = invalid_flags; /* this is false */
 
 			DEBUG_PAP_FMT(WREX, "noprot, pap->write=%d", pgs->pap->write);
 			,
 
 			/* on regular */
-			bool must_alternate;
 
-			must_alternate = 
-				(pgs->pap->write && (ff & FAULT_FLAG_INSTRUCTION)) ||
-				(!pgs->pap->write && (ff & FAULT_FLAG_WRITE));
+			/* attempt to do alternation if either the access is write or exec, not read! 
+			 *
+			 * If this was first access read, don't do anything.
+			 */
+			if(!invalid_flags) {
+				bool must_alternate;
 
-			if(must_alternate) {
-				DEBUG_PAP_FMT(WREX, "alternate: old pap->write=%d, new pap->write=%d",
-						pgs->pap->write, !pgs->pap->write);
+				must_alternate = 
+					(pgs->pap->write && (ff & FAULT_FLAG_INSTRUCTION)) ||
+					(!pgs->pap->write && (ff & FAULT_FLAG_WRITE));
 
-				pgs->pap->write = !pgs->pap->write;
-			} else {
-				DEBUG_PAP_FMT(WREX, "NOT alternating: cur pap->write=%d",
-						pgs->pap->write);
+				if(must_alternate) {
+					DEBUG_PAP_FMT(WREX, "alternate: old pap->write=%d, new pap->write=%d",
+							pgs->pap->write, !pgs->pap->write);
 
-				goto __finish;
+					pgs->pap->write = !pgs->pap->write;
+				} else {
+					DEBUG_PAP_FMT(WREX, "NOT alternating: cur pap->write=%d",
+							pgs->pap->write);
+
+					goto __finish;
+				}
 			}
 	);
 
-	do_snapshot(pgs, snapex, ff, initiated_right_now, WREX);
+	/* if it was either write or exec... */
+	if(!invalid_flags) {
+		do_snapshot(pgs, snapex, ff, initiated_right_now, WREX);
 
-	DEBUG_PAP(WREX, "will walk pte folios:...");
+		DEBUG_PAP(WREX, "will walk pte folios:...");
 
-	ptes_walk_from_folio_locked(
-			folio, wrex_pte_one, pgs->pap, addr_spcs_head, mpi->ptep, kp);
+		ptes_walk_from_folio_locked(
+				folio, wrex_pte_one, pgs->pap, addr_spcs_head, mpi->ptep, kp);
+	} else {
+		/* it was a read fault... */
+		if(unlikely(initiated_right_now)) {
+			/* 
+			 * ... if the read causes the ptealtprot to init (wx detection happens at the first read), noprot.
+			 * Unlikely for various reasons.
+			 */
+			DEBUG_PAP(WREX, "invalid flags, init right now (first access read)");
+			ptes_walk_from_folio_locked(folio, noneprot_pte_one, NULL, addr_spcs_head, NULL, kp);
+		} else {
+			/*
+			 * ... if the read causes PTE to setup and ptealtprot already inited, enforce protection of the
+			 * PTE.
+			 */
+			DEBUG_PAP(WREX, "invalid flags, however previously inited (pte fixup needed)");
+			__pte_fixup_locked(mpi, pgs);
+		}
+
+		goto __finish_unlock;
+	}
 
 __finish:
 	maybe_mkwrite_mypte(pgs->pap->write, mpi, kp);
 
+__finish_unlock:
 	__end_unlock_put_free_aspcs(pgs, &addr_spcs_head, mmslk, folio, kp);
 
 #endif
@@ -929,7 +1006,7 @@ void exonly_ptealtprot(
 			/* on noprot */
 			/* here we keep write disabled as we are going
 			 * to init to allow exec, not write */
-
+			pgs->pap->noprot = false;
 			DEBUG_PAP_FMT(EXONLY, "noprot, pap->write=%d", pgs->pap->write);
 			,
 
@@ -1031,32 +1108,6 @@ __finish:
 	return rv;
 }
 
-#ifdef DO_PTE_ALT_PROT
-
-static void __do_pte_fixup(
-		pte_t pte, pte_t *ptep, struct vm_area_struct *vma,
-		spinlock_t *ptlp, struct page_status *pgs, unsigned long addr)
-{
-	pte = pte_wrprotect(pte);
-
-	if(pgs->pap->noprot)
-		pte = pte_set_flags(pte, _PAGE_NX);
-	else {
-		if(pgs->pap->write)
-			pte = pte_set_flags(pte, _PAGE_NX);
-		else {
-			if(vma->vm_flags & VM_EXEC)
-				pte = pte_mkexec(pte);
-		}
-	}
-
-	set_pte(ptep, pte);
-	spin_unlock(ptlp);
-	__scid_flush_tlb_page(vma, addr);
-}
-
-#endif /* DO_PTE_ALT_PROT */
-
 /* 
  * the per-VMA or mmap read lock (that protects vma inspection in 
  * pte_fixup_ptealtprot) must be properly held by the caller.
@@ -1072,8 +1123,6 @@ void pte_fixup_ptealtprot(
 {
 
 #ifdef DO_PTE_ALT_PROT
-	pte_t pte;
-
 	DEBUG_PAP_FMT(PTE_FIXUP, "called: ptep=%px, vma=%px, ptlp=%px, addr=%px",
 			mpi->ptep, mpi->vma, mpi->ptlp, (void*) mpi->addr);
 
@@ -1094,23 +1143,11 @@ void pte_fixup_ptealtprot(
 	);
 
 	if(pgs->pap->init) {
-		DEBUG_PAP(PTE_FIXUP, "already inited");
+		DEBUG_PAP(PTE_FIXUP, "initiating... skip fixup");
 		goto __pap_unlock;
 	}
 
-	spin_lock(mpi->ptlp);
-
-	pte = ptep_get(mpi->ptep);
-	if(INVALID_PTE(pte)) {
-		spin_unlock(mpi->ptlp);
-		DEBUG_PAP(PTE_FIXUP, "invalid pte");
-		goto __pap_unlock;
-	}
-
-	__do_pte_fixup(pte, mpi->ptep, mpi->vma, mpi->ptlp, pgs, mpi->addr);
-
-	DEBUG_PAP_FMT(PTE_FIXUP, "fixup: pap->noprot=%d, pap->write=%d, vma has VM_EXEC=%ld",
-			pgs->pap->noprot, pgs->pap->write, mpi->vma->vm_flags & VM_EXEC);
+	__pte_fixup_locked(mpi, pgs);
 
 __pap_unlock:
 	mutex_unlock(&pgs->pap->lock);

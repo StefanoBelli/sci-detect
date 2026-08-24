@@ -291,7 +291,7 @@
    - Initial setup according to the fault type (nofault, write, exec)
      - write: wx detection due to write
      - exec: wx detection due to exec
-     - nofault: wx detection due to valid PTE protection change (```mprotect```)
+     - nofault: wx detection due to valid PTE protection change (```mprotect```) or initial access is read
    - Set initial state:
      - write: permit all writes; deny all execs
      - exec: permit all execs; deny all writes
@@ -308,15 +308,134 @@
      - If this is an exec:
        - do the snapshot
        - permit all execs; deny all writes
+     - If this is a (first access) read:
+       - enforce none prot on current VM fault affected PTE.
    - If write permitted (shadow perm):
      - If this is a write (PTE required protection bits missing):
        - For affected VM fault PTE: allow write (at the end of ```handle_pte_fault``` this is safe)
      - If this is an exec (PTE required protection bits missing):
        - Do the snapshot
        - permit all execs; deny all writes
+     - If this is a (first access) read:
+       - enforce current protection bits (allow write, deny exec) on current VM fault affected PTE.
    - If exec permitted (shadow perm);
      - If this is an exec (PTE required protection bits missing):
        - Well, this should never happen...
      - If this is a write (PTE required protection bits missing):
        - Do the snapshot
        - permit all writes; deny all execs. On current kcp, for affected VM fault PTE, set write bit on directly to avoid useless additional page fault.
+     - If this is a (first access) read:
+       - enforce current protection bits (allow exec, deny read) on current VM fault affected PTE.
+
+## How does the kernel handle first reads?
+
+ When you first access memory through a load instruction, hw PTEs need to be setup.
+
+ Kernel does that according to infos in associated vma descriptor.
+
+ So, if our page (e.g. shared memory) is accessed by two distinct processes, the page may be subject to the ptealtprot mechanism to do snapshots.
+
+ If the second process, which has its own hw PTEs pointing towards the same physical memory, does a read as its initial access, we must intercept that to
+ enforce current ptealtprot protection (this is handled in ```wrex_ptealtprot```, thanks to the ```enum fault_flags``` passed to ```handle_pte_fault```).
+
+#### Important stuff: hw PTEs are most likely write-protected after first read access
+
+ It is a notorious thing for the private+anonymous and private+file-backed pages: this serves to implement CoW (for the zeropage in the anon case, for the file content in the other case).
+
+ But for vmas that have a ```vm_ops != NULL```? It is **most likely** the same thing! The vma driver will, probably, want to know when you do the write (to do whatever it wants...), so the
+ hw PTEs, on first initial read are setup in such a way that they're write-protected! See ```vma_wants_writenotify``` (https://elixir.bootlin.com/linux/v7.2/source/mm/vma.c#L2109), which
+ adjust ```vm_page_prot```  which is later used to build arch-specific hw PTE protection bits.
+
+**RECALL**: unless using memory protection keys, on x86 it may only be a first read access fault...
+
+##### This may only impact initial wx detection
+
+ You'd expect to find a wx-page (if properly set prot = PROT_WRITE | PROT_EXEC |*) after an initial read (due to hw PTEs being setup), but you don't... That's actually fine.
+
+## The issue with ```VM_FAULT_NOPAGE``` and ```VM_FAULT_RETRY``` in ```hpf``` hook
+
+ I was mistakenly processing stuff when ```handle_pte_fault``` returned ```VM_FAULT_RETRY``` turned on in the flags (first thing)
+
+ And then, not considering ```VM_FAULT_NOPAGE``` was a major issue that caused the code to inspect a nonvalid ```pte_t* pte``` from ```vm_fault```.
+
+ In fixed ```hpf``` hook code, when ```VM_FAULT_NOPAGE``` is on, we must redo a partial page table walk (from the valid, passed ```pmd``` in ```vm_fault```)
+ with ```pte_offset_map_lock```, we use the provided ```vmf->pte``` otherwise.
+
+## The issue with instruction that write to the same page where they're stored
+
+ Ok this was tricky: suppose you have something like this:
+
+ ```c
+ char *mem = mmap(NULL, ..., PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS, ...);
+ ((void(*)(void))mem)();
+ ```
+
+ Before the fix, this resulted in an infinite loop...
+
+ But, what's the content of mem at the moment of the call? ```0x00 0x00 0x00 0x00 ... 0x00```
+
+ In x86, ```0x00 0x00``` is a valid instruction -> ```addb %al, (%rax)```.
+
+ And what's the content of ```rax``` ? mem.
+
+ So, legitimately the code did an infinite loop of alternating w-x-w-x-w-x-w-x on the same page, the same virtual address.
+
+ In fact, this code worked (changed ```rax``` pointing to another virtual address).
+
+ ```c
+#include <stdio.h>
+#include <sys/mman.h>
+
+#define __dont_optimize __attribute__((optimize("O0,omit-frame-pointer")))
+#define __naked __attribute__((__naked__))
+
+void __dont_optimize __naked kall_zeropage(char *mem, char* tmpbuf)
+{
+	__asm__ __volatile__(
+			"movq %1, %%rax;"
+			"jmp *%0;"
+			"ret;"
+			:: "r"(mem), "r"(tmpbuf) : "rax", "memory");
+}
+
+int main()
+{
+	char stack_buf[4096];
+
+	char *mem = mmap(NULL, 4096, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
+
+	kall_zeropage(mem, stack_buf);
+
+	return 0;
+}
+```
+
+ A solution had to be worked out, because even though it was "legitimate" it was not an expected behaviour.
+
+ Instead we expect the code to go through the page and then segmentation fault when reaching the next unmapped area (for example).
+
+ Fix involves using notifier blocks (the ```die_chain```), single stepping (via X86 RFLAGS directly) and task work for deferring
+ (since the ```die_chain``` notifiers run in atomic context).
+
+ Basically when the pages of the instruction pointer and faulting virtual address are the same (by page masking), we must allow both
+ write+exec, but enable singlestep to handle the situation immediately after (reapplying the current ptealtprot)
+
+## Partial support for prefaulting (snapshot)
+
+ Even though for the wx-detection part the support for prefaulting is pretty solid, for the snapshot part, we have only partial (few and "lucky" cases) support.
+
+ It may not be hard to support though, we may install more hooks on functions like ```__mm_populate``` and ```madvise_populate``` (to determine this is kernel prefaulting and not a concrete action)
+
+ In the end these function always pass through GUP -> ```handle_mm_fault``` -> ```handle_pte_fault``` to simulate a hardware page fault to setup PTEs.
+
+ The objective is to properly intercept the events and either:
+  - fixup the hw PTEs if alternation already on, or
+  - enforce noneprot on all PTEs if this results in first wx detection
+
+ The main issue with the current status is that we can intercept the prefault, but don't know that it is actually a software-simulated page fault, not the user actually doing something:
+ this wrongly affects the state machine:
+  - since they (don't forget ```mlock()``` also...) simulate the page fault, depending on the vma protection, they may pass to GUP ```FOLL_WRITE``` and other stuff
+  - if we take, for example, ```FOLL_WRITE``` it translates into ```FAULT_FLAG_WRITE``` which leads our hook code to think that we did a write access, when we actually didn't
+  - Correct behavious should be similar to what the ```cpr``` hook do, and what happens on reads...
+
+ Even though it should not be bad, it may lead to losing some events and should get proper handling of the situation.
