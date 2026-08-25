@@ -361,6 +361,8 @@
  In fixed ```hpf``` hook code, when ```VM_FAULT_NOPAGE``` is on, we must redo a partial page table walk (from the valid, passed ```pmd``` in ```vm_fault```)
  with ```pte_offset_map_lock```, we use the provided ```vmf->pte``` otherwise.
 
+ See more about ```VM_FAULT_NOPAGE```  in the file ```docs/01-addhooks.md``` (italian language).
+
 ## The issue with instruction that write to the same page where they're stored
 
  Ok this was tricky: suppose you have something like this:
