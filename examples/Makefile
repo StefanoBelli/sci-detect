@@ -56,6 +56,7 @@ EXAMPLES= \
 
 EXAMPLES_SNAPSHOT= \
 	   examplesnap-single-simple.example \
+	   examplesnap-single-read.example \
 	   examplesnap-single-mprofixup.example \
 	   examplesnap-single-sameip.example \
 	   examplesnap-single-sameip-v2.example \
@@ -103,7 +104,9 @@ EXAMPLES_SNAPSHOT= \
 	   examplesnap-vfork-v4-multiplepages.example \
 	   examplesnap-vfork-v5-multiplepages.example \
 	   examplesnap-vfork-v6-multiplepages.example \
-	   examplesnap-vfork-pvrw.example
+	   examplesnap-vfork-pvrw.example \
+	   examplesnap-vfork-read.example \
+	   examplesnap-single-prefault.example
 
 ALL_EXAMPLES= $(EXAMPLES) $(EXAMPLES_SNAPSHOT)
 
