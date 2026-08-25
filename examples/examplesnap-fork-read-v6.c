@@ -20,16 +20,27 @@ int main()
 	char *mem = mmap(
 			NULL, 
 			PAGE_SIZE, 
-			PROT_READ | PROT_WRITE | PROT_EXEC, 
+			PROT_READ | PROT_WRITE, 
 			MAP_SHARED, 
 			fd, 0);
 
 	*mem = x86_opcode_ret;
+	*mem = x86_opcode_ret;
+
+	check_scid_bcast_wxwarning(
+			mem
+			,
+			mprotect(mem, PAGE_SIZE, PROT_READ | PROT_EXEC);
+			,
+	);
 
 	child = fork();
 	if(!child) {
+		/* enforce protection if we read first */
+		printf("%d\n", *mem);
+
 		/* 
-		 * correctly intercepted the exec even after
+		 * correctly intercepted the write even after
 		 * lazy PTE reconstruction of hw PTE assoc. to non-anon VMA!
 		 */
 		check_scid_bcast_snapshot(
@@ -47,19 +58,6 @@ int main()
 	}
 
 	wait_for_child(child);
-
-	((void(*)(void))mem)();
-
-	check_scid_bcast_snapshot(
-				mem
-				,
-				3
-				,
-				SNAPSHOT_WRITE_FAULT
-				,
-				*mem = x86_opcode_ret;
-				,
-	);
 
 	example_passed();
 	close(fd);

@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #define _XOPEN_SOURCE 500
 
 #include "exampleutils.h"
@@ -19,12 +20,13 @@ int main()
 
 	char *mem = mmap(
 			NULL, 
-			PAGE_SIZE, 
+			3 * PAGE_SIZE, 
 			PROT_READ | PROT_WRITE | PROT_EXEC, 
 			MAP_SHARED, 
 			fd, 0);
 
 	*mem = x86_opcode_ret;
+	*(mem + 8192) = x86_opcode_ret;
 
 	child = fork();
 	if(!child) {
@@ -47,6 +49,8 @@ int main()
 	}
 
 	wait_for_child(child);
+
+	mem = __mremap_shrink_or_extend(mem, 3, 1);
 
 	((void(*)(void))mem)();
 

@@ -1,3 +1,6 @@
+/* ftm for ftruncate */
+#define _XOPEN_SOURCE 500
+
 #include "exampleutils.h"
 
 int main()
@@ -5,13 +8,17 @@ int main()
 	char *mem;
 	int shm_fd;
 
-	shm_fd = shm_open(
-			POSIX_SHM_NAME, 
-			POSIX_SHM_OFLAGS & POSIX_NO_EXCL_CREAT, 
-			POSIX_SHM_MODE);
+	__maybe_mlock_all_addr_space();
 
+	shm_fd = shm_open(POSIX_SHM_NAME, POSIX_SHM_OFLAGS, POSIX_SHM_MODE);
 	if(shm_fd < 0) {
 		perror("shm_open");
+		return EXIT_FAILURE;
+	}
+
+	if(ftruncate(shm_fd, PAGE_SIZE)) {
+		perror("ftruncate");
+		shm_unlink(POSIX_SHM_NAME);
 		return EXIT_FAILURE;
 	}
 
@@ -24,21 +31,7 @@ int main()
 		return EXIT_FAILURE;
 	}
 
-	/* this should enforce write protection. */
-	printf("%d\n", *mem);
-
-	check_scid_bcast_snapshot(
-			mem
-			,
-			3
-			,
-			SNAPSHOT_WRITE_FAULT
-			,
-			*mem = x86_opcode_ret;
-			,
-	);
-
-	shm_unlink(POSIX_SHM_NAME);
+	*mem = x86_opcode_ret;
 
 	example_passed();
 	return EXIT_SUCCESS;

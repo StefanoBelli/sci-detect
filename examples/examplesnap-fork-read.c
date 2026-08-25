@@ -33,6 +33,8 @@ int main()
 	child = fork();
 
 	if(!child) {
+		printf("%d\n", *mem);
+
 		/* CoW breaks, but newly created PTE has WX */
 		check_scid_bcast_wxwarning(
 				/* the virtual address */

@@ -2,13 +2,12 @@
 
 int main()
 {
-	/* CoW stuff */
 	pid_t child;
 	char *mem = mmap(
 			NULL, 
 			PAGE_SIZE, 
 			PROT_READ | PROT_WRITE | PROT_EXEC, 
-			MAP_ANONYMOUS | MAP_PRIVATE, 
+			MAP_SHARED | MAP_ANONYMOUS, 
 			-1, 0);
 
 	/* here the first snapshot happens */
@@ -30,26 +29,36 @@ int main()
 			,
 	);
 
+	/* here we get the third one */
+	/* this never fails: no CoW since mapping is shared */
+	check_scid_bcast_snapshot(
+			/* the virtual address */
+			mem
+			,
+			/* the expected seq num */
+			3
+			,
+			/* the expected fault */
+			SNAPSHOT_WRITE_FAULT
+			,
+			/* the snapshot-triggering operation */
+			*mem = x86_opcode_ret;
+			,
+	);
+
 	child = fork();
 
 	if(!child) {
-		/* CoW breaks, but newly created PTE has WX */
-		check_scid_bcast_wxwarning(
-				/* the virtual address */
-				mem
-				,
-				/* the snapshot-triggering operation */
-				*mem = x86_opcode_ret;
-				,
-		);
+		/* first access read */
+		printf("%d\n", *mem);
 
-		/* here we get the second one */
+		/* The instruction fetch TRIGGERS the snapshot! CoW not broken */
 		check_scid_bcast_snapshot(
 				/* the virtual address */
 				mem
 				,
 				/* the expected seq num */
-				2
+				4
 				,
 				/* the expected fault */
 				SNAPSHOT_IFETCH_FAULT
@@ -63,6 +72,22 @@ int main()
 	}
 
 	wait_for_child(child);
+
+	/* this should not trigger the snapshot */
+	((void(*)(void))mem)();
+
+	/* expect snapshot at write here */
+	check_scid_bcast_snapshot(
+			mem
+			,
+			5
+			,
+			SNAPSHOT_WRITE_FAULT
+			,
+			*mem = x86_opcode_ret;
+			,
+	);
+
 	example_passed();
 	munmap(mem, PAGE_SIZE);
 	return EXIT_SUCCESS;

@@ -1,15 +1,23 @@
+#define _XOPEN_SOURCE 500
+
 #include "exampleutils.h"
 
 int main()
 {
+	int fd = open("res/file", O_RDWR);
+	if(fd < 0) {
+		perror("open");
+		return EXIT_FAILURE;
+	}
+
 	/* CoW stuff */
 	pid_t child;
 	char *mem = mmap(
 			NULL, 
-			PAGE_SIZE, 
+			3 * PAGE_SIZE, 
 			PROT_READ | PROT_WRITE | PROT_EXEC, 
-			MAP_ANONYMOUS | MAP_PRIVATE, 
-			-1, 0);
+			MAP_PRIVATE, 
+			fd, 0);
 
 	/* here the first snapshot happens */
 	*mem = x86_opcode_ret;
@@ -30,13 +38,22 @@ int main()
 			,
 	);
 
-	child = fork();
+	child = vfork();
 
 	if(!child) {
-		/* CoW breaks, but newly created PTE has WX */
-		check_scid_bcast_wxwarning(
+
+		((void(*)(void))mem)();
+
+		/* here we get the second one */
+		check_scid_bcast_snapshot(
 				/* the virtual address */
 				mem
+				,
+				/* the expected seq num */
+				3
+				,
+				/* the expected fault */
+				SNAPSHOT_WRITE_FAULT
 				,
 				/* the snapshot-triggering operation */
 				*mem = x86_opcode_ret;
@@ -49,7 +66,7 @@ int main()
 				mem
 				,
 				/* the expected seq num */
-				2
+				4
 				,
 				/* the expected fault */
 				SNAPSHOT_IFETCH_FAULT

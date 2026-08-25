@@ -1,3 +1,5 @@
+#define _XOPEN_SOURCE 500
+
 #include "exampleutils.h"
 
 int main()
@@ -30,13 +32,23 @@ int main()
 			,
 	);
 
-	child = fork();
+	/* mm is the same... */
+	child = vfork();
 
 	if(!child) {
-		/* CoW breaks, but newly created PTE has WX */
-		check_scid_bcast_wxwarning(
+		/* PTE already setup... this does absolutely nothing */
+		printf("%d\n", *mem);
+
+		/* here we get the second one */
+		check_scid_bcast_snapshot(
 				/* the virtual address */
 				mem
+				,
+				/* the expected seq num */
+				3
+				,
+				/* the expected fault */
+				SNAPSHOT_WRITE_FAULT
 				,
 				/* the snapshot-triggering operation */
 				*mem = x86_opcode_ret;
@@ -49,7 +61,7 @@ int main()
 				mem
 				,
 				/* the expected seq num */
-				2
+				4
 				,
 				/* the expected fault */
 				SNAPSHOT_IFETCH_FAULT

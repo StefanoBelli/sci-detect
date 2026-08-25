@@ -256,6 +256,11 @@ Essenzialmente hooked con una kprobe e viene utilizzata per indicare che è stat
 	  * alla fine, si chiama ```finish_fault``` per settare le page table con
 	  ```set_pte_range```
 
+NOTA IMPORTANTE: ```VM_FAULT_NOPAGE```, se ritornato da ```->fault``` indica che la vmop stessa ha settato le PTE e non deve fare il core mm,
+tuttavia questo viene fatto in casi molto particolari (DAX dei filesystem, DMA?), non abbiamo installato alcun hook su una ```->fault``` implementation
+specifica. L'unico caso in cui ci interessa ```VM_FAULT_NOPAGE``` è quando viene effettuato il fault around: ma a quel punto il problema sparisce e nemmeno
+ce ne preoccupiamo - ```filemap_map_pages``` è stata opportunamente hooked.
+
 ## ```finish_fault```
 
 L'hook permette di tracciare il kcp corretto prima di chiamare
@@ -269,9 +274,17 @@ Spesso settato come ```->map_pages```, utilizzato per tracciare l'utilizzo di
 ```set_pte_range```, che viene utilizzato in ```filemap_map_order0_folio``` e 
 ```filemap_map_folio_range```. Non li ho hookati perchè non hookabili, li avrei potuti utilizzare per aumentare precisione kcp (?) 
 
-Nel nostro contesto, è utilizzato per attuare, 
+Niel nostro contesto, è utilizzato per attuare, 
 dentro ```do_read_fault``` il meccanismo del *fault around* per ottimizzare
-le prestazioni (ridurre il numero di page fault, roba che dovrebbe essere legata al readahead).
+le prestazioni (ridurre il numero di page faults, le PTE "around" vengono pre-settate).
+
+NOTA IMPORTANTE: IL FAULT AROUND viene effettuato solo se il fault è di tipo read (o anche exec)
+
+ALTRA NOTA: unico vero caso di interesse in cui ```VM_FAULT_NOPAGE``` è importante, ma in realtà non troppo perchè ```set_pte_range``` (chiamato da ```filemap_map_pages```) è hooked e quindi
+non ci interessa del ptep in ```vmf->pte``` che poi non è più valida (https://elixir.bootlin.com/linux/v6.19.14/source/mm/filemap.c#L3815 ```vmf->ptep``` è incrementata e 
+ritorno di ```VM_FAULT_NOPAGE```)
+
+ALTRA NOTA: il readahead ha a che fare con la page cache più che altro...
 
 L'hook setta un bit in una bitmap per tracciare il kcp.
 

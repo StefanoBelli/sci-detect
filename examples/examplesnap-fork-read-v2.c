@@ -14,25 +14,12 @@ int main()
 	/* here the first snapshot happens */
 	*mem = x86_opcode_ret;
 
-	/* here we get the second one */
-	check_scid_bcast_snapshot(
-			/* the virtual address */
-			mem
-			,
-			/* the expected seq num */
-			2
-			,
-			/* the expected fault */
-			SNAPSHOT_IFETCH_FAULT
-			,
-			/* the snapshot-triggering operation */
-			((void(*)(void))mem)();
-			,
-	);
-
 	child = fork();
 
 	if(!child) {
+		/* first read: enforce */
+		printf("%d\n", *mem);
+
 		/* CoW breaks, but newly created PTE has WX */
 		check_scid_bcast_wxwarning(
 				/* the virtual address */

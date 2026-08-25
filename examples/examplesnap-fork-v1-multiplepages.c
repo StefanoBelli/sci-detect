@@ -6,13 +6,15 @@ int main()
 	pid_t child;
 	char *mem = mmap(
 			NULL, 
-			PAGE_SIZE, 
+			5 * PAGE_SIZE, 
 			PROT_READ | PROT_WRITE | PROT_EXEC, 
 			MAP_ANONYMOUS | MAP_PRIVATE, 
 			-1, 0);
 
 	/* here the first snapshot happens */
 	*mem = x86_opcode_ret;
+	*(mem + 4096) = x86_opcode_ret;
+	*(mem + 3 * 4096) = x86_opcode_ret;
 
 	/* here we get the second one */
 	check_scid_bcast_snapshot(

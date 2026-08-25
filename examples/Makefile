@@ -56,25 +56,57 @@ EXAMPLES= \
 
 EXAMPLES_SNAPSHOT= \
 	   examplesnap-single-simple.example \
+	   examplesnap-single-read.example \
 	   examplesnap-single-mprofixup.example \
+	   examplesnap-single-sameip.example \
+	   examplesnap-single-sameip-v2.example \
 	   examplesnap-single-pvrw.example \
 	   examplesnap-shm-posix-noncorr-1.example \
 	   examplesnap-shm-posix-noncorr-2.example \
 	   examplesnap-shm-posix-noncorr-1-v2.example \
 	   examplesnap-shm-posix-noncorr-2-v2.example \
+	   examplesnap-shm-posix-noncorr-1-v3.example \
+	   examplesnap-shm-posix-noncorr-2-v3.example \
+	   examplesnap-shm-posix-noncorr-1-v4.example \
+	   examplesnap-shm-posix-noncorr-2-v4.example \
+	   examplesnap-shm-posix-noncorr-1-v5.example \
+	   examplesnap-shm-posix-noncorr-2-v5.example \
+	   examplesnap-fork-basic.example \
 	   examplesnap-fork-v1.example \
 	   examplesnap-fork-v2.example \
 	   examplesnap-fork-v3.example \
 	   examplesnap-fork-v4.example \
+	   examplesnap-fork-v4-mremap.example \
 	   examplesnap-fork-v5.example \
 	   examplesnap-fork-v6.example \
 	   examplesnap-fork-v7.example \
+	   examplesnap-fork-v7-mremap.example \
 	   examplesnap-fork-v8.example \
 	   examplesnap-fork-pvrw.example \
+	   examplesnap-fork-v1-multiplepages.example \
+	   examplesnap-fork-v2-multiplepages.example \
+	   examplesnap-fork-v3-multiplepages.example \
+	   examplesnap-fork-v4-multiplepages.example \
+	   examplesnap-fork-v5-multiplepages.example \
+	   examplesnap-fork-read.example \
+	   examplesnap-fork-read-v2.example \
+	   examplesnap-fork-read-v3.example \
+	   examplesnap-fork-read-v4.example \
+	   examplesnap-fork-read-v5.example \
+	   examplesnap-fork-read-v6.example \
+	   examplesnap-fork-read-v7.example \
+	   examplesnap-fork-read-v8.example \
+	   examplesnap-vfork-basic.example \
 	   examplesnap-vfork-v1.example \
 	   examplesnap-vfork-v2.example \
 	   examplesnap-vfork-v3.example \
-	   examplesnap-vfork-pvrw.example
+	   examplesnap-vfork-v3-mremap.example \
+	   examplesnap-vfork-v4-multiplepages.example \
+	   examplesnap-vfork-v5-multiplepages.example \
+	   examplesnap-vfork-v6-multiplepages.example \
+	   examplesnap-vfork-pvrw.example \
+	   examplesnap-vfork-read.example \
+	   examplesnap-single-prefault.example
 
 ALL_EXAMPLES= $(EXAMPLES) $(EXAMPLES_SNAPSHOT)
 

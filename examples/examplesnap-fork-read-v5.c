@@ -25,32 +25,29 @@ int main()
 			fd, 0);
 
 	*mem = x86_opcode_ret;
+	*mem = x86_opcode_ret;
+
+	check_scid_bcast_snapshot(
+			mem
+			,
+			2
+			,
+			SNAPSHOT_IFETCH_FAULT
+			,
+			((void(*)(void))mem)();
+			,
+	);
 
 	child = fork();
 	if(!child) {
+		/* enforce protection if we read first */
+		printf("%d\n", *mem);
+
 		/* 
-		 * correctly intercepted the exec even after
+		 * correctly intercepted the write even after
 		 * lazy PTE reconstruction of hw PTE assoc. to non-anon VMA!
 		 */
 		check_scid_bcast_snapshot(
-				mem
-				,
-				2
-				,
-				SNAPSHOT_IFETCH_FAULT
-				,
-				((void(*)(void))mem)();
-				,
-		);
-
-		exit(EXIT_SUCCESS);
-	}
-
-	wait_for_child(child);
-
-	((void(*)(void))mem)();
-
-	check_scid_bcast_snapshot(
 				mem
 				,
 				3
@@ -59,7 +56,12 @@ int main()
 				,
 				*mem = x86_opcode_ret;
 				,
-	);
+		);
+
+		exit(EXIT_SUCCESS);
+	}
+
+	wait_for_child(child);
 
 	example_passed();
 	close(fd);
