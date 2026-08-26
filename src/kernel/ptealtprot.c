@@ -682,47 +682,57 @@ static void orig_ip_task_cleanup_dwork(struct work_struct *work)
 }
 
 /* also checks for ip == addr situation, e.g. instr "0x00 0x00" with pointing "rax" */
-static void maybe_mkwrite_mypte(bool shdw_write, struct my_pte_info *mpi, struct kprobe *kp)
+static void __wrex_mypte_enforce(bool shdw_write, struct my_pte_info *mpi, struct kprobe *kp)
 {
 	pte_t pte;
 	unsigned long user_ip;
 	struct pt_regs *current_pt_regs;
 
-	if(shdw_write && mpi->vma->vm_flags & VM_WRITE) {
-		spin_lock(mpi->ptlp);
+	spin_lock(mpi->ptlp);
 
-		pte = ptep_get(mpi->ptep);
-		if(INVALID_PTE(pte)) {
-			spin_unlock(mpi->ptlp);
-			return;
-		}
+	pte = ptep_get(mpi->ptep);
+	if(INVALID_PTE(pte)) {
+		spin_unlock(mpi->ptlp);
+		return;
+	}
 
+	if(shdw_write) {
 		DEBUG_PAP(WREX, "making my own pte writable and non-exec");
 
 		current_pt_regs = task_pt_regs(current);
 		user_ip = instruction_pointer(current_pt_regs);
 
-		pte = pte_mkwrite_novma(pte);
+		if(likely(mpi->vma->vm_flags & VM_WRITE))
+			pte = pte_mkwrite_novma(pte);
 
 		/* check if the ran instruction is trying to change the same (WX) page it resides into */
-		if((user_ip & PAGE_MASK) == (mpi->addr & PAGE_MASK)) {
-			if(likely(mpi->vma->vm_flags & VM_EXEC)) {
-				/* make it executable */
-				pte = pte_mkexec(pte);
+		if((user_ip & PAGE_MASK) == (mpi->addr & PAGE_MASK) && likely(mpi->vma->vm_flags & VM_EXEC)) {
+			/* make it executable */
+			pte = pte_mkexec(pte);
 
-				/* enable single stepping for "current" */
-				current_pt_regs->flags |= X86_EFLAGS_TF;
+			/* enable single stepping for "current" */
+			current_pt_regs->flags |= X86_EFLAGS_TF;
 
-				/* add entry to the hashtable */
-				orig_ip_task_add(user_ip);
-			}
+			/* add entry to the hashtable */
+			orig_ip_task_add(user_ip);
 		} else 
+			/* in the normal situation, just keep execute disabled */
 			pte = pte_set_flags(pte, _PAGE_NX);
+	} else {
+		DEBUG_PAP(WREX, "making my own pte exec and non-writable");
 
-		set_pte(mpi->ptep, pte);
-		spin_unlock(mpi->ptlp);
-		__scid_flush_tlb_page(mpi->vma, mpi->addr);
+		/* disable write */
+		pte = pte_wrprotect(pte);
+
+		/* enable exec */
+		if(likely(mpi->vma->vm_flags & VM_EXEC))
+			pte = pte_mkexec(pte);
 	}
+
+	set_pte(mpi->ptep, pte);
+	spin_unlock(mpi->ptlp);
+	__scid_flush_tlb_page(mpi->vma, mpi->addr);
+
 }
 
 static void __do_pte_fixup(
@@ -962,7 +972,7 @@ void wrex_ptealtprot(
 	}
 
 __finish:
-	maybe_mkwrite_mypte(pgs->pap->write, mpi, kp);
+	__wrex_mypte_enforce(pgs->pap->write, mpi, kp);
 
 __finish_unlock:
 	__end_unlock_put_free_aspcs(pgs, &addr_spcs_head, mmslk, folio, kp);
