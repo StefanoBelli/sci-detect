@@ -106,7 +106,10 @@ EXAMPLES_SNAPSHOT= \
 	   examplesnap-vfork-v6-multiplepages.example \
 	   examplesnap-vfork-pvrw.example \
 	   examplesnap-vfork-read.example \
-	   examplesnap-single-prefault.example
+	   examplesnap-single-prefault.example \
+	   examplesnap-single-sameip-v3.example \
+	   examplesnap-shm-posix-noncorr-1-faultaround.example \
+	   examplesnap-shm-posix-noncorr-2-faultaround.example
 
 ALL_EXAMPLES= $(EXAMPLES) $(EXAMPLES_SNAPSHOT)
 
