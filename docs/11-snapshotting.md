@@ -441,3 +441,32 @@ int main()
   - Correct behavious should be similar to what the ```cpr``` hook do, and what happens on reads...
 
  Even though it should not be bad, it may lead to losing some events and should get proper handling of the situation.
+
+## Fault-around support in snapshotting
+
+ We don't need to add more hooks or whatever. From the caller bitmap we know when ```filemap_map_pages``` is being called: in the ```set_pte_range``` hook, just keep track of all the PTEs if 
+ the kernel control path went through ```filemap_map_pages```. 
+
+ Later on, when returning from ```handle_pte_fault```, at the very end, go through that list and do the inspection like 
+ ```change_pte_range``` (either noneprot or pte fixup if already inited).
+
+ If retval includes ```VM_FAULT_ERROR```, just skip to the very end of the hook.
+
+ Else If retval includes ```VM_FAULT_RETRY```, go to the faulted around PTEs inspection (the "main" vm fault-interested PTE is still not present, but handler may have faulted around), end.
+
+ Else If retval includes ```VM_FAULT_NOPAGE```, then ```vmf->pte``` is potentially not valid anymore, go through ```pte_offset_map_lock```, ```wrex_ptealtprot```, ..., then go to the faulted around PTEs, end.
+
+ Otherwise just inspect ```vmf->pte```, ```wrex_ptealtprot```, ..., then go to the faulted around PTEs (there should be none, actually, in normal situations like this: list is empty), end.
+
+ **RECALL** if ```vma_wants_writenotify```, even if ```vma->vm_flags & VM_WRITE``` is not zero, hw pte will have write bit disabled to track writes/dirty pages/etc etc... so we won't get the wx detection
+ if the frame is "fresh-new".
+
+ If the frame is fresh-new:
+   * If mapped on the hw pte as ```rwx``` => ptealtprot inited (noneprot on all ptes)
+   * If mapped of the hw pte as ```r-x``` or ```r--``` => not detected (will be detected at the next write, to e.g., inject the shellcode)
+
+ If the frame is **not** fresh-new:
+   * If already wx-detected => enforce hw pte protection bits
+   * Otherwise, overlap new hw pte prot bits:
+    - If they do not reach wx-state => DO NOTHING
+    - Otherwise => noneprot on all ptes including this one (init ptealtprot state)

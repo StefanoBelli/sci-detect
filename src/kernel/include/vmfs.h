@@ -4,13 +4,35 @@
 #include <linux/mm.h>
 #include <kcps.h>
 #include <logging.h>
+#include <ptealtprot.h>
+
+#ifdef DO_PTE_ALT_PROT
+#include <linux/types.h>
+
+struct faulted_around_pte {
+	/* the ptep */
+	pte_t *ptep;
+
+	/* its associated va */
+	unsigned long addr;
+
+	/* ll node */
+	struct list_head node;
+};
+#endif
 
 /* exposed, not opaque, to avoid function call overhead */
 struct vm_fault_entry {
 	/* "key" of the main kernel control path */
 	struct vm_fault *vmf;
 
+	/* passed by the hpf ehkrphook to hkrphook */
 	enum fault_flag orig_flags;
+
+#ifdef DO_PTE_ALT_PROT
+	/* faulted around ptes head */
+	struct list_head fa_ptes_head;
+#endif
 
 	/* private hooks data, depends on kernel control path */
 	void *private;
@@ -20,6 +42,10 @@ struct vm_fault_entry {
 #define vmf(entry) ((entry)->vmf)
 #define private(entry) ((entry)->private)
 #define orig_flags(entry) ((entry)->orig_flags)
+
+#ifdef DO_PTE_ALT_PROT
+#define fa_ptes_head(entry) ((entry)->fa_ptes_head)
+#endif
 
 static bool __vmf_kcp_comparator(struct kcp_entry *kcpe, u64 key)
 {
@@ -64,6 +90,10 @@ static inline struct vm_fault_entry* add_vmf(struct vm_fault* vmf, enum fault_fl
 	vmf(vmfe) = vmf;
 	private(vmfe) = NULL;
 	orig_flags(vmfe) = ff;
+
+#ifdef DO_PTE_ALT_PROT
+	INIT_LIST_HEAD(&fa_ptes_head(vmfe));
+#endif
 
 	kcpe = add_kcp((u64) vmf, vmfe);
 	if(unlikely(!kcpe)) {

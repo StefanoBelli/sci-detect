@@ -158,6 +158,12 @@ static int set_pte_range__ehkrphook(
 	show_kp_nmissed(set_pte_range__krp.kp, "set_pte_range");
 
 	struct vm_fault *vmf = (struct vm_fault*) regs->di;
+	unsigned int nr = (unsigned int) regs->cx;
+
+#ifdef DO_PTE_ALT_PROT
+	unsigned long addr = regs->r8;
+#endif
+
 	struct vm_fault_entry *entry;
 
 	entry = got_this_vmf(vmf);
@@ -168,11 +174,29 @@ static int set_pte_range__ehkrphook(
 	if(!is_legit_kcp(caller_bitmap))
 		return 1;
 
+#ifdef DO_PTE_ALT_PROT
+	if(is_fault_around_kcp(caller_bitmap)) {
+		for(unsigned int i = 0; i < nr; i++) {
+			struct faulted_around_pte *fa_pte;
+			fa_pte = kmalloc(sizeof(struct faulted_around_pte), GFP_ATOMIC);
+			if(!fa_pte) {
+				scid_err("memory exhausted, ignoring...");
+				continue;
+			}
+
+			INIT_LIST_HEAD(&fa_pte->node);
+			fa_pte->addr = addr + i * PAGE_SIZE;
+			fa_pte->ptep = vmf->pte + i;
+			list_add(&fa_pte->node, &fa_ptes_head(entry));
+		}
+	}
+#endif
+
 	__testing("entry-ok");
 
 	struct set_pte_range_args args = {
 		.vmf = vmf,
-		.nr = (unsigned int) regs->cx,
+		.nr = nr,
 	};
 
 	memcpy(krpi->data, &args, sizeof(struct set_pte_range_args));
