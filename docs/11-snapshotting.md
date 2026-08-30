@@ -149,7 +149,6 @@
   ```mmC```: 3 (belongs to whatever thread)
 
   ThrBeta:
-    
     1. ```mmB->mmap_lock``` is acquired by #PF handler
     2. ```mmA->mmap_lock``` acquire
     3. ```mmC->mmap_lock``` acquire
@@ -157,7 +156,6 @@
   *Lock acquisition ordering for ThrBeta is B,A,C*
 
   ThrAlpha:
-
     1. ```mmA->mmap_lock``` acquire
     2. ```mmB->mmap_lock``` acquire
     3. ```mmC->mmap_lock``` acquire
