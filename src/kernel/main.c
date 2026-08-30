@@ -49,6 +49,12 @@ static inline void print_build_specific_infos(void)
 	scid_info(BUILD STRICTNESS_OFF "no-cpr-trylock");
 #endif
 
+#ifdef PAP_IN_HPF_MMSLK_DONT_TRYLOCK
+	scid_info(BUILD STRICTNESS_ON "no-hpf-trylock");
+#else
+	scid_info(BUILD STRICTNESS_OFF "no-hpf-trylock");
+#endif
+
 #ifdef DISABLE_PTE_ALT_PROT
 	scid_info(BUILD FEATURE_OFF "ptealtprot");
 #else

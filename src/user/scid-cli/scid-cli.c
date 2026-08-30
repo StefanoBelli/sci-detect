@@ -2,12 +2,13 @@
 
 #include <getopt.h>
 #include <string.h>
+#include <yara.h>
 
 #include "scid-cli.h"
 
 /* args for the cli */
 
-static const char *short_opts = "bupfgtaosedxkvlnh";
+static const char *short_opts = "bupfgtaosedxkvlnycrmh";
 
 static const struct option opts[] = {
 	{ "sub-bcast", no_argument, NULL, 'b' },
@@ -23,6 +24,10 @@ static const struct option opts[] = {
 	{ "disable-hexdump", no_argument, NULL, 'd' },
 	{ "enable-disasm", no_argument, NULL, 'x' },
 	{ "disable-disasm", no_argument, NULL, 'k' },
+	{ "enable-yara", no_argument, NULL, 'y' },
+	{ "disable-yara", no_argument, NULL, 'c' },
+	{ "yara-source-rules", required_argument, NULL, 'r' },
+	{ "yara-compiled-rules", required_argument, NULL, 'm' },
 	{ "disasm-base-va", required_argument, NULL, 'v' },
 	{ "disasm-length", required_argument, NULL, 'l' },
 	{ "hexdump-length", required_argument, NULL, 'n' },
@@ -33,11 +38,28 @@ static const struct option opts[] = {
 
 static int do_hexdump = 1;
 static int do_disasm = 1;
+static int do_yara = 0;
+static char* yara_source_path = NULL;
+static char* yara_compiled_path = NULL;
 static unsigned long disasm_base_va = 0;
 static size_t hexdump_buf_len = SCID_PAGE_SIZE;
 static size_t disasm_buf_len = SCID_PAGE_SIZE;
+static YR_RULES *yara_rules = NULL;
 
 /* impls */
+
+static int yara_callback(
+		__unused YR_SCAN_CONTEXT *ctx, int msg, void *data, __unused void *udata)
+{
+	YR_RULE *rule;
+
+	if (msg == CALLBACK_MSG_RULE_MATCHING) {
+		rule = (YR_RULE*)data;
+		printf("WARNING: yara rule \"%s\" matches\n", rule->identifier);
+	}
+
+	return CALLBACK_CONTINUE;
+}
 
 static const char* requires_arg_str(int val)
 {
@@ -152,6 +174,10 @@ static void snapshot_pretty_print(
 		if(do_disasm)
 			print_disasm(
 					snap->buffer, disasm_base_va, disasm_buf_len);
+
+		if(do_yara)
+			yr_rules_scan_mem(
+					yara_rules, (const uint8_t*) snap->buffer, SCID_PAGE_SIZE, 0, yara_callback, NULL, 0);
 	}
 
 }
@@ -278,6 +304,74 @@ static void register_all_handlers(void *desc)
 				desc, SCID_GENL_CMD_GET_CUR_PAGE_SNAPSHOT, get_cur_page_snapshot_handler);
 }
 
+static void prepare_yara(void)
+{
+	YR_COMPILER *compiler = NULL;
+	FILE *src_rules_fp;
+	int err;
+
+	if (yr_initialize() != ERROR_SUCCESS) {
+		fputs("unable to init yara library\n", stderr);
+		goto __yara_error_clearflag;
+	}
+
+	if (yr_compiler_create(&compiler) != ERROR_SUCCESS) {
+		fputs("unable to create yara compiler\n", stderr);
+		goto __yara_error_finalize;
+	}
+
+	if(!yara_source_path && !yara_compiled_path) {
+		fputs("both yara source/compiled unspecified\n", stderr);
+		goto __yara_error_finalize;
+	}
+
+	if(yara_compiled_path)
+		goto __yara_load_compiled_rules;
+
+	src_rules_fp = fopen(yara_source_path, "r");
+	if (!src_rules_fp) {
+		fprintf(stderr, "unable to open source yara rules file\n");
+		goto __yara_error_destroy;
+	}
+
+	err = yr_compiler_add_file(compiler, src_rules_fp, NULL, yara_source_path);
+	fclose(src_rules_fp);
+
+	if (err > 0) {
+		fprintf(stderr, "yara source contains syntax errors (%d errors).\n", err);
+		goto __yara_error_destroy;
+	}
+
+	if (yr_compiler_get_rules(compiler, &yara_rules) != ERROR_SUCCESS) {
+		fputs("unable to compile yara rules from source\n", stderr);
+		goto __yara_error_destroy;
+	}
+
+	yr_compiler_destroy(compiler);
+
+__yara_load_compiled_rules:
+	err = yr_rules_load(yara_compiled_path, &yara_rules);
+	if (err != ERROR_SUCCESS) {
+		fprintf(stderr, "unable to load compiled yara rules: %d\n", err);
+		goto __yara_error_finalize;
+	}
+
+	return;
+
+__yara_error_destroy:
+	yr_compiler_destroy(compiler);
+__yara_error_finalize:
+	yr_finalize();
+__yara_error_clearflag:
+	do_yara = 0;
+}
+
+static void destroy_yara(void)
+{
+	yr_rules_destroy(yara_rules);
+	yr_finalize();
+}
+
 static void dispatch_cmd(const char* filename, void *desc, char c)
 {
 	switch(c) {
@@ -328,6 +422,26 @@ static void dispatch_cmd(const char* filename, void *desc, char c)
 			break;
 		case 'n':
 			hexdump_buf_len = to_ul(optarg);
+			break;
+		case 'y':
+			if(!do_yara) {
+				do_yara = 1;
+				prepare_yara();
+			}
+			break;
+		case 'c':
+			if(do_yara) {
+				do_yara = 0;
+				destroy_yara();
+			}
+			break;
+		case 'r':
+			yara_source_path = optarg;
+			yara_compiled_path = NULL;
+			break;
+		case 'm':
+			yara_compiled_path = optarg;
+			yara_source_path = NULL;
 			break;
 		case 'h':
 			print_help(filename);

@@ -109,6 +109,11 @@ ifneq ($(filter no-cpr-trylock, $(STRICTNESS_LIST)),)
     ccflags-y += -DPAP_IN_CPR_MMSLK_DONT_TRYLOCK
 endif
 
+ifneq ($(filter no-hpf-trylock, $(STRICTNESS_LIST)),)
+    $(info PAP_STRICTNESS=no-hpf-trylock ok)
+    ccflags-y += -DPAP_IN_HPF_MMSLK_DONT_TRYLOCK
+endif
+
 WARNINGS ?=
 WARNINGS_LIST := $(subst $(comma),$(space),$(WARNINGS))
 

@@ -170,6 +170,12 @@ __cleanup_and_continue:
 
 #endif
 
+#ifdef PAP_IN_HPF_MMSLK_DONT_TRYLOCK
+#	define mmslk_trylock false
+#else /* PAP_IN_HPF_MMSLK_DONT_TRYLOCK */
+#	define mmslk_trylock true
+#endif /* !PAP_IN_HPF_MMSLK_DONT_TRYLOCK */
+
 static int handle_pte_fault__hkrphook(
 		struct kretprobe_instance *krpi, __maybe_unused struct pt_regs *regs)
 {
@@ -252,10 +258,8 @@ static int handle_pte_fault__hkrphook(
 	 * handle_mm_fault (GUP and page fault handler) already to the mmap_read_lock on the
 	 * target_mm, but within the function (handle_mm_fault) it may happen that the rlock 
 	 * is released (so we need to rlock), see locked and comments above. 
-	 *
-	 * Never trylock.
 	 */
-	DEFINE_MMS_LOCK_CONTROL(mmslk, target_mm, target_vma, !locked, false);
+	DEFINE_MMS_LOCK_CONTROL(mmslk, target_mm, target_vma, !locked, mmslk_trylock);
 
 	/* if VM_FAULT_RETRY is set we may still have the fault arounded ptes to inspect, 
 	 * and if VM_FAULT_NOPAGE is NOT set, ptep is expected to be NOT NULL and VALID,
@@ -319,6 +323,8 @@ __end_fail:
 	del_vmf(vmfe);
 	return 0;
 }
+
+#undef mmslk_trylock
 
 struct kretprobe handle_pte_fault__krp = {
 	.entry_handler = handle_pte_fault__ehkrphook,
