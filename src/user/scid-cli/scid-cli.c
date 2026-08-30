@@ -325,8 +325,16 @@ static void prepare_yara(void)
 		goto __yara_error_finalize;
 	}
 
-	if(yara_compiled_path)
-		goto __yara_load_compiled_rules;
+	if(yara_compiled_path) {
+		err = yr_rules_load(yara_compiled_path, &yara_rules);
+		if (err != ERROR_SUCCESS) {
+			fprintf(stderr, "unable to load compiled yara rules: %d\n", err);
+			goto __yara_error_finalize;
+		}
+
+		printf("loaded yara rules from compiled file: %s\n", yara_compiled_path);
+		return;
+	}
 
 	src_rules_fp = fopen(yara_source_path, "r");
 	if (!src_rules_fp) {
@@ -348,14 +356,7 @@ static void prepare_yara(void)
 	}
 
 	yr_compiler_destroy(compiler);
-
-__yara_load_compiled_rules:
-	err = yr_rules_load(yara_compiled_path, &yara_rules);
-	if (err != ERROR_SUCCESS) {
-		fprintf(stderr, "unable to load compiled yara rules: %d\n", err);
-		goto __yara_error_finalize;
-	}
-
+	printf("compiled and loaded yara rules from source file: %s\n", yara_source_path);
 	return;
 
 __yara_error_destroy:
