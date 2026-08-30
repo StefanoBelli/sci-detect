@@ -133,6 +133,48 @@
 
   * In certain cases it is also needed (see cpr hook) to do the trylock on ```mmap_lock```s anyway to avoid potential deadlock condition
 
+  * Release happens in reverse acquisition-order
+
+  * **NOTE**: actually doing **trylock** in ```hpf``` hook. Potential deadlock issues due to the fact that "true ordering" of lock acquisition cannot actually be guranteed. What if the ```mmap_lock```
+  is already taken by the page fault handler??? Cannot gurantee same "sorted-by-mm-addr" ordering in every ```handle_pte_fault``` call.
+
+  Suppose in the system there are ThrAlpha, ThrBeta and more...
+
+  Suppose also there are the following address space descriptors:
+
+  ```mmA```: 1 (ThrAlpha's ```current->mm```)
+
+  ```mmB```: 2 (ThrBeta's ```current->mm```)
+
+  ```mmC```: 3 (belongs to whatever thread)
+
+  **ThrBeta**:
+
+  * ```mmB->mmap_lock``` is acquired by #PF handler
+
+  * ```mmA->mmap_lock``` acquire
+
+  * ```mmC->mmap_lock``` acquire
+
+  *Lock acquisition ordering for ThrBeta is B,A,C*
+
+  **ThrAlpha**:
+
+  * ```mmA->mmap_lock``` acquire
+
+  * ```mmB->mmap_lock``` acquire
+
+  * ```mmC->mmap_lock``` acquire
+
+  *Lock acquisition ordering for ThrAlpha is A,B,C*
+
+  Thus violating the lock ordering constraint. 
+
+  This can happen when the arch-dependent #PF handler code 
+  is unable to acquire the per-VMA lock, so it fallbacks to the big, coarse-grained ```current->mm->mmap_lock```.
+
+  Just do trylock and that's it.
+
 ## Reverse mapping
 
  Is being used to go from the ```folio``` to the ```mm_struct```(s) to the hw PTE entries (via ```page_vma_mapped_walk```)

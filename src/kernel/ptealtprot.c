@@ -244,7 +244,7 @@ static inline void unlock_all_mm_in_addr_spcs(
 	struct vm_area_struct *target_vma = mmslk->target_vma;
 	bool rlock_target_mm = mmslk->rlock_target_mm;
 
-	list_for_each_entry_safe(entry, tmp, addr_spcs_head, node) {
+	list_for_each_entry_safe_reverse(entry, tmp, addr_spcs_head, node) {
 		if(!rlock_target_mm && entry->mm == target_mm) {
 			if(!target_vma)
 				mmap_assert_locked(target_mm);
