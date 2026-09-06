@@ -292,7 +292,7 @@ static void ptes_walk_from_folio_locked(
 
 		/* the whole address space is not valid anymore */
 		if(!mmget_not_zero(entry->mm))
-			goto __failure_put;
+			continue;
 
 		/* lookup the vma if not already present 
 		 * (the per-VMA-locked target_vma is not present) */
