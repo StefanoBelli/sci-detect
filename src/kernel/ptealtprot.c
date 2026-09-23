@@ -346,14 +346,15 @@ static void noneprot_pte_one(
 		unsigned long addr,
 		__always_unused struct ptealtprot_struct *pap)
 {
-	pte_t pte = ptep_get(ptep);
+	pte_t pte = ptep_modify_prot_start(vma, addr, ptep);
 
 	if(INVALID_PTE(pte))
-		return;
+		goto __end;
 
 	pte = pte_set_flags(pte, _PAGE_NX);
 	pte = pte_wrprotect(pte);
 
+__end:
 	set_pte(ptep, pte);
 	__scid_flush_tlb_page(vma, addr);
 }
@@ -364,16 +365,17 @@ static void exonly_pte_one(
 		unsigned long addr,
 		__always_unused struct ptealtprot_struct *pap)
 {
-	pte_t pte = ptep_get(ptep);
+	pte_t pte = ptep_modify_prot_start(vma, addr, ptep);
 
 	if(INVALID_PTE(pte))
-		return;
+		goto __end;
 
 	if(vma->vm_flags & VM_EXEC) 
 		pte = pte_mkexec(pte);
 
 	pte = pte_wrprotect(pte);
 
+__end:
 	set_pte(ptep, pte);
 	__scid_flush_tlb_page(vma, addr);
 }
@@ -384,10 +386,10 @@ static void wrex_pte_one(
 		unsigned long addr,
 		struct ptealtprot_struct *pap)
 {
-	pte_t pte = ptep_get(ptep);
+	pte_t pte = ptep_modify_prot_start(vma, addr, ptep);
 
 	if(INVALID_PTE(pte))
-		return;
+		goto __end;
 
 	if(pap->write)
 		pte = pte_set_flags(pte, _PAGE_NX);
@@ -399,6 +401,7 @@ static void wrex_pte_one(
 	/* CoW reasons */
 	pte = pte_wrprotect(pte);
 
+__end:
 	set_pte(ptep, pte);
 	__scid_flush_tlb_page(vma, addr);
 }
@@ -690,11 +693,9 @@ static void __wrex_mypte_enforce(bool shdw_write, struct my_pte_info *mpi, struc
 
 	spin_lock(mpi->ptlp);
 
-	pte = ptep_get(mpi->ptep);
-	if(INVALID_PTE(pte)) {
-		spin_unlock(mpi->ptlp);
-		return;
-	}
+	pte = ptep_modify_prot_start(mpi->vma, mpi->addr, mpi->ptep);
+	if(INVALID_PTE(pte))
+		goto __end;
 
 	if(shdw_write) {
 		DEBUG_PAP(WREX, "making my own pte writable and non-exec");
@@ -729,15 +730,15 @@ static void __wrex_mypte_enforce(bool shdw_write, struct my_pte_info *mpi, struc
 			pte = pte_mkexec(pte);
 	}
 
+__end:
 	set_pte(mpi->ptep, pte);
 	spin_unlock(mpi->ptlp);
 	__scid_flush_tlb_page(mpi->vma, mpi->addr);
-
 }
 
-static void __do_pte_fixup(
-		pte_t pte, pte_t *ptep, struct vm_area_struct *vma,
-		spinlock_t *ptlp, struct page_status *pgs, unsigned long addr)
+static pte_t __do_pte_fixup(
+		pte_t pte, struct vm_area_struct *vma,
+		struct page_status *pgs)
 {
 	pte = pte_wrprotect(pte);
 
@@ -752,9 +753,8 @@ static void __do_pte_fixup(
 		}
 	}
 
-	set_pte(ptep, pte);
-	spin_unlock(ptlp);
-	__scid_flush_tlb_page(vma, addr);
+	return pte;
+
 }
 
 static void __pte_fixup_locked(struct my_pte_info *mpi, struct page_status *pgs)
@@ -763,17 +763,21 @@ static void __pte_fixup_locked(struct my_pte_info *mpi, struct page_status *pgs)
 
 	spin_lock(mpi->ptlp);
 
-	pte = ptep_get(mpi->ptep);
+	pte = ptep_modify_prot_start(mpi->vma, mpi->addr, mpi->ptep);
 	if(INVALID_PTE(pte)) {
-		spin_unlock(mpi->ptlp);
 		DEBUG_PAP(PTE_FIXUP, "invalid pte");
-		return;
+		goto __end;
 	}
 
-	__do_pte_fixup(pte, mpi->ptep, mpi->vma, mpi->ptlp, pgs, mpi->addr);
+	pte = __do_pte_fixup(pte, mpi->vma, pgs);
 
 	DEBUG_PAP_FMT(PTE_FIXUP, "fixup: pap->noprot=%d, pap->write=%d, vma has VM_EXEC=%ld",
 			pgs->pap->noprot, pgs->pap->write, mpi->vma->vm_flags & VM_EXEC);
+
+__end:
+	set_pte(mpi->ptep, pte);
+	spin_unlock(mpi->ptlp);
+	__scid_flush_tlb_page(mpi->vma, mpi->addr);
 }
 
 #endif /* DO_PTE_ALT_PROT */
@@ -1222,22 +1226,23 @@ static void pte_fixup_sameip_twork(struct callback_head *cb_head)
 	spin_lock(ptlp);
 
 	/* read pte */
-	pte = ptep_get(ptep);
+	pte = ptep_modify_prot_start(vma, ip, ptep);
 
 	/* Recheck pte under ptl */
 	if(INVALID_PTE(pte) || 
 			!pte_exec(pte) || !pte_write(pte) || 
-			pte_page(pte) != page) {
-
-		spin_unlock(ptlp);
-		goto __unlockpap_putpgs_unlockmm;
-	}
+			pte_page(pte) != page)
+		goto __end;
 
 	/* __do_pte_fixup releases the ptl */
-	__do_pte_fixup(pte, ptep, vma, ptlp, pgs, ip);
+	pte = __do_pte_fixup(pte, vma, pgs);
+
+__end:
+	set_pte(ptep, pte);
+	spin_unlock(ptlp);
+	__scid_flush_tlb_page(vma, ip);
 
 	/* cleanup... */
-__unlockpap_putpgs_unlockmm:
 	mutex_unlock(&pgs->pap->lock);
 __putpgs_unlockmm:
 	page_status_put(pgs);
