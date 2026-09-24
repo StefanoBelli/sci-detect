@@ -500,20 +500,11 @@ static void __end_unlock_put_free_aspcs(
 	free_addr_spcs_list(addr_spcs_head, kp);
 }
 
-#ifndef DISABLE_PAGE_SNAPSHOT
-#	define DEFINE_INITIATED_RIGHT_NOW() bool initiated_right_now = false
-#else
-#	define DEFINE_INITIATED_RIGHT_NOW()
-#endif
-
-#ifndef DISABLE_PAGE_SNAPSHOT
-#	define SET_INITIATED_RIGHT_NOW() \
-		do { \
-			initiated_right_now = true; \
-		} while(0)
-#else
-#	define SET_INITIATED_RIGHT_NOW()
-#endif
+#define DEFINE_INITIATED_RIGHT_NOW() bool initiated_right_now = false
+#define SET_INITIATED_RIGHT_NOW() \
+	do { \
+		initiated_right_now = true; \
+	} while(0)
 
 #ifdef DEBUG_PRINTS_PTEALTPROT
 
